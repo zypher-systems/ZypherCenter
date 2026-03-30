@@ -1,12 +1,14 @@
 import { Link } from 'react-router'
 import { Server, Monitor, Box, Database, CheckCircle, AlertCircle, Activity } from 'lucide-react'
+import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts'
 import { useClusterResources, useClusterStatus } from '@/lib/queries/cluster'
 import { useClusterTasks } from '@/lib/queries/tasks'
+import { useNodeRrdData } from '@/lib/queries/nodes'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { ResourceGauge } from '@/components/ui/ResourceGauge'
 import { SkeletonCard } from '@/components/ui/Skeleton'
-import { formatBytes, formatTimestamp } from '@/lib/utils'
+import { formatBytes, formatPercent, formatTimestamp } from '@/lib/utils'
 import type { ClusterResource } from '@zyphercenter/proxmox-types'
 
 // ── Summary stat card ─────────────────────────────────────────────────────────
@@ -40,6 +42,53 @@ function StatCard({ label, value, icon, sub, to }: {
   return <Card>{inner}</Card>
 }
 
+// ── Node chart sparkline ──────────────────────────────────────────────────────
+
+function NodeCpuSparkline({ node }: { node: string }) {
+  const { data } = useNodeRrdData(node, 'hour')
+  if (!data || data.length < 2) return null
+
+  const points = data
+    .filter((d) => d.cpu != null)
+    .map((d) => ({ t: d.time, cpu: Math.round((d.cpu ?? 0) * 1000) / 10 }))
+
+  if (points.length < 2) return null
+
+  return (
+    <div className="h-10 w-full mt-2">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={points} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id={`cpu-grad-${node}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="rgb(234 88 12)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="rgb(234 88 12)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <Area
+            type="monotone"
+            dataKey="cpu"
+            stroke="rgb(234 88 12)"
+            strokeWidth={1.5}
+            fill={`url(#cpu-grad-${node})`}
+            dot={false}
+            isAnimationActive={false}
+          />
+          <Tooltip
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null
+              return (
+                <div className="rounded bg-bg-elevated border border-border px-2 py-1 text-xs text-text-secondary">
+                  CPU {payload[0]?.value}%
+                </div>
+              )
+            }}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
 // ── Node card ─────────────────────────────────────────────────────────────────
 
 function NodeCard({ node }: { node: ClusterResource }) {
@@ -70,6 +119,7 @@ function NodeCard({ node }: { node: ClusterResource }) {
           <ResourceGauge label="CPU" used={cpuPct} total={1} format="percent" />
           <ResourceGauge label="Memory" used={memUsed} total={memTotal} />
           <ResourceGauge label="Root FS" used={diskUsed} total={diskTotal} />
+          <NodeCpuSparkline node={nodeName} />
         </CardContent>
       </Card>
     </Link>

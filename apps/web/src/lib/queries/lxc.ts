@@ -103,3 +103,34 @@ export function useDeleteLXCSnapshot(node: string, vmid: number) {
     onSuccess: () => qc.invalidateQueries({ queryKey: lxcKeys.snapshots(node, vmid) }),
   })
 }
+
+export interface CreateLXCParams {
+  vmid: number
+  hostname: string
+  password: string
+  memory: number
+  swap: number
+  cores: number
+  rootfs: string
+  ostemplate: string
+  net0?: string
+  onboot?: number
+  unprivileged?: number
+  start?: number
+}
+
+export function useCreateLXC(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: CreateLXCParams) =>
+      api.post<string>(`nodes/${node}/lxc`, params),
+    onSuccess: (_, vars) => {
+      toast.success(`CT ${vars.vmid} (${vars.hostname}) creation task started`)
+      qc.invalidateQueries({ queryKey: lxcKeys.list(node) })
+      qc.invalidateQueries({ queryKey: ['cluster', 'resources'] })
+    },
+    onError: (err) => {
+      toast.error(`Failed to create container — ${err.message}`)
+    },
+  })
+}

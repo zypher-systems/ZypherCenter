@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { Play, Square, RotateCcw, Power, Terminal, Search } from 'lucide-react'
 import { useClusterResources } from '@/lib/queries/cluster'
 import { useLXCStart, useLXCStop, useLXCShutdown, useLXCReboot } from '@/lib/queries/lxc'
+import { CreateLXCDialog } from '@/components/features/CreateLXCDialog'
 import { Card, CardContent } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -112,7 +113,9 @@ export function AllLXCPage() {
             {containers.length} total &mdash; <span className="text-status-running">{running} running</span>
           </p>
         </div>
-        <div className="relative">
+        <div className="flex items-center gap-2">
+          <CreateLXCDialog />
+          <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-text-muted" />
           <Input
             placeholder="Filter containers…"
@@ -120,6 +123,7 @@ export function AllLXCPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8 w-56"
           />
+        </div>
         </div>
       </div>
 

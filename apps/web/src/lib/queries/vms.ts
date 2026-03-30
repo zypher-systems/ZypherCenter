@@ -119,3 +119,41 @@ export function useRollbackVMSnapshot(node: string, vmid: number) {
     },
   })
 }
+
+export interface CreateVMParams {
+  vmid: number
+  name: string
+  memory: number
+  cores: number
+  sockets?: number
+  ostype?: string
+  scsi0?: string
+  net0?: string
+  cdrom?: string
+  ide2?: string
+  boot?: string
+  onboot?: number
+}
+
+export function useCreateVM(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: CreateVMParams) =>
+      api.post<string>(`nodes/${node}/qemu`, params),
+    onSuccess: (_, vars) => {
+      toast.success(`VM ${vars.vmid} (${vars.name}) creation task started`)
+      qc.invalidateQueries({ queryKey: vmKeys.list(node) })
+      qc.invalidateQueries({ queryKey: ['cluster', 'resources'] })
+    },
+    onError: (err) => {
+      toast.error(`Failed to create VM — ${err.message}`)
+    },
+  })
+}
+
+export function useNextVMId() {
+  return useQuery({
+    queryKey: ['cluster', 'nextid'],
+    queryFn: () => api.get<number>('cluster/nextid'),
+  })
+}

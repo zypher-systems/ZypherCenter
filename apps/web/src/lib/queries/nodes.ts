@@ -70,3 +70,24 @@ export function useNodeApplyNetwork(node: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: nodeKeys.network(node) }),
   })
 }
+
+export interface RrdDataPoint {
+  time: number
+  cpu?: number
+  memused?: number
+  maxmem?: number
+  netin?: number
+  netout?: number
+  maxcpu?: number
+  [key: string]: number | undefined
+}
+
+export function useNodeRrdData(node: string, timeframe: 'hour' | 'day' = 'hour') {
+  return useQuery({
+    queryKey: [...nodeKeys.all(node), 'rrddata', timeframe],
+    queryFn: () =>
+      api.get<RrdDataPoint[]>(`nodes/${node}/rrddata?timeframe=${timeframe}&cf=AVERAGE`),
+    refetchInterval: 30_000,
+    enabled: !!node,
+  })
+}
