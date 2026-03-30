@@ -9,6 +9,7 @@ import {
   HardDrive,
   Settings,
   ChevronLeft,
+  Activity,
 } from 'lucide-react'
 import {
   useLXCStatus,
@@ -34,6 +35,7 @@ import {
   TableRow,
 } from '@/components/ui/Table'
 import { formatBytes, formatPercent, formatUptime, formatTimestamp } from '@/lib/utils'
+import { ResourceCharts } from '@/components/features/ResourceCharts'
 
 function PlaceholderTab({ label }: { label: string }) {
   return (
@@ -303,6 +305,10 @@ export function LXCDetailPage() {
             <HardDrive className="size-3.5 mr-1.5" />
             Summary
           </TabsTrigger>
+          <TabsTrigger value="perf">
+            <Activity className="size-3.5 mr-1.5" />
+            Performance
+          </TabsTrigger>
           <TabsTrigger value="config">
             <Settings className="size-3.5 mr-1.5" />
             Config
@@ -323,6 +329,9 @@ export function LXCDetailPage() {
 
         <TabsContent value="summary">
           <SummaryTab node={node!} vmid={vmid} />
+        </TabsContent>
+        <TabsContent value="perf">
+          <ResourceCharts node={node!} vmid={vmid} type="lxc" />
         </TabsContent>
         <TabsContent value="config">
           <ConfigTab node={node!} vmid={vmid} />
