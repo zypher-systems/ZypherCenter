@@ -1,0 +1,111 @@
+@import '@fontsource-variable/inter';
+@import 'tailwindcss';
+
+/* ── Design Tokens ──────────────────────────────────────────────────────────── */
+@theme {
+  /* Backgrounds — layered dark surfaces */
+  --color-bg-base: rgb(9 9 11);
+  --color-bg-elevated: rgb(15 15 18);
+  --color-bg-card: rgb(20 20 25);
+  --color-bg-sidebar: rgb(12 12 16);
+  --color-bg-muted: rgb(27 27 33);
+  --color-bg-hover: rgb(32 32 40);
+
+  /* Borders */
+  --color-border: rgb(39 39 50);
+  --color-border-muted: rgb(30 30 40);
+
+  /* Text */
+  --color-text-primary: rgb(228 228 235);
+  --color-text-secondary: rgb(161 161 175);
+  --color-text-muted: rgb(113 113 130);
+  --color-text-disabled: rgb(71 71 85);
+
+  /* Accent — orange */
+  --color-accent: rgb(234 88 12);
+  --color-accent-hover: rgb(194 65 12);
+  --color-accent-muted: rgb(234 88 12 / 0.12);
+  --color-accent-fg: rgb(255 255 255);
+
+  /* Status indicators */
+  --color-status-running: rgb(34 197 94);
+  --color-status-running-muted: rgb(34 197 94 / 0.15);
+  --color-status-stopped: rgb(113 113 130);
+  --color-status-stopped-muted: rgb(113 113 130 / 0.15);
+  --color-status-paused: rgb(234 179 8);
+  --color-status-paused-muted: rgb(234 179 8 / 0.15);
+  --color-status-error: rgb(239 68 68);
+  --color-status-error-muted: rgb(239 68 68 / 0.15);
+  --color-status-migrating: rgb(59 130 246);
+  --color-status-migrating-muted: rgb(59 130 246 / 0.15);
+  --color-status-unknown: rgb(75 75 90);
+
+  /* Semantic colors */
+  --color-success: rgb(34 197 94);
+  --color-warning: rgb(234 179 8);
+  --color-danger: rgb(239 68 68);
+  --color-info: rgb(59 130 246);
+
+  /* Font */
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+
+  /* Radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+}
+
+/* ── Base Styles ─────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  margin: 0;
+  min-height: 100dvh;
+  line-height: 1.5;
+  font-size: 0.875rem;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(39 39 50) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgb(39 39 50);
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgb(60 60 75);
+}
+
+/* ── Focus Visible ────────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ── Utilities ────────────────────────────────────────────────────────────────── */
+.font-mono {
+  font-family: var(--font-mono);
+}

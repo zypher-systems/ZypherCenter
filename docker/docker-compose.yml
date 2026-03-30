@@ -1,0 +1,36 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: production
+      API_PORT: "3001"
+      CORS_ORIGIN: "http://localhost:80"
+      # Optional: pre-configure the Proxmox host so users don't need to type it on the login page.
+      # If omitted, users enter the host URL directly in the browser.
+      # PROXMOX_HOST: https://192.168.1.100:8006
+      # PROXMOX_TLS_VERIFY: "false"
+      # Optional: set a stable session secret so sessions survive container restarts.
+      # If omitted, a random secret is generated at startup (sessions reset on restart).
+      # SESSION_SECRET: "change-me-to-a-long-random-string"
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
