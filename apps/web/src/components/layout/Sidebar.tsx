@@ -222,6 +222,8 @@ export function Sidebar() {
 
   const datacenterNav: NavItem[] = [
     { label: 'Dashboard', to: '/', icon: <Layers />, exact: true },
+    { label: 'Virtual Machines', to: '/vms', icon: <Monitor /> },
+    { label: 'Containers', to: '/lxc', icon: <Box /> },
     { label: 'Storage', to: '/storage', icon: <Database /> },
     { label: 'Backup Jobs', to: '/cluster/backup', icon: <HardDrive /> },
     { label: 'Replication', to: '/cluster/replication', icon: <GitFork /> },

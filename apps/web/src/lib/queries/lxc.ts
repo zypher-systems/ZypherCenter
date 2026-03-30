@@ -1,6 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import type { LXCListItem, LXCConfig, LXCSnapshot, VNCProxy } from '@zyphercenter/proxmox-types'
+
+const ACTION_LABELS: Record<string, string> = {
+  start: 'Start',
+  stop: 'Force stop',
+  shutdown: 'Shutdown',
+  reboot: 'Reboot',
+  suspend: 'Suspend',
+  resume: 'Resume',
+}
 
 export const lxcKeys = {
   all: (node: string) => ['lxc', node] as const,
@@ -51,8 +61,13 @@ function useLXCAction(node: string, vmid: number, action: string) {
     mutationFn: () =>
       api.post<string>(`nodes/${node}/lxc/${vmid}/status/${action}`),
     onSuccess: () => {
+      toast.success(`CT ${vmid}: ${ACTION_LABELS[action] ?? action} initiated`)
       qc.invalidateQueries({ queryKey: lxcKeys.status(node, vmid) })
       qc.invalidateQueries({ queryKey: lxcKeys.list(node) })
+      qc.invalidateQueries({ queryKey: ['cluster', 'resources'] })
+    },
+    onError: (err) => {
+      toast.error(`CT ${vmid}: ${ACTION_LABELS[action] ?? action} failed — ${err.message}`)
     },
   })
 }

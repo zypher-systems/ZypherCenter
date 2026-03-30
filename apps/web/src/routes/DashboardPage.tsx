@@ -11,26 +11,33 @@ import type { ClusterResource } from '@zyphercenter/proxmox-types'
 
 // ── Summary stat card ─────────────────────────────────────────────────────────
 
-function StatCard({ label, value, icon, sub }: {
+function StatCard({ label, value, icon, sub, to }: {
   label: string
   value: string | number
   icon: React.ReactNode
   sub?: string
+  to?: string
 }) {
-  return (
-    <Card>
-      <CardContent className="pt-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs text-text-muted font-medium">{label}</p>
-            <p className="mt-1 text-2xl font-semibold text-text-primary tabular-nums">{value}</p>
-            {sub && <p className="text-xs text-text-muted mt-0.5">{sub}</p>}
-          </div>
-          <span className="text-text-muted [&_svg]:size-5">{icon}</span>
+  const inner = (
+    <CardContent className="pt-5">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-xs text-text-muted font-medium">{label}</p>
+          <p className="mt-1 text-2xl font-semibold text-text-primary tabular-nums">{value}</p>
+          {sub && <p className="text-xs text-text-muted mt-0.5">{sub}</p>}
         </div>
-      </CardContent>
-    </Card>
+        <span className="text-text-muted [&_svg]:size-5">{icon}</span>
+      </div>
+    </CardContent>
   )
+  if (to) {
+    return (
+      <Link to={to} className="block group">
+        <Card className="transition-colors hover:border-accent/40">{inner}</Card>
+      </Link>
+    )
+  }
+  return <Card>{inner}</Card>
 }
 
 // ── Node card ─────────────────────────────────────────────────────────────────
@@ -105,9 +112,9 @@ export function DashboardPage() {
       {/* Summary stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="Nodes" value={nodes.length} icon={<Server />} sub={`${nodes.filter(n => n.status !== 'offline').length} online`} />
-        <StatCard label="Virtual Machines" value={vms.length} icon={<Monitor />} sub={`${runningVMs} running`} />
-        <StatCard label="Containers" value={lxcs.length} icon={<Box />} sub={`${runningLXCs} running`} />
-        <StatCard label="Storage" value={storages.length} icon={<Database />} sub="configured" />
+        <StatCard label="Virtual Machines" value={vms.length} icon={<Monitor />} sub={`${runningVMs} running`} to="/vms" />
+        <StatCard label="Containers" value={lxcs.length} icon={<Box />} sub={`${runningLXCs} running`} to="/lxc" />
+        <StatCard label="Storage" value={storages.length} icon={<Database />} sub="configured" to="/storage" />
       </div>
 
       {/* Node cards */}

@@ -23,11 +23,13 @@ import { NodeTasksPage } from '@/routes/NodeTasksPage'
 import { VMListPage } from '@/routes/VMListPage'
 import { VMDetailPage } from '@/routes/VMDetailPage'
 import { VMConsolePage } from '@/routes/VMConsolePage'
+import { AllVMsPage } from '@/routes/AllVMsPage'
 
 // LXC pages
 import { LXCListPage } from '@/routes/LXCListPage'
 import { LXCDetailPage } from '@/routes/LXCDetailPage'
 import { LXCConsolePage } from '@/routes/LXCConsolePage'
+import { AllLXCPage } from '@/routes/AllLXCPage'
 
 // Storage
 import { StorageListPage } from '@/routes/StorageListPage'
@@ -95,6 +97,10 @@ export const router = createBrowserRouter([
     children: [
       // Dashboard
       { index: true, element: <DashboardPage /> },
+
+      // Cluster-wide VM and LXC lists
+      { path: 'vms', element: <AllVMsPage /> },
+      { path: 'lxc', element: <AllLXCPage /> },
 
       // Storage
       { path: 'storage', element: <StorageListPage /> },

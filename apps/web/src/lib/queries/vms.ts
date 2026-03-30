@@ -1,6 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import type { VMListItem, VMStatusCurrent, VMConfig, VMSnapshot, VNCProxy } from '@zyphercenter/proxmox-types'
+
+const ACTION_LABELS: Record<string, string> = {
+  start: 'Start',
+  stop: 'Force stop',
+  shutdown: 'Shutdown',
+  reboot: 'Reboot',
+  reset: 'Reset',
+  suspend: 'Suspend',
+  resume: 'Resume',
+}
 
 export const vmKeys = {
   all: (node: string) => ['vms', node] as const,
@@ -53,8 +64,13 @@ function useVMAction(node: string, vmid: number, action: string) {
     mutationFn: () =>
       api.post<string>(`nodes/${node}/qemu/${vmid}/status/${action}`),
     onSuccess: () => {
+      toast.success(`VM ${vmid}: ${ACTION_LABELS[action] ?? action} initiated`)
       qc.invalidateQueries({ queryKey: vmKeys.status(node, vmid) })
       qc.invalidateQueries({ queryKey: vmKeys.list(node) })
+      qc.invalidateQueries({ queryKey: ['cluster', 'resources'] })
+    },
+    onError: (err) => {
+      toast.error(`VM ${vmid}: ${ACTION_LABELS[action] ?? action} failed — ${err.message}`)
     },
   })
 }
