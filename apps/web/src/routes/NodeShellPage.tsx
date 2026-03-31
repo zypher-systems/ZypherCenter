@@ -26,8 +26,8 @@ export function NodeShellPage() {
         setStatus('connecting')
         setStatusText('Requesting shell session…')
 
-        // Request shell VNC proxy ticket
-        const res = await fetch(`/api/proxmox/nodes/${node}/vncshell`, {
+        // Request terminal proxy ticket (termproxy uses raw binary stream, compatible with xterm.js)
+        const res = await fetch(`/api/proxmox/nodes/${node}/termproxy`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ websocket: 1 }),
