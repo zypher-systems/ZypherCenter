@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router'
 import {
   Play,
@@ -21,6 +22,9 @@ import {
   useLXCReboot,
   useLXCFirewallRules,
   useLXCFirewallOptions,
+  useCreateLXCSnapshot,
+  useDeleteLXCSnapshot,
+  useRollbackLXCSnapshot,
 } from '@/lib/queries/lxc'
 import { useClusterBackupJobs } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered } from '@/lib/queries/nodes'
@@ -364,46 +368,187 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
   )
 }
 
+// ── Options tab ──────────────────────────────────────────────────────────────
+
+function LXCOptionsTab({ node, vmid }: { node: string; vmid: number }) {
+  const { data: config } = useLXCConfig(node, vmid)
+  if (!config) return null
+
+  const cfgRecord = config as Record<string, unknown>
+
+  const rows: { key: string; label: string; fmt?: (v: unknown) => string }[] = [
+    { key: 'onboot',       label: 'Start at boot',     fmt: (v) => v ? 'Yes' : 'No' },
+    { key: 'protection',   label: 'Protection',         fmt: (v) => v ? 'Enabled' : 'Disabled' },
+    { key: 'unprivileged', label: 'Unprivileged',       fmt: (v) => v ? 'Yes' : 'No' },
+    { key: 'timezone',     label: 'Timezone',           fmt: (v) => String(v ?? '—') },
+    { key: 'startup',      label: 'Startup order',      fmt: (v) => String(v ?? '—') },
+    { key: 'tags',         label: 'Tags',               fmt: (v) => String(v ?? '—') },
+    { key: 'description',  label: 'Description',        fmt: (v) => String(v ?? '—') },
+    { key: 'hookscript',   label: 'Hook script',        fmt: (v) => String(v ?? '—') },
+    { key: 'hostname',     label: 'Hostname',           fmt: (v) => String(v ?? '—') },
+    { key: 'lock',         label: 'Lock',               fmt: (v) => String(v ?? '—') },
+    { key: 'features',     label: 'Features',           fmt: (v) => String(v ?? '—') },
+  ]
+
+  return (
+    <Card>
+      <CardHeader><CardTitle>Container Options</CardTitle></CardHeader>
+      <CardContent className="p-0">
+        <div className="divide-y divide-border-muted">
+          {rows.map(({ key, label, fmt }) => {
+            const val = cfgRecord[key]
+            if (val == null) return null
+            return (
+              <div key={key} className="flex items-start justify-between px-4 py-2.5 text-sm gap-4">
+                <span className="text-text-muted shrink-0">{label}</span>
+                <span className="text-text-primary text-right font-medium break-all">
+                  {fmt ? fmt(val) : String(val)}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 function SnapshotsTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: snapshots, isLoading } = useLXCSnapshots(node, vmid)
+  const createSnap = useCreateLXCSnapshot(node, vmid)
+  const deleteSnap = useDeleteLXCSnapshot(node, vmid)
+  const rollbackSnap = useRollbackLXCSnapshot(node, vmid)
+
+  const [showForm, setShowForm] = useState(false)
+  const [snapname, setSnapname] = useState('')
+  const [description, setDescription] = useState('')
+
+  function handleCreate() {
+    if (!snapname.trim()) return
+    createSnap.mutate(
+      { snapname: snapname.trim(), description: description.trim() || undefined },
+      {
+        onSuccess: () => {
+          setSnapname('')
+          setDescription('')
+          setShowForm(false)
+        },
+      }
+    )
+  }
 
   if (isLoading) return <SkeletonCard />
 
   const snaps = snapshots?.filter((s) => s.name !== 'current') ?? []
 
   return (
-    <Card>
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Date</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {snaps.length === 0 ? (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowForm((v) => !v)}
+          className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent/90"
+        >
+          <Camera className="size-3.5" />
+          Take Snapshot
+        </button>
+      </div>
+
+      {showForm && (
+        <Card>
+          <CardHeader><CardTitle>New Snapshot</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Name *</label>
+              <input
+                className="w-full rounded-md border border-border-muted bg-bg-input px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent"
+                placeholder="snapshot-name"
+                value={snapname}
+                onChange={(e) => setSnapname(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Description</label>
+              <input
+                className="w-full rounded-md border border-border-muted bg-bg-input px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent"
+                placeholder="Optional description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleCreate}
+                disabled={createSnap.isPending || !snapname.trim()}
+                className="inline-flex items-center rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+              >
+                {createSnap.isPending ? 'Creating…' : 'Create'}
+              </button>
+              <button
+                onClick={() => setShowForm(false)}
+                className="inline-flex items-center rounded-md border border-border-muted px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover"
+              >
+                Cancel
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={3} className="text-center text-text-muted py-10">
-                  No snapshots
-                </TableCell>
+                <TableHead>Name</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead />
               </TableRow>
-            ) : (
-              snaps.map((s) => (
-                <TableRow key={s.name}>
-                  <TableCell className="font-medium">{s.name}</TableCell>
-                  <TableCell className="text-text-muted">{s.description ?? '—'}</TableCell>
-                  <TableCell className="text-text-secondary tabular-nums">
-                    {s.snaptime ? formatTimestamp(s.snaptime) : '—'}
+            </TableHeader>
+            <TableBody>
+              {snaps.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-text-muted py-10">
+                    No snapshots
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+              ) : (
+                snaps.map((s) => (
+                  <TableRow key={s.name}>
+                    <TableCell className="font-medium">{s.name}</TableCell>
+                    <TableCell className="text-text-muted">{s.description ?? '—'}</TableCell>
+                    <TableCell className="text-text-secondary tabular-nums">
+                      {s.snaptime ? formatTimestamp(s.snaptime) : '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="inline-flex gap-1.5">
+                        <button
+                          onClick={() => rollbackSnap.mutate(s.name)}
+                          disabled={rollbackSnap.isPending}
+                          className="inline-flex items-center gap-1 rounded border border-border-muted px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-hover disabled:opacity-50"
+                        >
+                          <RotateCcw className="size-3" />
+                          Rollback
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete snapshot "${s.name}"?`)) deleteSnap.mutate(s.name)
+                          }}
+                          disabled={deleteSnap.isPending}
+                          className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 
@@ -505,6 +650,10 @@ export function LXCDetailPage() {
             <Settings className="size-3.5 mr-1.5" />
             Config
           </TabsTrigger>
+          <TabsTrigger value="options">
+            <Settings className="size-3.5 mr-1.5" />
+            Options
+          </TabsTrigger>
           <TabsTrigger value="snapshots">
             <Camera className="size-3.5 mr-1.5" />
             Snapshots
@@ -527,6 +676,9 @@ export function LXCDetailPage() {
         </TabsContent>
         <TabsContent value="config">
           <ConfigTab node={node!} vmid={vmid} />
+        </TabsContent>
+        <TabsContent value="options">
+          <LXCOptionsTab node={node!} vmid={vmid} />
         </TabsContent>
         <TabsContent value="snapshots">
           <SnapshotsTab node={node!} vmid={vmid} />

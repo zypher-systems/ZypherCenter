@@ -24,6 +24,9 @@ import {
   useVMReboot,
   useVMFirewallRules,
   useVMFirewallOptions,
+  useCreateVMSnapshot,
+  useDeleteVMSnapshot,
+  useRollbackVMSnapshot,
 } from '@/lib/queries/vms'
 import { useClusterBackupJobs } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered } from '@/lib/queries/nodes'
@@ -153,35 +156,142 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
 
 function SnapshotsTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: snapshots } = useVMSnapshots(node, vmid)
+  const createSnap = useCreateVMSnapshot(node, vmid)
+  const deleteSnap = useDeleteVMSnapshot(node, vmid)
+  const rollbackSnap = useRollbackVMSnapshot(node, vmid)
+
+  const [showForm, setShowForm] = useState(false)
+  const [snapname, setSnapname] = useState('')
+  const [description, setDescription] = useState('')
+  const [vmstate, setVmstate] = useState(false)
+
+  function handleCreate() {
+    if (!snapname.trim()) return
+    createSnap.mutate(
+      { snapname: snapname.trim(), description: description.trim() || undefined, vmstate: vmstate ? 1 : 0 },
+      {
+        onSuccess: () => {
+          setSnapname('')
+          setDescription('')
+          setVmstate(false)
+          setShowForm(false)
+        },
+      }
+    )
+  }
+
+  const listed = snapshots?.filter((s) => s.name !== 'current') ?? []
 
   return (
-    <Card>
-      <CardContent className="p-0">
-        <div className="divide-y divide-border-muted">
-          {!snapshots?.length ? (
-            <p className="text-center text-text-muted text-sm py-10">No snapshots</p>
-          ) : (
-            snapshots.map((snap) => (
-              <div key={snap.name} className="flex items-center justify-between px-4 py-3 text-sm">
-                <div>
-                  <p className="font-medium text-text-primary">{snap.name}</p>
-                  {snap.description && (
-                    <p className="text-xs text-text-muted">{snap.description}</p>
-                  )}
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowForm((v) => !v)}
+          className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent/90"
+        >
+          <Camera className="size-3.5" />
+          Take Snapshot
+        </button>
+      </div>
+
+      {showForm && (
+        <Card>
+          <CardHeader><CardTitle>New Snapshot</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Name *</label>
+              <input
+                className="w-full rounded-md border border-border-muted bg-bg-input px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent"
+                placeholder="snapshot-name"
+                value={snapname}
+                onChange={(e) => setSnapname(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Description</label>
+              <input
+                className="w-full rounded-md border border-border-muted bg-bg-input px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent"
+                placeholder="Optional description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="vmstate-cb"
+                type="checkbox"
+                checked={vmstate}
+                onChange={(e) => setVmstate(e.target.checked)}
+                className="accent-accent"
+              />
+              <label htmlFor="vmstate-cb" className="text-sm text-text-secondary cursor-pointer">
+                Include RAM (vmstate)
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleCreate}
+                disabled={createSnap.isPending || !snapname.trim()}
+                className="inline-flex items-center rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+              >
+                {createSnap.isPending ? 'Creating…' : 'Create'}
+              </button>
+              <button
+                onClick={() => setShowForm(false)}
+                className="inline-flex items-center rounded-md border border-border-muted px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover"
+              >
+                Cancel
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardContent className="p-0">
+          <div className="divide-y divide-border-muted">
+            {listed.length === 0 ? (
+              <p className="text-center text-text-muted text-sm py-10">No snapshots</p>
+            ) : (
+              listed.map((snap) => (
+                <div key={snap.name} className="flex items-center justify-between px-4 py-3 text-sm">
+                  <div>
+                    <p className="font-medium text-text-primary">{snap.name}</p>
+                    {snap.description && (
+                      <p className="text-xs text-text-muted">{snap.description}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {snap.snaptime && (
+                      <span className="text-xs text-text-muted mr-2">
+                        {new Date(snap.snaptime * 1000).toLocaleDateString()}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => rollbackSnap.mutate(snap.name)}
+                      disabled={rollbackSnap.isPending}
+                      className="inline-flex items-center gap-1 rounded border border-border-muted px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-hover disabled:opacity-50"
+                    >
+                      <RotateCcw className="size-3" />
+                      Rollback
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Delete snapshot "${snap.name}"?`)) deleteSnap.mutate(snap.name)
+                      }}
+                      disabled={deleteSnap.isPending}
+                      className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {snap.snaptime && (
-                    <span className="text-xs text-text-muted">
-                      {new Date(snap.snaptime * 1000).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </CardContent>
-    </Card>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 

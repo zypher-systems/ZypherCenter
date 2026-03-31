@@ -1,6 +1,6 @@
 import { useParams } from 'react-router'
 import { Network, Activity } from 'lucide-react'
-import { useNodeNetwork } from '@/lib/queries/nodes'
+import { useNodeNetwork, useNodeApplyNetwork } from '@/lib/queries/nodes'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import {
   Table,
@@ -11,6 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/Table'
 import { SkeletonCard } from '@/components/ui/Skeleton'
+import { Button } from '@/components/ui/Button'
 import { formatBytes } from '@/lib/utils'
 
 function ifaceType(iface: { type?: string }): string {
@@ -20,12 +21,23 @@ function ifaceType(iface: { type?: string }): string {
 export function NodeNetworkPage() {
   const { node } = useParams<{ node: string }>()
   const { data: ifaces, isLoading } = useNodeNetwork(node!)
+  const applyNetwork = useNodeApplyNetwork(node!)
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-text-primary">Network</h1>
-        <p className="text-sm text-text-muted mt-0.5">Network interfaces on {node}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-text-primary">Network</h1>
+          <p className="text-sm text-text-muted mt-0.5">Network interfaces on {node}</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => applyNetwork.mutate()}
+          disabled={applyNetwork.isPending}
+        >
+          {applyNetwork.isPending ? 'Applying…' : 'Apply Configuration'}
+        </Button>
       </div>
 
       {isLoading ? (

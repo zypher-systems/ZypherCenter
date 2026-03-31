@@ -104,6 +104,18 @@ export function useDeleteLXCSnapshot(node: string, vmid: number) {
   })
 }
 
+export function useRollbackLXCSnapshot(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (snapname: string) =>
+      api.post<string>(`nodes/${node}/lxc/${vmid}/snapshot/${encodeURIComponent(snapname)}/rollback`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: lxcKeys.snapshots(node, vmid) })
+      qc.invalidateQueries({ queryKey: lxcKeys.status(node, vmid) })
+    },
+  })
+}
+
 export interface CreateLXCParams {
   vmid: number
   hostname: string
