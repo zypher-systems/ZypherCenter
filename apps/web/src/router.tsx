@@ -18,6 +18,8 @@ import { NodeStoragePage } from '@/routes/NodeStoragePage'
 import { NodeUpdatesPage } from '@/routes/NodeUpdatesPage'
 import { NodeSyslogPage } from '@/routes/NodeSyslogPage'
 import { NodeTasksPage } from '@/routes/NodeTasksPage'
+import { NodeDNSPage } from '@/routes/NodeDNSPage'
+import { NodeTimePage } from '@/routes/NodeTimePage'
 
 // VM pages
 import { VMListPage } from '@/routes/VMListPage'
@@ -134,6 +136,8 @@ export const router = createBrowserRouter([
       { path: 'nodes/:node/updates', element: <NodeUpdatesPage /> },
       { path: 'nodes/:node/syslog', element: <NodeSyslogPage /> },
       { path: 'nodes/:node/tasks', element: <NodeTasksPage /> },
+      { path: 'nodes/:node/dns', element: <NodeDNSPage /> },
+      { path: 'nodes/:node/time', element: <NodeTimePage /> },
 
       // VM routes (list per-node or global)
       { path: 'nodes/:node/vms', element: <VMListPage /> },

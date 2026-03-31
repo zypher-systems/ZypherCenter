@@ -28,6 +28,8 @@ import {
   Cpu,
   MemoryStick,
   CircleDot,
+  Globe,
+  Timer,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/stores/ui'
@@ -151,6 +153,8 @@ function NodeTree({
             { label: 'Disks', to: `/nodes/${nodeName}/disks`, icon: <HardDrive /> },
             { label: 'Storage', to: `/nodes/${nodeName}/storage`, icon: <Database /> },
             { label: 'Updates', to: `/nodes/${nodeName}/updates`, icon: <RefreshCw /> },
+            { label: 'DNS', to: `/nodes/${nodeName}/dns`, icon: <Globe /> },
+            { label: 'Time', to: `/nodes/${nodeName}/time`, icon: <Timer /> },
             { label: 'Syslog', to: `/nodes/${nodeName}/syslog`, icon: <ScrollText /> },
             { label: 'Tasks', to: `/nodes/${nodeName}/tasks`, icon: <Clock /> },
           ].map((item) => (

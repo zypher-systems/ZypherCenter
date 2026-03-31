@@ -11,6 +11,8 @@ export const nodeKeys = {
   storage: (node: string) => [...nodeKeys.all(node), 'storage'] as const,
   updates: (node: string) => [...nodeKeys.all(node), 'updates'] as const,
   tasks: (node: string) => [...nodeKeys.all(node), 'tasks'] as const,
+  dns: (node: string) => [...nodeKeys.all(node), 'dns'] as const,
+  time: (node: string) => [...nodeKeys.all(node), 'time'] as const,
 }
 
 export function useNodeStatus(node: string) {
@@ -189,5 +191,62 @@ export function useNodeTasksFiltered(
     queryFn: () => api.get<Record<string, unknown>[]>(`nodes/${node}/tasks?${qs}`),
     refetchInterval: 15_000,
     enabled: !!node,
+  })
+}
+
+// ── DNS ───────────────────────────────────────────────────────────────────────
+
+export interface NodeDNSConfig {
+  search?: string
+  dns1?: string
+  dns2?: string
+  dns3?: string
+}
+
+export function useNodeDNS(node: string) {
+  return useQuery({
+    queryKey: nodeKeys.dns(node),
+    queryFn: () => api.get<NodeDNSConfig>(`nodes/${node}/dns`),
+    enabled: !!node,
+  })
+}
+
+export function useUpdateNodeDNS(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: NodeDNSConfig) => api.put(`nodes/${node}/dns`, params),
+    onSuccess: () => {
+      toast.success('DNS settings updated')
+      qc.invalidateQueries({ queryKey: nodeKeys.dns(node) })
+    },
+    onError: (err) => toast.error(`Failed to update DNS — ${err.message}`),
+  })
+}
+
+// ── Time / Timezone ───────────────────────────────────────────────────────────
+
+export interface NodeTimeConfig {
+  timezone?: string
+  time?: number
+  localtime?: number
+}
+
+export function useNodeTime(node: string) {
+  return useQuery({
+    queryKey: nodeKeys.time(node),
+    queryFn: () => api.get<NodeTimeConfig>(`nodes/${node}/time`),
+    enabled: !!node,
+  })
+}
+
+export function useUpdateNodeTime(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (timezone: string) => api.put(`nodes/${node}/time`, { timezone }),
+    onSuccess: () => {
+      toast.success('Timezone updated')
+      qc.invalidateQueries({ queryKey: nodeKeys.time(node) })
+    },
+    onError: (err) => toast.error(`Failed to update timezone — ${err.message}`),
   })
 }
