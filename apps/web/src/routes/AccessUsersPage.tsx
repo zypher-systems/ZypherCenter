@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useUsers, useDeleteUser, useCreateUser, useRealms } from '@/lib/queries/access'
+import { useUsers, useDeleteUser, useCreateUser, useUpdateUser, useRealms } from '@/lib/queries/access'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   Table,
@@ -117,6 +117,7 @@ function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => voi
 export function AccessUsersPage() {
   const { data: users, isLoading } = useUsers()
   const deleteUser = useDeleteUser()
+  const updateUser = useUpdateUser()
   const [showCreate, setShowCreate] = useState(false)
 
   return (
@@ -176,18 +177,30 @@ export function AccessUsersPage() {
                           {user.groups ?? '—'}
                         </TableCell>
                         <TableCell>
-                          <span
-                            className={`inline-flex items-center gap-1.5 text-xs ${
-                              user.enable !== 0 ? 'text-status-running' : 'text-status-stopped'
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={user.enable !== 0}
+                            disabled={updateUser.isPending || user.userid === 'root@pam'}
+                            onClick={() =>
+                              updateUser.mutate(
+                                { userid: user.userid, params: { enable: user.enable !== 0 ? 0 : 1 } },
+                                {
+                                  onSuccess: () => toast.success(`User ${user.userid} ${user.enable !== 0 ? 'disabled' : 'enabled'}`),
+                                  onError: (err: unknown) => toast.error((err as Error).message ?? 'Failed to update user'),
+                                },
+                              )
+                            }
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
+                              user.enable !== 0 ? 'bg-accent' : 'bg-border-muted'
                             }`}
                           >
                             <span
-                              className={`inline-flex size-1.5 rounded-full ${
-                                user.enable !== 0 ? 'bg-status-running' : 'bg-status-stopped'
+                              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                user.enable !== 0 ? 'translate-x-4' : 'translate-x-1'
                               }`}
                             />
-                            {user.enable !== 0 ? 'Yes' : 'No'}
-                          </span>
+                          </button>
                         </TableCell>
                         <TableCell className="text-text-muted text-sm tabular-nums">
                           {user.expire ? formatTimestamp(user.expire) : 'Never'}

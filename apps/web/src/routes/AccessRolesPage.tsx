@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useRoles, useCreateRole, useDeleteRole } from '@/lib/queries/access'
+import { useRoles, useCreateRole, useDeleteRole, useUpdateRole } from '@/lib/queries/access'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   Table,
@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
-import { Plus, Trash2, Shield } from 'lucide-react'
+import { Plus, Trash2, Shield, Pencil, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 function CreateRoleDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -75,7 +75,10 @@ function CreateRoleDialog({ open, onClose }: { open: boolean; onClose: () => voi
 export function AccessRolesPage() {
   const { data: roles, isLoading } = useRoles()
   const deleteRole = useDeleteRole()
+  const updateRole = useUpdateRole()
   const [showCreate, setShowCreate] = useState(false)
+  const [editingPrivs, setEditingPrivs] = useState<string | null>(null)
+  const [privsDraft, setPrivsDraft] = useState('')
 
   return (
     <div className="space-y-4">
@@ -124,9 +127,63 @@ export function AccessRolesPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-text-muted text-xs max-w-xs">
-                      <p className="line-clamp-2">
-                        {role.privs ? role.privs.split(',').join(', ') : '—'}
-                      </p>
+                      {!role.special && editingPrivs === role.roleid ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            autoFocus
+                            value={privsDraft}
+                            onChange={(e) => setPrivsDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                updateRole.mutate(
+                                  { roleid: role.roleid, params: { privs: privsDraft } },
+                                  {
+                                    onSuccess: () => { toast.success('Privileges updated'); setEditingPrivs(null) },
+                                    onError: (err: unknown) => toast.error((err as Error).message ?? 'Failed to update'),
+                                  },
+                                )
+                              } else if (e.key === 'Escape') {
+                                setEditingPrivs(null)
+                              }
+                            }}
+                            placeholder="VM.Audit,VM.Console"
+                            className="w-full rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-xs text-text-primary outline-none focus:border-accent"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateRole.mutate(
+                                { roleid: role.roleid, params: { privs: privsDraft } },
+                                {
+                                  onSuccess: () => { toast.success('Privileges updated'); setEditingPrivs(null) },
+                                  onError: (err: unknown) => toast.error((err as Error).message ?? 'Failed to update'),
+                                },
+                              )
+                            }
+                            className="shrink-0 text-status-running hover:opacity-80"
+                          >
+                            <Check className="size-3.5" />
+                          </button>
+                          <button type="button" onClick={() => setEditingPrivs(null)} className="shrink-0 text-text-muted hover:text-text-primary">
+                            <X className="size-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="group/privs flex items-center gap-1">
+                          <p className="line-clamp-2">
+                            {role.privs ? role.privs.split(',').join(', ') : '—'}
+                          </p>
+                          {!role.special && (
+                            <button
+                              type="button"
+                              onClick={() => { setEditingPrivs(role.roleid); setPrivsDraft(role.privs ?? '') }}
+                              className="opacity-0 group-hover/privs:opacity-100 transition-opacity shrink-0"
+                            >
+                              <Pencil className="size-3 text-text-muted hover:text-text-primary" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       {!role.special && (

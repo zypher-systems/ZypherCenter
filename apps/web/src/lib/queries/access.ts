@@ -49,6 +49,15 @@ export function useDeleteUser() {
   })
 }
 
+export function useUpdateUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userid, params }: { userid: string; params: Record<string, unknown> }) =>
+      api.put(`access/users/${encodeURIComponent(userid)}`, params),
+    onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.users }),
+  })
+}
+
 export function useCreateGroup() {
   const qc = useQueryClient()
   return useMutation({
@@ -65,6 +74,15 @@ export function useDeleteGroup() {
   })
 }
 
+export function useUpdateGroup() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ groupid, params }: { groupid: string; params: Record<string, unknown> }) =>
+      api.put(`access/groups/${encodeURIComponent(groupid)}`, params),
+    onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.groups }),
+  })
+}
+
 export function useCreateRole() {
   const qc = useQueryClient()
   return useMutation({
@@ -77,6 +95,15 @@ export function useDeleteRole() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (roleid: string) => api.del(`access/roles/${encodeURIComponent(roleid)}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.roles }),
+  })
+}
+
+export function useUpdateRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ roleid, params }: { roleid: string; params: Record<string, unknown> }) =>
+      api.put(`access/roles/${encodeURIComponent(roleid)}`, params),
     onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.roles }),
   })
 }

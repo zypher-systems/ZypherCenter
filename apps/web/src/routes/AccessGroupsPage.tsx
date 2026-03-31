@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useGroups, useCreateGroup, useDeleteGroup } from '@/lib/queries/access'
+import { useGroups, useCreateGroup, useDeleteGroup, useUpdateGroup } from '@/lib/queries/access'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   Table,
@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
-import { Plus, Trash2, Users } from 'lucide-react'
+import { Plus, Trash2, Users, Pencil, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 function CreateGroupDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -74,7 +74,10 @@ function CreateGroupDialog({ open, onClose }: { open: boolean; onClose: () => vo
 export function AccessGroupsPage() {
   const { data: groups, isLoading } = useGroups()
   const deleteGroup = useDeleteGroup()
+  const updateGroup = useUpdateGroup()
   const [showCreate, setShowCreate] = useState(false)
+  const [editingComment, setEditingComment] = useState<string | null>(null)
+  const [commentDraft, setCommentDraft] = useState('')
 
   return (
     <div className="space-y-4">
@@ -124,7 +127,58 @@ export function AccessGroupsPage() {
                         {group.users ?? '—'}
                       </TableCell>
                       <TableCell className="text-text-muted text-sm">
-                        {group.comment ?? '—'}
+                        {editingComment === group.groupid ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              autoFocus
+                              value={commentDraft}
+                              onChange={(e) => setCommentDraft(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  updateGroup.mutate(
+                                    { groupid: group.groupid, params: { comment: commentDraft } },
+                                    {
+                                      onSuccess: () => { toast.success('Comment updated'); setEditingComment(null) },
+                                      onError: (err: unknown) => toast.error((err as Error).message ?? 'Failed to update'),
+                                    },
+                                  )
+                                } else if (e.key === 'Escape') {
+                                  setEditingComment(null)
+                                }
+                              }}
+                              className="w-full rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-sm text-text-primary outline-none focus:border-accent"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateGroup.mutate(
+                                  { groupid: group.groupid, params: { comment: commentDraft } },
+                                  {
+                                    onSuccess: () => { toast.success('Comment updated'); setEditingComment(null) },
+                                    onError: (err: unknown) => toast.error((err as Error).message ?? 'Failed to update'),
+                                  },
+                                )
+                              }
+                              className="shrink-0 text-status-running hover:opacity-80"
+                            >
+                              <Check className="size-3.5" />
+                            </button>
+                            <button type="button" onClick={() => setEditingComment(null)} className="shrink-0 text-text-muted hover:text-text-primary">
+                              <X className="size-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="group/comment flex items-center gap-1">
+                            <span>{group.comment ?? '—'}</span>
+                            <button
+                              type="button"
+                              onClick={() => { setEditingComment(group.groupid); setCommentDraft(group.comment ?? '') }}
+                              className="opacity-0 group-hover/comment:opacity-100 transition-opacity"
+                            >
+                              <Pencil className="size-3 text-text-muted hover:text-text-primary" />
+                            </button>
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Button
