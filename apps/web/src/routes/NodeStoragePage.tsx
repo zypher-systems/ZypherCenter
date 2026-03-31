@@ -1,4 +1,4 @@
-import { useParams } from 'react-router'
+import { useParams, Link } from 'react-router'
 import { Database } from 'lucide-react'
 import { useNodeStorage } from '@/lib/queries/nodes'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -44,12 +44,12 @@ export function NodeStoragePage() {
               </TableHeader>
               <TableBody>
                 {storages?.map((s) => (
-                  <TableRow key={s.storage}>
+                  <TableRow key={s.storage} className="cursor-pointer hover:bg-bg-hover">
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <Link to={`/storage/${s.storage}`} className="flex items-center gap-2 hover:underline">
                         <Database className="size-3.5 text-text-muted shrink-0" />
                         <span className="font-medium text-text-primary">{s.storage}</span>
-                      </div>
+                      </Link>
                     </TableCell>
                     <TableCell className="text-text-secondary text-sm">{s.type}</TableCell>
                     <TableCell className="text-text-muted text-xs">

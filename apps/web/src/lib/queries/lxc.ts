@@ -228,3 +228,16 @@ export function useDeleteLXCFirewallRule(node: string, vmid: number) {
     onError: (err) => toast.error(`Failed to delete rule — ${err.message}`),
   })
 }
+
+export function useUpdateLXCConfig(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) =>
+      api.put(`nodes/${node}/lxc/${vmid}/config`, params),
+    onSuccess: () => {
+      toast.success('Container configuration updated')
+      qc.invalidateQueries({ queryKey: lxcKeys.config(node, vmid) })
+    },
+    onError: (err) => toast.error(`Update failed — ${err.message}`),
+  })
+}

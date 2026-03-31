@@ -13,6 +13,9 @@ import {
   Activity,
   Plus,
   Trash2,
+  Pencil,
+  Check,
+  X,
 } from 'lucide-react'
 import {
   useLXCStatus,
@@ -31,6 +34,7 @@ import {
   useRollbackLXCSnapshot,
   useMigrateLXC,
   useCloneLXC,
+  useUpdateLXCConfig,
 } from '@/lib/queries/lxc'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered } from '@/lib/queries/nodes'
@@ -391,76 +395,144 @@ function SummaryTab({ node, vmid }: { node: string; vmid: number }) {
 
 function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: config, isLoading } = useLXCConfig(node, vmid)
+  const updateConfig = useUpdateLXCConfig(node, vmid)
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
 
   if (isLoading) return <SkeletonCard />
   if (!config) return null
 
-  // Static fields to show first
-  const staticFields = ['hostname', 'ostype', 'arch', 'cores', 'memory', 'swap', 'rootfs', 'description']
-  // Network and mount keys
-  const netKeys = Object.keys(config as Record<string, unknown>).filter((k) => /^net\d+$/.test(k))
-  const mpKeys = Object.keys(config as Record<string, unknown>).filter((k) => /^mp\d+$/.test(k))
-
   const cfgRecord = config as Record<string, unknown>
+
+  // Editable numeric/text fields
+  const editableFields: { key: string; label: string; type?: string }[] = [
+    { key: 'hostname',    label: 'Hostname' },
+    { key: 'cores',       label: 'CPU Cores',      type: 'number' },
+    { key: 'memory',      label: 'Memory (MiB)',    type: 'number' },
+    { key: 'swap',        label: 'Swap (MiB)',      type: 'number' },
+    { key: 'description', label: 'Description' },
+    { key: 'ostype',      label: 'OS Type' },
+  ]
+
+  // Read-only fields
+  const readonlyFields = ['arch', 'rootfs']
+
+  // Network and mount keys
+  const netKeys = Object.keys(cfgRecord).filter((k) => /^net\d+$/.test(k))
+  const mpKeys = Object.keys(cfgRecord).filter((k) => /^mp\d+$/.test(k))
+
+  function startEdit(key: string) {
+    setEditingKey(key)
+    setEditValue(cfgRecord[key] != null ? String(cfgRecord[key]) : '')
+  }
+  function cancelEdit() { setEditingKey(null); setEditValue('') }
+  function saveEdit(key: string) {
+    updateConfig.mutate({ [key]: editValue }, { onSuccess: cancelEdit })
+  }
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader>
-          <CardTitle>General</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            {staticFields
-              .filter((k) => cfgRecord[k] != null)
-              .map((k) => (
-                <div key={k} className="flex flex-col">
-                  <dt className="text-text-muted capitalize">{k}</dt>
-                  <dd className="text-text-primary font-medium break-all">
-                    {String(cfgRecord[k])}
-                  </dd>
+        <CardHeader><CardTitle>General</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          <div className="divide-y divide-border-muted">
+            {editableFields.filter(({ key }) => cfgRecord[key] != null).map(({ key, label, type }) => {
+              const isEditing = editingKey === key
+              return (
+                <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                  <span className="text-text-muted shrink-0">{label}</span>
+                  {isEditing ? (
+                    <div className="flex items-center gap-1.5 flex-1 justify-end">
+                      <input
+                        autoFocus
+                        type={type ?? 'text'}
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(key); if (e.key === 'Escape') cancelEdit() }}
+                        className="w-full max-w-xs rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-sm text-text-primary outline-none focus:border-accent"
+                      />
+                      <button onClick={() => saveEdit(key)} disabled={updateConfig.isPending} className="text-status-running hover:opacity-80 disabled:opacity-50">
+                        <Check className="size-3.5" />
+                      </button>
+                      <button onClick={cancelEdit} className="text-text-muted hover:opacity-80">
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-text-primary font-medium break-all">{String(cfgRecord[key])}</span>
+                      <button onClick={() => startEdit(key)} className="text-text-muted hover:text-text-primary">
+                        <Pencil className="size-3" />
+                      </button>
+                    </div>
+                  )}
                 </div>
-              ))}
-          </dl>
+              )
+            })}
+            {readonlyFields.filter((k) => cfgRecord[k] != null).map((k) => (
+              <div key={k} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                <span className="text-text-muted shrink-0 capitalize">{k}</span>
+                <span className="text-text-primary font-medium break-all">{String(cfgRecord[k])}</span>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
       {netKeys.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle>Network</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="space-y-3 text-sm">
-              {netKeys.map((k) => (
-                <div key={k}>
-                  <dt className="text-text-muted font-medium mb-1">{k}</dt>
-                  <dd className="text-text-primary font-mono text-xs break-all bg-bg-elevated rounded px-2 py-1">
-                    {String(cfgRecord[k])}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+          <CardHeader><CardTitle>Network</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border-muted">
+              {netKeys.map((k) => {
+                const isEditing = editingKey === k
+                return (
+                  <div key={k} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                    <span className="text-text-muted shrink-0 font-medium">{k}</span>
+                    {isEditing ? (
+                      <div className="flex items-center gap-1.5 flex-1 justify-end">
+                        <input
+                          autoFocus
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(k); if (e.key === 'Escape') cancelEdit() }}
+                          className="w-full rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-xs font-mono text-text-primary outline-none focus:border-accent"
+                        />
+                        <button onClick={() => saveEdit(k)} disabled={updateConfig.isPending} className="text-status-running hover:opacity-80 disabled:opacity-50">
+                          <Check className="size-3.5" />
+                        </button>
+                        <button onClick={cancelEdit} className="text-text-muted hover:opacity-80">
+                          <X className="size-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-text-primary font-mono text-xs break-all">{String(cfgRecord[k])}</span>
+                        <button onClick={() => startEdit(k)} className="text-text-muted hover:text-text-primary shrink-0">
+                          <Pencil className="size-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </CardContent>
         </Card>
       )}
 
       {mpKeys.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle>Mount Points</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="space-y-3 text-sm">
+          <CardHeader><CardTitle>Mount Points</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border-muted">
               {mpKeys.map((k) => (
-                <div key={k}>
-                  <dt className="text-text-muted font-medium mb-1">{k}</dt>
-                  <dd className="text-text-primary font-mono text-xs break-all bg-bg-elevated rounded px-2 py-1">
-                    {String(cfgRecord[k])}
-                  </dd>
+                <div key={k} className="flex items-start justify-between px-4 py-2.5 text-sm gap-4">
+                  <span className="text-text-muted shrink-0 font-medium">{k}</span>
+                  <span className="text-text-primary font-mono text-xs break-all">{String(cfgRecord[k])}</span>
                 </div>
               ))}
-            </dl>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -472,38 +544,109 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
 
 function LXCOptionsTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: config } = useLXCConfig(node, vmid)
+  const updateConfig = useUpdateLXCConfig(node, vmid)
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+
   if (!config) return null
 
   const cfgRecord = config as Record<string, unknown>
 
-  const rows: { key: string; label: string; fmt?: (v: unknown) => string }[] = [
-    { key: 'onboot',       label: 'Start at boot',     fmt: (v) => v ? 'Yes' : 'No' },
-    { key: 'protection',   label: 'Protection',         fmt: (v) => v ? 'Enabled' : 'Disabled' },
-    { key: 'unprivileged', label: 'Unprivileged',       fmt: (v) => v ? 'Yes' : 'No' },
-    { key: 'timezone',     label: 'Timezone',           fmt: (v) => String(v ?? '—') },
-    { key: 'startup',      label: 'Startup order',      fmt: (v) => String(v ?? '—') },
-    { key: 'tags',         label: 'Tags',               fmt: (v) => String(v ?? '—') },
-    { key: 'description',  label: 'Description',        fmt: (v) => String(v ?? '—') },
-    { key: 'hookscript',   label: 'Hook script',        fmt: (v) => String(v ?? '—') },
-    { key: 'hostname',     label: 'Hostname',           fmt: (v) => String(v ?? '—') },
-    { key: 'lock',         label: 'Lock',               fmt: (v) => String(v ?? '—') },
-    { key: 'features',     label: 'Features',           fmt: (v) => String(v ?? '—') },
+  // Boolean toggles
+  const boolOpts: { key: string; label: string }[] = [
+    { key: 'onboot',       label: 'Start at boot' },
+    { key: 'protection',   label: 'Protection' },
+    { key: 'unprivileged', label: 'Unprivileged' },
   ]
+
+  // Text-editable options
+  const textOpts: { key: string; label: string }[] = [
+    { key: 'description', label: 'Description' },
+    { key: 'tags',        label: 'Tags' },
+    { key: 'hookscript',  label: 'Hook script' },
+    { key: 'hostname',    label: 'Hostname' },
+    { key: 'timezone',    label: 'Timezone' },
+  ]
+
+  // Read-only options
+  const readOpts: { key: string; label: string }[] = [
+    { key: 'startup', label: 'Startup order' },
+    { key: 'lock',    label: 'Lock' },
+    { key: 'features', label: 'Features' },
+  ]
+
+  function startEdit(key: string) {
+    setEditingKey(key)
+    setEditValue(cfgRecord[key] != null ? String(cfgRecord[key]) : '')
+  }
+  function cancelEdit() { setEditingKey(null); setEditValue('') }
+  function saveEdit(key: string) {
+    updateConfig.mutate({ [key]: editValue }, { onSuccess: cancelEdit })
+  }
+  function toggleBool(key: string) {
+    updateConfig.mutate({ [key]: cfgRecord[key] ? 0 : 1 })
+  }
 
   return (
     <Card>
       <CardHeader><CardTitle>Container Options</CardTitle></CardHeader>
       <CardContent className="p-0">
         <div className="divide-y divide-border-muted">
-          {rows.map(({ key, label, fmt }) => {
+          {boolOpts.map(({ key, label }) => {
+            const isOn = !!cfgRecord[key]
+            return (
+              <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                <span className="text-text-muted">{label}</span>
+                <button
+                  onClick={() => toggleBool(key)}
+                  disabled={updateConfig.isPending}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${isOn ? 'bg-accent' : 'bg-border-muted'}`}
+                >
+                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isOn ? 'translate-x-4' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            )
+          })}
+          {textOpts.map(({ key, label }) => {
+            const isEditing = editingKey === key
+            const val = cfgRecord[key]
+            return (
+              <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                <span className="text-text-muted shrink-0">{label}</span>
+                {isEditing ? (
+                  <div className="flex items-center gap-1.5 flex-1 justify-end">
+                    <input
+                      autoFocus
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(key); if (e.key === 'Escape') cancelEdit() }}
+                      className="w-full max-w-xs rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-sm text-text-primary outline-none focus:border-accent"
+                    />
+                    <button onClick={() => saveEdit(key)} disabled={updateConfig.isPending} className="text-status-running hover:opacity-80 disabled:opacity-50">
+                      <Check className="size-3.5" />
+                    </button>
+                    <button onClick={cancelEdit} className="text-text-muted hover:opacity-80">
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-text-primary text-right break-all">{val != null ? String(val) : '—'}</span>
+                    <button onClick={() => startEdit(key)} className="text-text-muted hover:text-text-primary">
+                      <Pencil className="size-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {readOpts.map(({ key, label }) => {
             const val = cfgRecord[key]
             if (val == null) return null
             return (
               <div key={key} className="flex items-start justify-between px-4 py-2.5 text-sm gap-4">
                 <span className="text-text-muted shrink-0">{label}</span>
-                <span className="text-text-primary text-right font-medium break-all">
-                  {fmt ? fmt(val) : String(val)}
-                </span>
+                <span className="text-text-primary text-right break-all">{String(val)}</span>
               </div>
             )
           })}
