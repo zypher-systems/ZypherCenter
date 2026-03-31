@@ -536,14 +536,6 @@ function VMBackupsTab({ node, vmid }: { node: string; vmid: number }) {
 
 // ── Placeholder tab ───────────────────────────────────────────────────────────
 
-function PlaceholderTab({ label }: { label: string }) {
-  return (
-    <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-border">
-      <p className="text-text-muted text-sm">{label} coming soon</p>
-    </div>
-  )
-}
-
 // ── VM Detail Page ────────────────────────────────────────────────────────────
 
 export function VMDetailPage() {

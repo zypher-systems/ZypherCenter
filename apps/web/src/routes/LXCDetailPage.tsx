@@ -41,14 +41,6 @@ import {
 import { formatBytes, formatPercent, formatUptime, formatTimestamp } from '@/lib/utils'
 import { ResourceCharts } from '@/components/features/ResourceCharts'
 
-function PlaceholderTab({ label }: { label: string }) {
-  return (
-    <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-border">
-      <p className="text-text-muted text-sm">{label} — coming soon</p>
-    </div>
-  )
-}
-
 // ── Firewall tab ────────────────────────────────────────────────────────────────────────
 
 function FWActionBadge({ action }: { action: string }) {

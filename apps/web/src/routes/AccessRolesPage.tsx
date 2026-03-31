@@ -1,4 +1,5 @@
-import { useRoles } from '@/lib/queries/access'
+import { useState } from 'react'
+import { useRoles, useCreateRole, useDeleteRole } from '@/lib/queries/access'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   Table,
@@ -10,19 +11,81 @@ import {
 } from '@/components/ui/Table'
 import { Button } from '@/components/ui/Button'
 import { SkeletonCard } from '@/components/ui/Skeleton'
-import { Plus, Shield } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/Dialog'
+import { Input } from '@/components/ui/Input'
+import { Label } from '@/components/ui/Label'
+import { Plus, Trash2, Shield } from 'lucide-react'
+import { toast } from 'sonner'
+
+function CreateRoleDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const createRole = useCreateRole()
+  const [roleid, setRoleid] = useState('')
+  const [privs, setPrivs] = useState('')
+
+  function handleClose() {
+    setRoleid(''); setPrivs(''); onClose()
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!roleid.trim()) return
+    createRole.mutate(
+      { roleid: roleid.trim(), privs: privs || undefined },
+      {
+        onSuccess: () => { toast.success(`Role ${roleid} created`); handleClose() },
+        onError: (err: unknown) => toast.error((err as Error).message ?? 'Failed to create role'),
+      },
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose() }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create Role</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="cr-roleid">Role ID</Label>
+            <Input id="cr-roleid" value={roleid} onChange={(e) => setRoleid(e.target.value)} placeholder="MyRole" required />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cr-privs">Privileges</Label>
+            <Input id="cr-privs" value={privs} onChange={(e) => setPrivs(e.target.value)} placeholder="VM.Audit,VM.Console (comma-separated)" />
+            <p className="text-xs text-text-muted">Comma-separated list of Proxmox privilege names</p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={handleClose}>Cancel</Button>
+            <Button type="submit" disabled={createRole.isPending}>
+              {createRole.isPending ? 'Creating…' : 'Create Role'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export function AccessRolesPage() {
   const { data: roles, isLoading } = useRoles()
+  const deleteRole = useDeleteRole()
+  const [showCreate, setShowCreate] = useState(false)
 
   return (
     <div className="space-y-4">
+      <CreateRoleDialog open={showCreate} onClose={() => setShowCreate(false)} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-text-primary">Roles</h1>
           <p className="text-sm text-text-muted mt-0.5">Permission sets that can be assigned via ACLs</p>
         </div>
-        <Button size="sm" disabled>
+        <Button size="sm" onClick={() => setShowCreate(true)}>
           <Plus className="size-4 mr-1.5" />
           Add Role
         </Button>
@@ -39,6 +102,7 @@ export function AccessRolesPage() {
                   <TableHead>Role</TableHead>
                   <TableHead>Special</TableHead>
                   <TableHead>Privileges</TableHead>
+                  <TableHead className="w-16" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -63,6 +127,26 @@ export function AccessRolesPage() {
                       <p className="line-clamp-2">
                         {role.privs ? role.privs.split(',').join(', ') : '—'}
                       </p>
+                    </TableCell>
+                    <TableCell>
+                      {!role.special && (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Delete role"
+                          disabled={deleteRole.isPending}
+                          onClick={() => {
+                            if (confirm(`Delete role ${role.roleid}?`)) {
+                              deleteRole.mutate(role.roleid, {
+                                onSuccess: () => toast.success(`Role ${role.roleid} deleted`),
+                                onError: (err: unknown) => toast.error((err as Error).message ?? 'Failed to delete role'),
+                              })
+                            }
+                          }}
+                        >
+                          <Trash2 className="size-3.5 text-text-muted hover:text-status-error" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

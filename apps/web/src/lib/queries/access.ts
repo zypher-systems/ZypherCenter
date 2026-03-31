@@ -48,3 +48,51 @@ export function useDeleteUser() {
     onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.users }),
   })
 }
+
+export function useCreateGroup() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) => api.post('access/groups', params),
+    onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.groups }),
+  })
+}
+
+export function useDeleteGroup() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (groupid: string) => api.del(`access/groups/${encodeURIComponent(groupid)}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.groups }),
+  })
+}
+
+export function useCreateRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) => api.post('access/roles', params),
+    onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.roles }),
+  })
+}
+
+export function useDeleteRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (roleid: string) => api.del(`access/roles/${encodeURIComponent(roleid)}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.roles }),
+  })
+}
+
+export function useAddACL() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) => api.put('access/acl', params),
+    onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.acl }),
+  })
+}
+
+export function useDeleteACL() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) => api.put('access/acl', { ...params, delete: 1 }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.acl }),
+  })
+}

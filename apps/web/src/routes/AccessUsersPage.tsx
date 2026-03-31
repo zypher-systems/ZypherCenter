@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useUsers, useDeleteUser, useCreateUser } from '@/lib/queries/access'
+import { useUsers, useDeleteUser, useCreateUser, useRealms } from '@/lib/queries/access'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   Table,
@@ -11,21 +11,123 @@ import {
 } from '@/components/ui/Table'
 import { Button } from '@/components/ui/Button'
 import { SkeletonCard } from '@/components/ui/Skeleton'
-import { Plus, Trash2, User, Shield } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/Dialog'
+import { Input } from '@/components/ui/Input'
+import { Label } from '@/components/ui/Label'
+import { Plus, Trash2, User } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils'
+import { toast } from 'sonner'
+
+function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { data: realms } = useRealms()
+  const createUser = useCreateUser()
+  const [username, setUsername] = useState('')
+  const [realm, setRealm] = useState('pam')
+  const [password, setPassword] = useState('')
+  const [comment, setComment] = useState('')
+  const [email, setEmail] = useState('')
+  const [enabled, setEnabled] = useState(true)
+
+  function handleClose() {
+    setUsername(''); setRealm('pam'); setPassword(''); setComment(''); setEmail(''); setEnabled(true)
+    onClose()
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!username.trim() || !password) return
+    const userid = `${username.trim()}@${realm}`
+    createUser.mutate(
+      { userid, password, comment: comment || undefined, email: email || undefined, enable: enabled ? 1 : 0 },
+      {
+        onSuccess: () => { toast.success(`User ${userid} created`); handleClose() },
+        onError: (err: unknown) => toast.error((err as Error).message ?? 'Failed to create user'),
+      },
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose() }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create User</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="cu-username">Username</Label>
+              <Input id="cu-username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="alice" required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cu-realm">Realm</Label>
+              <select
+                id="cu-realm"
+                value={realm}
+                onChange={(e) => setRealm(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-border bg-bg-input px-3 py-1 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                {realms ? realms.map((r) => (
+                  <option key={r.realm} value={r.realm}>{r.realm} ({r.type})</option>
+                )) : (
+                  <option value="pam">pam</option>
+                )}
+              </select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cu-password">Password</Label>
+            <Input id="cu-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cu-email">Email</Label>
+            <Input id="cu-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="alice@example.com" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cu-comment">Comment</Label>
+            <Input id="cu-comment" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Optional description" />
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="cu-enabled"
+              type="checkbox"
+              checked={enabled}
+              onChange={(e) => setEnabled(e.target.checked)}
+              className="size-4 rounded border-border accent-accent"
+            />
+            <Label htmlFor="cu-enabled">Enabled</Label>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={handleClose}>Cancel</Button>
+            <Button type="submit" disabled={createUser.isPending}>
+              {createUser.isPending ? 'Creating…' : 'Create User'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export function AccessUsersPage() {
   const { data: users, isLoading } = useUsers()
   const deleteUser = useDeleteUser()
+  const [showCreate, setShowCreate] = useState(false)
 
   return (
     <div className="space-y-4">
+      <CreateUserDialog open={showCreate} onClose={() => setShowCreate(false)} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-text-primary">Users</h1>
           <p className="text-sm text-text-muted mt-0.5">User accounts and authentication</p>
         </div>
-        <Button size="sm" disabled>
+        <Button size="sm" onClick={() => setShowCreate(true)}>
           <Plus className="size-4 mr-1.5" />
           Add User
         </Button>

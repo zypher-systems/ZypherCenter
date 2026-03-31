@@ -41,9 +41,29 @@ export function ClusterOptionsPage() {
               <CardTitle>Migration</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex h-24 items-center justify-center">
-                <p className="text-text-muted text-sm">Migration options — coming soon</p>
-              </div>
+              {options ? (() => {
+                const migrationKeys = Object.entries(options as Record<string, unknown>).filter(
+                  ([key]) => key.toLowerCase().includes('migration'),
+                )
+                return migrationKeys.length > 0 ? (
+                  <dl className="space-y-3">
+                    {migrationKeys.map(([key, value]) => (
+                      <div key={key} className="flex justify-between text-sm">
+                        <dt className="text-text-muted capitalize">{key.replace(/_/g, ' ')}</dt>
+                        <dd className="text-text-primary font-medium">{String(value)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : (
+                  <div className="flex h-24 items-center justify-center">
+                    <p className="text-text-muted text-sm">No migration options configured</p>
+                  </div>
+                )
+              })() : (
+                <div className="flex h-24 items-center justify-center">
+                  <p className="text-text-muted text-sm">No data</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
