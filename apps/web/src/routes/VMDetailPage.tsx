@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router'
+import { useParams, Link, useNavigate } from 'react-router'
 import {
   Play,
   Square,
@@ -37,6 +37,7 @@ import {
   useMigrateVM,
   useCloneVM,
   useUpdateVMConfig,
+  useDeleteVM,
 } from '@/lib/queries/vms'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered } from '@/lib/queries/nodes'
@@ -1039,6 +1040,8 @@ export function VMDetailPage() {
   const stop = useVMStop(node!, vmid)
   const shutdown = useVMShutdown(node!, vmid)
   const reboot = useVMReboot(node!, vmid)
+  const deleteVM = useDeleteVM(node!)
+  const navigate = useNavigate()
 
   if (isLoading) return <SkeletonCard />
 
@@ -1090,6 +1093,20 @@ export function VMDetailPage() {
               <Terminal className="size-4" /> Console
             </Link>
           </Button>
+          {isStopped && (
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={deleteVM.isPending}
+              onClick={() => {
+                if (confirm(`Delete VM ${vmid} (${status?.name ?? ''})? This cannot be undone.`)) {
+                  deleteVM.mutate({ vmid, purge: true }, { onSuccess: () => navigate(`/nodes/${node}/vms`) })
+                }
+              }}
+            >
+              <Trash2 className="size-4" /> Delete
+            </Button>
+          )}
         </div>
       </div>
 

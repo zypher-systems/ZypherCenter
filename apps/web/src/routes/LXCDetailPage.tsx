@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router'
+import { useParams, Link, useNavigate } from 'react-router'
 import {
   Play,
   Square,
@@ -35,6 +35,7 @@ import {
   useMigrateLXC,
   useCloneLXC,
   useUpdateLXCConfig,
+  useDeleteLXC,
 } from '@/lib/queries/lxc'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered } from '@/lib/queries/nodes'
@@ -808,6 +809,8 @@ export function LXCDetailPage() {
   const reboot = useLXCReboot(node!, vmid)
   const migrate = useMigrateLXC(node!, vmid)
   const clone = useCloneLXC(node!, vmid)
+  const deleteLXC = useDeleteLXC(node!)
+  const navigate = useNavigate()
 
   const { data: nodes } = useClusterResources('node')
   const { data: nextId } = useNextVMId()
@@ -891,10 +894,25 @@ export function LXCDetailPage() {
 
         <div className="flex items-center gap-2 shrink-0">
           {isStopped && (
-            <Button size="sm" onClick={() => start.mutate()} disabled={start.isPending}>
-              <Play className="size-4 mr-1.5" />
-              Start
-            </Button>
+            <>
+              <Button size="sm" onClick={() => start.mutate()} disabled={start.isPending}>
+                <Play className="size-4 mr-1.5" />
+                Start
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={deleteLXC.isPending}
+                onClick={() => {
+                  if (confirm(`Delete container ${vmid} (${status?.name ?? ''})? This cannot be undone.`)) {
+                    deleteLXC.mutate({ vmid, purge: true }, { onSuccess: () => navigate(`/nodes/${node}/lxc`) })
+                  }
+                }}
+              >
+                <Trash2 className="size-4 mr-1.5" />
+                Delete
+              </Button>
+            </>
           )}
           {isRunning && (
             <>
