@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router'
-import { Play, Square, RotateCcw, Power, Terminal, Search, Plus } from 'lucide-react'
-import { useLXCs, useLXCStart, useLXCStop, useLXCShutdown, useLXCReboot, useCreateLXC } from '@/lib/queries/lxc'
+import { Play, Square, RotateCcw, Power, Terminal, Search, Plus, Trash2 } from 'lucide-react'
+import { useLXCs, useLXCStart, useLXCStop, useLXCShutdown, useLXCReboot, useCreateLXC, useDeleteLXC } from '@/lib/queries/lxc'
 import { useNextVMId } from '@/lib/queries/vms'
 import { useNodeStorage } from '@/lib/queries/nodes'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -161,6 +161,7 @@ function LXCRow({ ct, node }: { ct: LXCItem; node: string }) {
   const stop = useLXCStop(node, ct.vmid)
   const shutdown = useLXCShutdown(node, ct.vmid)
   const reboot = useLXCReboot(node, ct.vmid)
+  const deleteLXC = useDeleteLXC(node)
 
   const isRunning = ct.status === 'running'
   const isStopped = ct.status === 'stopped'
@@ -194,15 +195,35 @@ function LXCRow({ ct, node }: { ct: LXCItem; node: string }) {
       <TableCell>
         <div className="flex items-center gap-1">
           {isStopped && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title="Start"
-              onClick={() => start.mutate()}
-              disabled={start.isPending}
-            >
-              <Play className="size-3.5" />
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Start"
+                onClick={() => start.mutate()}
+                disabled={start.isPending}
+              >
+                <Play className="size-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon-sm" title="Console" asChild>
+                <Link to={`/nodes/${node}/lxc/${ct.vmid}/console`}>
+                  <Terminal className="size-3.5" />
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Delete container"
+                disabled={deleteLXC.isPending}
+                onClick={() => {
+                  if (confirm(`Delete container ${ct.vmid} (${ct.name ?? ''})? This cannot be undone.`)) {
+                    deleteLXC.mutate({ vmid: ct.vmid, purge: true })
+                  }
+                }}
+              >
+                <Trash2 className="size-3.5 text-text-muted hover:text-status-error" />
+              </Button>
+            </>
           )}
           {isRunning && (
             <>

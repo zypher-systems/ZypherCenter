@@ -189,6 +189,20 @@ export function useCreateVM(node: string) {
   })
 }
 
+export function useDeleteVM(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ vmid, purge }: { vmid: number; purge?: boolean }) =>
+      api.del(`nodes/${node}/qemu/${vmid}${purge ? '?purge=1&destroy-unreferenced-disks=1' : ''}`),
+    onSuccess: (_, { vmid }) => {
+      toast.success(`VM ${vmid} deletion task started`)
+      qc.invalidateQueries({ queryKey: vmKeys.list(node) })
+      qc.invalidateQueries({ queryKey: ['cluster', 'resources'] })
+    },
+    onError: (err) => toast.error(`Failed to delete VM — ${err.message}`),
+  })
+}
+
 export function useNextVMId() {
   return useQuery({
     queryKey: ['cluster', 'nextid'],

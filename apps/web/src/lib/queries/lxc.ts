@@ -184,7 +184,19 @@ export function useCreateLXC(node: string) {
     },
   })
 }
-
+export function useDeleteLXC(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ vmid, purge }: { vmid: number; purge?: boolean }) =>
+      api.del(`nodes/${node}/lxc/${vmid}${purge ? '?purge=1&destroy-unreferenced-disks=1' : ''}`),
+    onSuccess: (_, { vmid }) => {
+      toast.success(`Container ${vmid} deletion task started`)
+      qc.invalidateQueries({ queryKey: lxcKeys.list(node) })
+      qc.invalidateQueries({ queryKey: ['cluster', 'resources'] })
+    },
+    onError: (err) => toast.error(`Failed to delete container — ${err.message}`),
+  })
+}
 // ── LXC Firewall ─────────────────────────────────────────────────────────────────────────
 
 export function useLXCFirewallRules(node: string, vmid: number) {

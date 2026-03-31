@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router'
-import { Play, Square, RotateCcw, Power, Terminal, Plus, Search } from 'lucide-react'
-import { useVMs, useVMStart, useVMStop, useVMShutdown, useVMReboot, useCreateVM, useNextVMId } from '@/lib/queries/vms'
+import { Play, Square, RotateCcw, Power, Terminal, Plus, Search, Trash2 } from 'lucide-react'
+import { useVMs, useVMStart, useVMStop, useVMShutdown, useVMReboot, useCreateVM, useNextVMId, useDeleteVM } from '@/lib/queries/vms'
 import { useNodeStorage } from '@/lib/queries/nodes'
 import { Card, CardContent } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -135,6 +135,7 @@ function VMRow({ vm, node }: { vm: { vmid: number; name?: string; status: string
   const stop = useVMStop(node, vm.vmid)
   const shutdown = useVMShutdown(node, vm.vmid)
   const reboot = useVMReboot(node, vm.vmid)
+  const deleteVM = useDeleteVM(node)
 
   const isRunning = vm.status === 'running'
   const isStopped = vm.status === 'stopped'
@@ -194,6 +195,21 @@ function VMRow({ vm, node }: { vm: { vmid: number; name?: string; status: string
               <Terminal className="size-3.5" />
             </Link>
           </Button>
+          {isStopped && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="Delete VM"
+              disabled={deleteVM.isPending}
+              onClick={() => {
+                if (confirm(`Delete VM ${vm.vmid} (${vm.name ?? ''})? This cannot be undone.`)) {
+                  deleteVM.mutate({ vmid: vm.vmid, purge: true })
+                }
+              }}
+            >
+              <Trash2 className="size-3.5 text-text-muted hover:text-status-error" />
+            </Button>
+          )}
         </div>
       </TableCell>
     </TableRow>
