@@ -1,5 +1,6 @@
-import { useParams, Link } from 'react-router'
-import { ExternalLink } from 'lucide-react'
+import { useState } from 'react'
+import { useParams } from 'react-router'
+import { RefreshCw } from 'lucide-react'
 import { useNodeTasks } from '@/lib/queries/nodes'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
@@ -10,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/Table'
+import { Button } from '@/components/ui/Button'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import { formatTimestamp, formatUptime } from '@/lib/utils'
 
@@ -37,13 +39,36 @@ function TaskStatusBadge({ exitstatus }: { exitstatus?: string }) {
 
 export function NodeTasksPage() {
   const { node } = useParams<{ node: string }>()
-  const { data: tasks, isLoading } = useNodeTasks(node!)
+  const { data: tasks, isLoading, refetch, isFetching } = useNodeTasks(node!)
+  const [typeFilter, setTypeFilter] = useState('')
+
+  const taskList = (tasks as Record<string, unknown>[] | undefined) ?? []
+  const types = [...new Set(taskList.map((t) => t['type'] as string))].sort()
+  const filtered = typeFilter ? taskList.filter((t) => t['type'] === typeFilter) : taskList
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-text-primary">Tasks</h1>
-        <p className="text-sm text-text-muted mt-0.5">Recent tasks on {node}</p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-text-primary">Tasks</h1>
+          <p className="text-sm text-text-muted mt-0.5">Recent tasks on {node}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {types.length > 0 && (
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+            >
+              <option value="">All types</option>
+              {types.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`size-4 mr-1.5 ${isFetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -63,7 +88,7 @@ export function NodeTasksPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(tasks as Record<string, unknown>[])?.map((task) => {
+                {filtered.map((task) => {
                   const upid = task['upid'] as string
                   const starttime = task['starttime'] as number
                   const endtime = task['endtime'] as number | undefined
@@ -91,7 +116,7 @@ export function NodeTasksPage() {
                     </TableRow>
                   )
                 })}
-                {(!tasks || (tasks as unknown[]).length === 0) && (
+                {filtered.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center text-text-muted py-10">
                       No tasks

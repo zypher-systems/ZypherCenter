@@ -3,6 +3,7 @@ import {
   useClusterReplication,
   useCreateReplicationJob,
   useDeleteReplicationJob,
+  useUpdateReplicationJob,
   useClusterStatus,
 } from '@/lib/queries/cluster'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -144,6 +145,7 @@ function CreateReplicationJobDialog({ open, onClose }: { open: boolean; onClose:
 export function ClusterReplicationPage() {
   const { data: jobs, isLoading } = useClusterReplication()
   const deleteJob = useDeleteReplicationJob()
+  const updateJob = useUpdateReplicationJob()
   const [showCreate, setShowCreate] = useState(false)
 
   return (
@@ -173,6 +175,7 @@ export function ClusterReplicationPage() {
                   <TableHead>Target</TableHead>
                   <TableHead>Schedule</TableHead>
                   <TableHead>Last Sync</TableHead>
+                  <TableHead>Enabled</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-16" />
                 </TableRow>
@@ -197,6 +200,19 @@ export function ClusterReplicationPage() {
                         {(job as unknown as Record<string, unknown>)['last_sync']
                           ? formatTimestamp((job as unknown as Record<string, unknown>)['last_sync'] as number)
                           : 'Never'}
+                      </TableCell>
+                      <TableCell>
+                        <button
+                          onClick={() => updateJob.mutate({ id: job.id, params: { enabled: (job as unknown as Record<string, unknown>)['enabled'] === 0 ? 1 : 0 } })}
+                          disabled={updateJob.isPending}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
+                            (job as unknown as Record<string, unknown>)['enabled'] !== 0 ? 'bg-accent' : 'bg-border-muted'
+                          }`}
+                        >
+                          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                            (job as unknown as Record<string, unknown>)['enabled'] !== 0 ? 'translate-x-4' : 'translate-x-1'
+                          }`} />
+                        </button>
                       </TableCell>
                       <TableCell>
                         <span className={`text-xs ${

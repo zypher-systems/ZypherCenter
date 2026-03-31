@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useClusterBackupJobs, useCreateBackupJob, useDeleteBackupJob } from '@/lib/queries/cluster'
+import { useClusterBackupJobs, useCreateBackupJob, useDeleteBackupJob, useUpdateBackupJob } from '@/lib/queries/cluster'
 import { useStorage } from '@/lib/queries/storage'
 import { useClusterStatus } from '@/lib/queries/cluster'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -169,6 +169,7 @@ function CreateBackupJobDialog({ open, onClose }: { open: boolean; onClose: () =
 export function ClusterBackupPage() {
   const { data: jobs, isLoading } = useClusterBackupJobs()
   const deleteJob = useDeleteBackupJob()
+  const updateJob = useUpdateBackupJob()
   const [showCreate, setShowCreate] = useState(false)
 
   return (
@@ -230,18 +231,17 @@ export function ClusterBackupPage() {
                         {job.node ?? 'All'}
                       </TableCell>
                       <TableCell>
-                        <span
-                          className={`inline-flex items-center gap-1.5 text-xs ${
-                            !job.enabled || job.enabled === 1 ? 'text-status-running' : 'text-status-stopped'
+                        <button
+                          onClick={() => updateJob.mutate({ id: job.id, params: { enabled: (!job.enabled || job.enabled === 1) ? 0 : 1 } })}
+                          disabled={updateJob.isPending}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
+                            !job.enabled || job.enabled === 1 ? 'bg-accent' : 'bg-border-muted'
                           }`}
                         >
-                          <span
-                            className={`inline-flex size-1.5 rounded-full ${
-                              !job.enabled || job.enabled === 1 ? 'bg-status-running' : 'bg-status-stopped'
-                            }`}
-                          />
-                          {!job.enabled || job.enabled === 1 ? 'Yes' : 'No'}
-                        </span>
+                          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                            !job.enabled || job.enabled === 1 ? 'translate-x-4' : 'translate-x-1'
+                          }`} />
+                        </button>
                       </TableCell>
                       <TableCell>
                         <Button

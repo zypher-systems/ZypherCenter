@@ -87,6 +87,32 @@ export function useDeleteReplicationJob() {
   })
 }
 
+export function useUpdateBackupJob() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, params }: { id: string; params: Record<string, unknown> }) =>
+      api.put(`cluster/backup/${encodeURIComponent(id)}`, params),
+    onSuccess: () => {
+      toast.success('Backup job updated')
+      qc.invalidateQueries({ queryKey: clusterKeys.backup() })
+    },
+    onError: (err) => toast.error(`Update failed — ${err.message}`),
+  })
+}
+
+export function useUpdateReplicationJob() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, params }: { id: string; params: Record<string, unknown> }) =>
+      api.put(`cluster/replication/${encodeURIComponent(id)}`, params),
+    onSuccess: () => {
+      toast.success('Replication job updated')
+      qc.invalidateQueries({ queryKey: clusterKeys.replication() })
+    },
+    onError: (err) => toast.error(`Update failed — ${err.message}`),
+  })
+}
+
 // ── Cluster Firewall ─────────────────────────────────────────────────────────────────
 
 const fwk = {

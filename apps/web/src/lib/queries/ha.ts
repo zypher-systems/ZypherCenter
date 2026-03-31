@@ -81,3 +81,16 @@ export function useDeleteHAGroup() {
     onError: (err) => toast.error(`Failed to delete HA group — ${err.message}`),
   })
 }
+
+export function useUpdateHAResource() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ sid, params }: { sid: string; params: Record<string, unknown> }) =>
+      api.put(`cluster/ha/resources/${encodeURIComponent(sid)}`, params),
+    onSuccess: (_, { sid }) => {
+      toast.success(`HA resource "${sid}" updated`)
+      qc.invalidateQueries({ queryKey: haKeys.resources })
+    },
+    onError: (err) => toast.error(`Update failed — ${err.message}`),
+  })
+}

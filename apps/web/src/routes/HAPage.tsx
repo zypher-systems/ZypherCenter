@@ -7,6 +7,7 @@ import {
   useDeleteHAResource,
   useCreateHAGroup,
   useDeleteHAGroup,
+  useUpdateHAResource,
 } from '@/lib/queries/ha'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
@@ -225,6 +226,7 @@ export function HAPage() {
   const { data: status } = useHAStatus()
   const deleteResource = useDeleteHAResource()
   const deleteGroup = useDeleteHAGroup()
+  const updateResource = useUpdateHAResource()
   const [showAddResource, setShowAddResource] = useState(false)
   const [showAddGroup, setShowAddGroup] = useState(false)
 
@@ -307,17 +309,29 @@ export function HAPage() {
                           <TableCell className="text-text-secondary tabular-nums">{r.max_restart ?? 1}</TableCell>
                           <TableCell className="text-text-secondary tabular-nums">{r.max_relocate ?? 1}</TableCell>
                           <TableCell className="text-right">
-                            <button
-                              onClick={() => {
-                                if (confirm(`Remove HA resource "${r.sid}"?`)) {
-                                  deleteResource.mutate(r.sid)
-                                }
-                              }}
-                              disabled={deleteResource.isPending}
-                              className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
-                            >
-                              <Trash2 className="size-3" />Remove
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <select
+                                value={r.state ?? 'started'}
+                                onChange={(e) => updateResource.mutate({ sid: r.sid, params: { state: e.target.value } })}
+                                disabled={updateResource.isPending}
+                                className="rounded border border-border-subtle bg-bg-input px-1.5 py-0.5 text-xs text-text-primary outline-none focus:border-accent disabled:opacity-50"
+                              >
+                                {HA_STATES.map((s) => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => {
+                                  if (confirm(`Remove HA resource "${r.sid}"?`)) {
+                                    deleteResource.mutate(r.sid)
+                                  }
+                                }}
+                                disabled={deleteResource.isPending}
+                                className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                              >
+                                <Trash2 className="size-3" />Remove
+                              </button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))

@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams } from 'react-router'
-import { RefreshCw, Search } from 'lucide-react'
+import { RefreshCw, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { formatTimestamp } from '@/lib/utils'
+
+const PAGE_SIZE = 500
 
 type SyslogLine = {
   n: number
@@ -19,19 +21,23 @@ export function NodeSyslogPage() {
   const [search, setSearch] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [start, setStart] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
 
   const fetchLogs = useCallback(
     async (startLine = 0) => {
       setIsLoading(true)
       try {
-        const params = new URLSearchParams({ start: String(startLine), limit: '500' })
+        const params = new URLSearchParams({ start: String(startLine), limit: String(PAGE_SIZE) })
         const res = await fetch(`/api/proxmox/nodes/${node}/syslog?${params}`, {
           credentials: 'include',
         })
         const json = (await res.json()) as { data: SyslogLine[] }
-        setLines(json.data ?? [])
+        const fetched = json.data ?? []
+        setLines(fetched)
         setStart(startLine)
+        setHasMore(fetched.length === PAGE_SIZE)
+        if (listRef.current) listRef.current.scrollTop = 0
       } finally {
         setIsLoading(false)
       }
@@ -80,7 +86,7 @@ export function NodeSyslogPage() {
         <CardContent className="p-0">
           <div
             ref={listRef}
-            className="overflow-y-auto max-h-[calc(100vh-220px)] font-mono text-xs p-4 space-y-0.5"
+            className="overflow-y-auto max-h-[calc(100vh-260px)] font-mono text-xs p-4 space-y-0.5"
           >
             {isLoading && lines.length === 0 ? (
               <p className="text-text-muted text-sm font-sans py-8 text-center">Loading syslog…</p>
@@ -112,6 +118,28 @@ export function NodeSyslogPage() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="flex items-center justify-between text-sm text-text-muted">
+        <span>Lines {start + 1}–{start + lines.length}</span>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={start === 0 || isLoading}
+            onClick={() => fetchLogs(Math.max(0, start - PAGE_SIZE))}
+          >
+            <ChevronLeft className="size-4 mr-1" />Prev
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasMore || isLoading}
+            onClick={() => fetchLogs(start + PAGE_SIZE)}
+          >
+            Next<ChevronRight className="size-4 ml-1" />
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
