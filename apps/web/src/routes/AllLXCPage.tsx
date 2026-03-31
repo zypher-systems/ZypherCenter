@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { Play, Square, RotateCcw, Power, Terminal, Search } from 'lucide-react'
+import { Play, Square, RotateCcw, Power, Terminal, Search, Trash2 } from 'lucide-react'
 import { useClusterResources } from '@/lib/queries/cluster'
-import { useLXCStart, useLXCStop, useLXCShutdown, useLXCReboot } from '@/lib/queries/lxc'
+import { useLXCStart, useLXCStop, useLXCShutdown, useLXCReboot, useDeleteLXC } from '@/lib/queries/lxc'
 import { CreateLXCDialog } from '@/components/features/CreateLXCDialog'
 import { Card, CardContent } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -27,6 +27,7 @@ function LXCRow({ ct }: { ct: ClusterResource }) {
   const stop = useLXCStop(node, vmid)
   const shutdown = useLXCShutdown(node, vmid)
   const reboot = useLXCReboot(node, vmid)
+  const deleteLXC = useDeleteLXC(node)
 
   const isRunning = ct.status === 'running'
   const isStopped = ct.status === 'stopped'
@@ -60,9 +61,22 @@ function LXCRow({ ct }: { ct: ClusterResource }) {
       <TableCell>
         <div className="flex items-center gap-1">
           {isStopped && (
-            <Button variant="ghost" size="icon-sm" title="Start" onClick={() => start.mutate()} disabled={start.isPending}>
-              <Play className="size-3.5 text-status-running" />
-            </Button>
+            <>
+              <Button variant="ghost" size="icon-sm" title="Start" onClick={() => start.mutate()} disabled={start.isPending}>
+                <Play className="size-3.5 text-status-running" />
+              </Button>
+              <Button
+                variant="ghost" size="icon-sm" title="Delete container"
+                disabled={deleteLXC.isPending}
+                onClick={() => {
+                  if (confirm(`Delete container ${vmid} (${ct.name ?? ''})? This cannot be undone.`)) {
+                    deleteLXC.mutate({ vmid, purge: true })
+                  }
+                }}
+              >
+                <Trash2 className="size-3.5 text-text-muted hover:text-status-error" />
+              </Button>
+            </>
           )}
           {isRunning && (
             <>

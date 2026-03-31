@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { Play, Square, RotateCcw, Power, Terminal, Search } from 'lucide-react'
+import { Play, Square, RotateCcw, Power, Terminal, Search, Trash2 } from 'lucide-react'
 import { useClusterResources } from '@/lib/queries/cluster'
-import { useVMStart, useVMStop, useVMShutdown, useVMReboot } from '@/lib/queries/vms'
+import { useVMStart, useVMStop, useVMShutdown, useVMReboot, useDeleteVM } from '@/lib/queries/vms'
 import { CreateVMDialog } from '@/components/features/CreateVMDialog'
 import { Card, CardContent } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -27,6 +27,7 @@ function VMRow({ vm }: { vm: ClusterResource }) {
   const stop = useVMStop(node, vmid)
   const shutdown = useVMShutdown(node, vmid)
   const reboot = useVMReboot(node, vmid)
+  const deleteVM = useDeleteVM(node)
 
   const isRunning = vm.status === 'running'
   const isStopped = vm.status === 'stopped'
@@ -60,9 +61,22 @@ function VMRow({ vm }: { vm: ClusterResource }) {
       <TableCell>
         <div className="flex items-center gap-1">
           {isStopped && (
-            <Button variant="ghost" size="icon-sm" title="Start" onClick={() => start.mutate()} disabled={start.isPending}>
-              <Play className="size-3.5 text-status-running" />
-            </Button>
+            <>
+              <Button variant="ghost" size="icon-sm" title="Start" onClick={() => start.mutate()} disabled={start.isPending}>
+                <Play className="size-3.5 text-status-running" />
+              </Button>
+              <Button
+                variant="ghost" size="icon-sm" title="Delete VM"
+                disabled={deleteVM.isPending}
+                onClick={() => {
+                  if (confirm(`Delete VM ${vmid} (${vm.name ?? ''})? This cannot be undone.`)) {
+                    deleteVM.mutate({ vmid, purge: true })
+                  }
+                }}
+              >
+                <Trash2 className="size-3.5 text-text-muted hover:text-status-error" />
+              </Button>
+            </>
           )}
           {isRunning && (
             <>
