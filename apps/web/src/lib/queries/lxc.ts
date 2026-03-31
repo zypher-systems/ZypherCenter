@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import type { LXCListItem, LXCConfig, LXCSnapshot, VNCProxy } from '@zyphercenter/proxmox-types'
+import type { LXCListItem, LXCConfig, LXCSnapshot, VNCProxy, FirewallRule, FirewallOptions } from '@zyphercenter/proxmox-types'
 
 const ACTION_LABELS: Record<string, string> = {
   start: 'Start',
@@ -132,5 +132,23 @@ export function useCreateLXC(node: string) {
     onError: (err) => {
       toast.error(`Failed to create container — ${err.message}`)
     },
+  })
+}
+
+// ── LXC Firewall ─────────────────────────────────────────────────────────────────────────
+
+export function useLXCFirewallRules(node: string, vmid: number) {
+  return useQuery({
+    queryKey: [...lxcKeys.detail(node, vmid), 'firewall', 'rules'],
+    queryFn: () => api.get<FirewallRule[]>(`nodes/${node}/lxc/${vmid}/firewall/rules`),
+    enabled: !!node && !!vmid,
+  })
+}
+
+export function useLXCFirewallOptions(node: string, vmid: number) {
+  return useQuery({
+    queryKey: [...lxcKeys.detail(node, vmid), 'firewall', 'options'],
+    queryFn: () => api.get<FirewallOptions>(`nodes/${node}/lxc/${vmid}/firewall/options`),
+    enabled: !!node && !!vmid,
   })
 }

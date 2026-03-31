@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { ClusterStatusItem, ClusterResource, ClusterOptions, BackupJob, ReplicationJob } from '@zyphercenter/proxmox-types'
+import type {
+  ClusterStatusItem, ClusterResource, ClusterOptions, BackupJob, ReplicationJob,
+  FirewallRule, FirewallGroup, IPSet, IPSetEntry, FirewallAlias, FirewallOptions,
+} from '@zyphercenter/proxmox-types'
 
 export const clusterKeys = {
   all: ['cluster'] as const,
@@ -48,5 +51,74 @@ export function useClusterReplication() {
     queryKey: clusterKeys.replication(),
     queryFn: () => api.get<ReplicationJob[]>('cluster/replication'),
     refetchInterval: 30_000,
+  })
+}
+
+// ── Cluster Firewall ─────────────────────────────────────────────────────────────────
+
+const fwk = {
+  rules:   () => [...clusterKeys.all, 'firewall', 'rules']   as const,
+  groups:  () => [...clusterKeys.all, 'firewall', 'groups']  as const,
+  ipsets:  () => [...clusterKeys.all, 'firewall', 'ipsets']  as const,
+  aliases: () => [...clusterKeys.all, 'firewall', 'aliases'] as const,
+  options: () => [...clusterKeys.all, 'firewall', 'options'] as const,
+}
+
+export function useClusterFirewallRules() {
+  return useQuery({
+    queryKey: fwk.rules(),
+    queryFn: () => api.get<FirewallRule[]>('cluster/firewall/rules'),
+  })
+}
+
+export function useClusterFirewallGroups() {
+  return useQuery({
+    queryKey: fwk.groups(),
+    queryFn: () => api.get<FirewallGroup[]>('cluster/firewall/groups'),
+  })
+}
+
+export function useClusterFirewallIPSets() {
+  return useQuery({
+    queryKey: fwk.ipsets(),
+    queryFn: () => api.get<IPSet[]>('cluster/firewall/ipset'),
+  })
+}
+
+export function useClusterFirewallIPSetEntries(name: string) {
+  return useQuery({
+    queryKey: [...clusterKeys.all, 'firewall', 'ipset', name],
+    queryFn: () => api.get<IPSetEntry[]>(`cluster/firewall/ipset/${name}`),
+    enabled: !!name,
+  })
+}
+
+export function useClusterFirewallAliases() {
+  return useQuery({
+    queryKey: fwk.aliases(),
+    queryFn: () => api.get<FirewallAlias[]>('cluster/firewall/aliases'),
+  })
+}
+
+export function useClusterFirewallOptions() {
+  return useQuery({
+    queryKey: fwk.options(),
+    queryFn: () => api.get<FirewallOptions>('cluster/firewall/options'),
+  })
+}
+
+// ── SDN ─────────────────────────────────────────────────────────────────────────────────
+
+export function useSDNVNets() {
+  return useQuery({
+    queryKey: ['sdn', 'vnets'],
+    queryFn: () => api.get<Record<string, unknown>[]>('cluster/sdn/vnets'),
+  })
+}
+
+export function useSDNZones() {
+  return useQuery({
+    queryKey: ['sdn', 'zones'],
+    queryFn: () => api.get<Record<string, unknown>[]>('cluster/sdn/zones'),
   })
 }

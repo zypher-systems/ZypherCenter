@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import type { VMListItem, VMStatusCurrent, VMConfig, VMSnapshot, VNCProxy } from '@zyphercenter/proxmox-types'
+import type { VMListItem, VMStatusCurrent, VMConfig, VMSnapshot, VNCProxy, FirewallRule, FirewallOptions } from '@zyphercenter/proxmox-types'
 
 const ACTION_LABELS: Record<string, string> = {
   start: 'Start',
@@ -155,5 +155,23 @@ export function useNextVMId() {
   return useQuery({
     queryKey: ['cluster', 'nextid'],
     queryFn: () => api.get<number>('cluster/nextid'),
+  })
+}
+
+// ── VM Firewall ─────────────────────────────────────────────────────────────────────────
+
+export function useVMFirewallRules(node: string, vmid: number) {
+  return useQuery({
+    queryKey: [...vmKeys.detail(node, vmid), 'firewall', 'rules'],
+    queryFn: () => api.get<FirewallRule[]>(`nodes/${node}/qemu/${vmid}/firewall/rules`),
+    enabled: !!node && !!vmid,
+  })
+}
+
+export function useVMFirewallOptions(node: string, vmid: number) {
+  return useQuery({
+    queryKey: [...vmKeys.detail(node, vmid), 'firewall', 'options'],
+    queryFn: () => api.get<FirewallOptions>(`nodes/${node}/qemu/${vmid}/firewall/options`),
+    enabled: !!node && !!vmid,
   })
 }

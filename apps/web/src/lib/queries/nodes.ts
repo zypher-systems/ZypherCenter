@@ -91,3 +91,19 @@ export function useNodeRrdData(node: string, timeframe: 'hour' | 'day' = 'hour')
     enabled: !!node,
   })
 }
+
+export function useNodeTasksFiltered(
+  node: string,
+  params?: { vmid?: number; typefilter?: string; limit?: number },
+) {
+  const qs = new URLSearchParams()
+  if (params?.vmid) qs.set('vmid', String(params.vmid))
+  if (params?.typefilter) qs.set('typefilter', params.typefilter)
+  qs.set('limit', String(params?.limit ?? 50))
+  return useQuery({
+    queryKey: [...nodeKeys.tasks(node), params],
+    queryFn: () => api.get<Record<string, unknown>[]>(`nodes/${node}/tasks?${qs}`),
+    refetchInterval: 15_000,
+    enabled: !!node,
+  })
+}

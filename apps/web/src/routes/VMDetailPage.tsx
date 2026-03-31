@@ -22,14 +22,26 @@ import {
   useVMStop,
   useVMShutdown,
   useVMReboot,
+  useVMFirewallRules,
+  useVMFirewallOptions,
 } from '@/lib/queries/vms'
+import { useClusterBackupJobs } from '@/lib/queries/cluster'
+import { useNodeTasksFiltered } from '@/lib/queries/nodes'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
 import { ResourceGauge } from '@/components/ui/ResourceGauge'
 import { SkeletonCard } from '@/components/ui/Skeleton'
-import { formatBytes, formatPercent, formatUptime } from '@/lib/utils'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/Table'
+import { formatBytes, formatPercent, formatUptime, formatTimestamp } from '@/lib/utils'
 import { ResourceCharts } from '@/components/features/ResourceCharts'
 
 // ── Summary tab ───────────────────────────────────────────────────────────────
@@ -303,6 +315,225 @@ function CloudInitTab({ node, vmid }: { node: string; vmid: number }) {
   )
 }
 
+// ── Firewall tab ──────────────────────────────────────────────────────────────
+
+function FirewallActionBadge({ action }: { action: string }) {
+  const color =
+    action === 'ACCEPT' ? 'text-status-running bg-status-running/10' :
+    action === 'DROP'   ? 'text-status-error bg-status-error/10' :
+    action === 'REJECT' ? 'text-status-stopped bg-status-stopped/10' :
+                          'text-text-muted bg-bg-elevated'
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${color}`}>
+      {action}
+    </span>
+  )
+}
+
+function VMFirewallTab({ node, vmid }: { node: string; vmid: number }) {
+  const { data: rules  } = useVMFirewallRules(node, vmid)
+  const { data: options } = useVMFirewallOptions(node, vmid)
+
+  const enabled = options?.enable === 1
+
+  return (
+    <div className="space-y-4">
+      {options && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium">Firewall Status</CardTitle>
+              <span className={`text-xs font-medium px-2 py-0.5 rounded ${enabled ? 'bg-status-running/10 text-status-running' : 'bg-bg-elevated text-text-muted'}`}>
+                {enabled ? 'Enabled' : 'Disabled'}
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border-muted">
+              {(['policy_in', 'policy_out'] as const).map((key) => {
+                const val = options[key]
+                if (!val) return null
+                return (
+                  <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                    <span className="text-text-muted">{key === 'policy_in' ? 'Default policy (in)' : 'Default policy (out)'}</span>
+                    <FirewallActionBadge action={val} />
+                  </div>
+                )
+              })}
+              {(['dhcp', 'ipfilter', 'macfilter', 'ndp', 'radv'] as const).map((key) => {
+                const val = options[key]
+                if (val == null) return null
+                return (
+                  <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                    <span className="text-text-muted capitalize">{key.replace(/_/g, ' ')}</span>
+                    <span className={`text-xs ${val ? 'text-status-running' : 'text-text-disabled'}`}>{val ? 'Enabled' : 'Disabled'}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">
+            Rules
+            <span className="ml-2 text-xs font-normal text-text-muted">{rules?.length ?? 0} rule{rules?.length !== 1 ? 's' : ''}</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {!rules?.length ? (
+            <p className="text-center text-text-muted text-sm py-10">No firewall rules defined</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">#</TableHead>
+                  <TableHead>Dir</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Macro / Proto</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Dest</TableHead>
+                  <TableHead>Port</TableHead>
+                  <TableHead>Comment</TableHead>
+                  <TableHead className="w-10">On</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rules.map((rule) => (
+                  <TableRow key={rule.pos} className={rule.enable === 0 ? 'opacity-40' : ''}>
+                    <TableCell className="font-mono text-xs text-text-muted">{rule.pos}</TableCell>
+                    <TableCell>
+                      <span className="text-xs uppercase font-medium text-text-secondary">{rule.type}</span>
+                    </TableCell>
+                    <TableCell><FirewallActionBadge action={rule.action} /></TableCell>
+                    <TableCell className="text-text-secondary text-sm">{rule.macro ?? rule.proto ?? '—'}</TableCell>
+                    <TableCell className="font-mono text-xs text-text-secondary">{rule.source ?? '—'}</TableCell>
+                    <TableCell className="font-mono text-xs text-text-secondary">{rule.dest ?? '—'}</TableCell>
+                    <TableCell className="font-mono text-xs text-text-secondary">{rule.dport ?? rule.sport ?? '—'}</TableCell>
+                    <TableCell className="text-text-muted text-xs max-w-[180px] truncate">{rule.comment ?? ''}</TableCell>
+                    <TableCell>
+                      <span className={`inline-block size-2 rounded-full ${rule.enable !== 0 ? 'bg-status-running' : 'bg-border'}`} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// ── Backups tab ───────────────────────────────────────────────────────────────
+
+function VMBackupsTab({ node, vmid }: { node: string; vmid: number }) {
+  const { data: jobs } = useClusterBackupJobs()
+  const { data: tasks } = useNodeTasksFiltered(node, { vmid, typefilter: 'vzdump', limit: 20 })
+
+  // Filter backup jobs that include this vmid
+  const relatedJobs = (jobs ?? []).filter((j) => {
+    if (!j.vmid) return true // empty = all VMs
+    return String(j.vmid).split(',').map(Number).includes(vmid)
+  })
+
+  return (
+    <div className="space-y-4">
+      {/* Scheduled Jobs */}
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Scheduled Backup Jobs</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          {!relatedJobs.length ? (
+            <p className="text-center text-text-muted text-sm py-8">No scheduled backup jobs include this VM</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Job ID</TableHead>
+                  <TableHead>Schedule</TableHead>
+                  <TableHead>Storage</TableHead>
+                  <TableHead>Mode</TableHead>
+                  <TableHead>Enabled</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {relatedJobs.map((job) => (
+                  <TableRow key={job.id}>
+                    <TableCell className="font-mono text-sm">{job.id}</TableCell>
+                    <TableCell className="text-text-secondary">{job.schedule ?? job.dow ?? '—'}</TableCell>
+                    <TableCell className="text-text-secondary">{job.storage}</TableCell>
+                    <TableCell>
+                      <span className="text-xs uppercase tracking-wide text-text-muted bg-bg-elevated px-2 py-0.5 rounded">
+                        {job.mode ?? 'snapshot'}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`text-xs ${!job.enabled || job.enabled === 1 ? 'text-status-running' : 'text-text-disabled'}`}>
+                        {!job.enabled || job.enabled === 1 ? 'Yes' : 'No'}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Recent Backup Tasks */}
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Recent Backup Tasks</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          {!tasks?.length ? (
+            <p className="text-center text-text-muted text-sm py-8">No recent backup tasks</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Start Time</TableHead>
+                  <TableHead>Duration</TableHead>
+                  <TableHead>User</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tasks.map((task) => {
+                  const upid = task['upid'] as string
+                  const st = task['starttime'] as number
+                  const et = task['endtime'] as number | undefined
+                  const es = task['exitstatus'] as string | undefined
+                  const ok = es === 'OK'
+                  return (
+                    <TableRow key={upid}>
+                      <TableCell className="text-sm text-text-secondary tabular-nums">{formatTimestamp(st)}</TableCell>
+                      <TableCell className="text-sm text-text-muted">{et ? formatUptime(et - st) : '—'}</TableCell>
+                      <TableCell className="text-sm text-text-muted">{task['user'] as string ?? '—'}</TableCell>
+                      <TableCell>
+                        {!es ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs text-status-migrating">
+                            <span className="size-1.5 rounded-full bg-status-migrating animate-pulse" />Running
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center gap-1.5 text-xs ${ok ? 'text-status-running' : 'text-status-error'}`}>
+                            <span className={`size-1.5 rounded-full ${ok ? 'bg-status-running' : 'bg-status-error'}`} />
+                            {es}
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 // ── Placeholder tab ───────────────────────────────────────────────────────────
 
 function PlaceholderTab({ label }: { label: string }) {
@@ -389,8 +620,8 @@ export function VMDetailPage() {
         <TabsContent value="options"><VMOptionsTab node={node!} vmid={vmid} /></TabsContent>
         <TabsContent value="cloudinit"><CloudInitTab node={node!} vmid={vmid} /></TabsContent>
         <TabsContent value="snapshots"><SnapshotsTab node={node!} vmid={vmid} /></TabsContent>
-        <TabsContent value="backups"><PlaceholderTab label="Backup Jobs" /></TabsContent>
-        <TabsContent value="firewall"><PlaceholderTab label="VM Firewall" /></TabsContent>
+        <TabsContent value="backups"><VMBackupsTab node={node!} vmid={vmid} /></TabsContent>
+        <TabsContent value="firewall"><VMFirewallTab node={node!} vmid={vmid} /></TabsContent>
       </Tabs>
     </div>
   )
