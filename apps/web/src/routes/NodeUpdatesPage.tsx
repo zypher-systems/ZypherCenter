@@ -1,6 +1,6 @@
 import { useParams } from 'react-router'
-import { RefreshCw, Download } from 'lucide-react'
-import { useNodeUpdates, useNodeAptUpgrade } from '@/lib/queries/nodes'
+import { RefreshCw, Download, Search } from 'lucide-react'
+import { useNodeUpdates, useNodeAptUpgrade, useNodeAptCheck } from '@/lib/queries/nodes'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   Table,
@@ -17,6 +17,7 @@ export function NodeUpdatesPage() {
   const { node } = useParams<{ node: string }>()
   const { data: packages, isLoading, refetch, isFetching } = useNodeUpdates(node!)
   const upgrade = useNodeAptUpgrade(node!)
+  const aptCheck = useNodeAptCheck(node!)
 
   const hasUpdates = (packages?.length ?? 0) > 0
 
@@ -34,6 +35,15 @@ export function NodeUpdatesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => aptCheck.mutate()}
+            disabled={aptCheck.isPending || isFetching}
+          >
+            <Search className="size-4 mr-1.5" />
+            {aptCheck.isPending ? 'Checking…' : 'Check Updates'}
+          </Button>
           <Button
             variant="outline"
             size="sm"

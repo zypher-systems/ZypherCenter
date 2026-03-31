@@ -154,6 +154,18 @@ export function useNodeAptUpgrade(node: string) {
   })
 }
 
+export function useNodeAptCheck(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.post(`nodes/${node}/apt/update`, {}),
+    onSuccess: () => {
+      toast.success('Package list refresh started')
+      qc.invalidateQueries({ queryKey: nodeKeys.updates(node) })
+    },
+    onError: (err) => toast.error(`Refresh failed — ${err.message}`),
+  })
+}
+
 export function useNodePower(node: string) {
   return useMutation({
     mutationFn: (command: 'reboot' | 'shutdown') =>

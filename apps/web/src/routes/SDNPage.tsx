@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Network, Layers, Plus, Trash2 } from 'lucide-react'
+import { Network, Layers, Plus, Trash2, CheckCircle } from 'lucide-react'
 import {
   useSDNVNets,
   useSDNZones,
@@ -7,6 +7,7 @@ import {
   useDeleteSDNVNet,
   useCreateSDNZone,
   useDeleteSDNZone,
+  useApplySDN,
 } from '@/lib/queries/cluster'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
@@ -289,11 +290,23 @@ function ZonesTab() {
 
 export function SDNPage() {
   const [tab, setTab] = useState('vnets')
+  const applySDN = useApplySDN()
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold text-text-primary">SDN</h1>
-        <p className="text-sm text-text-muted mt-0.5">Software-Defined Networking — VNets and Zones</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-text-primary">SDN</h1>
+          <p className="text-sm text-text-muted mt-0.5">Software-Defined Networking — VNets and Zones</p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={applySDN.isPending}
+          onClick={() => applySDN.mutate()}
+        >
+          <CheckCircle className="size-4 mr-1.5" />
+          {applySDN.isPending ? 'Applying…' : 'Apply'}
+        </Button>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>

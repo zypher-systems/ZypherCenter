@@ -355,3 +355,15 @@ export function useDeleteSDNZone() {
     onError: (err) => toast.error(`Failed to delete zone — ${err.message}`),
   })
 }
+
+export function useApplySDN() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.put('cluster/sdn', {}),
+    onSuccess: () => {
+      toast.success('SDN changes applied')
+      qc.invalidateQueries({ queryKey: ['sdn'] })
+    },
+    onError: (err) => toast.error(`Failed to apply SDN — ${err.message}`),
+  })
+}
