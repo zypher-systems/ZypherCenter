@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { toast } from 'sonner'
 import type {
   ClusterStatusItem, ClusterResource, ClusterOptions, BackupJob, ReplicationJob,
   FirewallRule, FirewallGroup, IPSet, IPSetEntry, FirewallAlias, FirewallOptions,
@@ -152,5 +153,55 @@ export function useSDNZones() {
   return useQuery({
     queryKey: ['sdn', 'zones'],
     queryFn: () => api.get<Record<string, unknown>[]>('cluster/sdn/zones'),
+  })
+}
+
+export function useCreateSDNVNet() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { vnet: string; zone: string; tag?: number; alias?: string; vlanaware?: number }) =>
+      api.post('cluster/sdn/vnets', params),
+    onSuccess: (_, vars) => {
+      toast.success(`VNet "${vars.vnet}" created`)
+      qc.invalidateQueries({ queryKey: ['sdn', 'vnets'] })
+    },
+    onError: (err) => toast.error(`Failed to create VNet — ${err.message}`),
+  })
+}
+
+export function useDeleteSDNVNet() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (vnet: string) => api.del(`cluster/sdn/vnets/${encodeURIComponent(vnet)}`),
+    onSuccess: (_, vnet) => {
+      toast.success(`VNet "${vnet}" deleted`)
+      qc.invalidateQueries({ queryKey: ['sdn', 'vnets'] })
+    },
+    onError: (err) => toast.error(`Failed to delete VNet — ${err.message}`),
+  })
+}
+
+export function useCreateSDNZone() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { zone: string; type: string; bridge?: string; nodes?: string; dns?: string; reversedns?: string; dnszone?: string }) =>
+      api.post('cluster/sdn/zones', params),
+    onSuccess: (_, vars) => {
+      toast.success(`Zone "${vars.zone}" created`)
+      qc.invalidateQueries({ queryKey: ['sdn', 'zones'] })
+    },
+    onError: (err) => toast.error(`Failed to create zone — ${err.message}`),
+  })
+}
+
+export function useDeleteSDNZone() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (zone: string) => api.del(`cluster/sdn/zones/${encodeURIComponent(zone)}`),
+    onSuccess: (_, zone) => {
+      toast.success(`Zone "${zone}" deleted`)
+      qc.invalidateQueries({ queryKey: ['sdn', 'zones'] })
+    },
+    onError: (err) => toast.error(`Failed to delete zone — ${err.message}`),
   })
 }

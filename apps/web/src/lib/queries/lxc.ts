@@ -91,7 +91,11 @@ export function useCreateLXCSnapshot(node: string, vmid: number) {
   return useMutation({
     mutationFn: (params: { snapname: string; description?: string }) =>
       api.post<string>(`nodes/${node}/lxc/${vmid}/snapshot`, params),
-    onSuccess: () => qc.invalidateQueries({ queryKey: lxcKeys.snapshots(node, vmid) }),
+    onSuccess: (_, vars) => {
+      toast.success(`Snapshot "${vars.snapname}" task started`)
+      qc.invalidateQueries({ queryKey: lxcKeys.snapshots(node, vmid) })
+    },
+    onError: (err) => toast.error(`Snapshot failed — ${err.message}`),
   })
 }
 
@@ -100,7 +104,11 @@ export function useDeleteLXCSnapshot(node: string, vmid: number) {
   return useMutation({
     mutationFn: (snapname: string) =>
       api.del<string>(`nodes/${node}/lxc/${vmid}/snapshot/${snapname}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: lxcKeys.snapshots(node, vmid) }),
+    onSuccess: (_, snapname) => {
+      toast.success(`Snapshot "${snapname}" delete task started`)
+      qc.invalidateQueries({ queryKey: lxcKeys.snapshots(node, vmid) })
+    },
+    onError: (err) => toast.error(`Delete failed — ${err.message}`),
   })
 }
 
@@ -109,10 +117,40 @@ export function useRollbackLXCSnapshot(node: string, vmid: number) {
   return useMutation({
     mutationFn: (snapname: string) =>
       api.post<string>(`nodes/${node}/lxc/${vmid}/snapshot/${encodeURIComponent(snapname)}/rollback`, {}),
-    onSuccess: () => {
+    onSuccess: (_, snapname) => {
+      toast.success(`Rollback to "${snapname}" task started`)
       qc.invalidateQueries({ queryKey: lxcKeys.snapshots(node, vmid) })
       qc.invalidateQueries({ queryKey: lxcKeys.status(node, vmid) })
     },
+    onError: (err) => toast.error(`Rollback failed — ${err.message}`),
+  })
+}
+
+export function useMigrateLXC(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { target: string; online?: number }) =>
+      api.post<string>(`nodes/${node}/lxc/${vmid}/migrate`, params),
+    onSuccess: (_, vars) => {
+      toast.success(`CT ${vmid}: migration to ${vars.target} task started`)
+      qc.invalidateQueries({ queryKey: lxcKeys.status(node, vmid) })
+      qc.invalidateQueries({ queryKey: ['cluster', 'resources'] })
+    },
+    onError: (err) => toast.error(`Migration failed — ${err.message}`),
+  })
+}
+
+export function useCloneLXC(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { newid: number; hostname?: string; full?: number; description?: string }) =>
+      api.post<string>(`nodes/${node}/lxc/${vmid}/clone`, params),
+    onSuccess: (_, vars) => {
+      toast.success(`Clone to CT ${vars.newid} task started`)
+      qc.invalidateQueries({ queryKey: lxcKeys.list(node) })
+      qc.invalidateQueries({ queryKey: ['cluster', 'resources'] })
+    },
+    onError: (err) => toast.error(`Clone failed — ${err.message}`),
   })
 }
 

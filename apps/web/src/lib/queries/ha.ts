@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { toast } from 'sonner'
 import type { HAResource, HAGroup, HAStatus } from '@zyphercenter/proxmox-types'
 
 export const haKeys = {
@@ -34,9 +35,13 @@ export function useHAStatus() {
 export function useCreateHAResource() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (params: { sid: string; group?: string; state?: string }) =>
+    mutationFn: (params: { sid: string; group?: string; state?: string; max_restart?: number; max_relocate?: number; comment?: string }) =>
       api.post('cluster/ha/resources', params),
-    onSuccess: () => qc.invalidateQueries({ queryKey: haKeys.resources }),
+    onSuccess: (_, vars) => {
+      toast.success(`HA resource "${vars.sid}" added`)
+      qc.invalidateQueries({ queryKey: haKeys.resources })
+    },
+    onError: (err) => toast.error(`Failed to add HA resource — ${err.message}`),
   })
 }
 
@@ -44,6 +49,35 @@ export function useDeleteHAResource() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (sid: string) => api.del(`cluster/ha/resources/${encodeURIComponent(sid)}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: haKeys.resources }),
+    onSuccess: (_, sid) => {
+      toast.success(`HA resource "${sid}" removed`)
+      qc.invalidateQueries({ queryKey: haKeys.resources })
+    },
+    onError: (err) => toast.error(`Failed to remove HA resource — ${err.message}`),
+  })
+}
+
+export function useCreateHAGroup() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { group: string; nodes: string; comment?: string; restricted?: number; nofailback?: number }) =>
+      api.post('cluster/ha/groups', params),
+    onSuccess: (_, vars) => {
+      toast.success(`HA group "${vars.group}" created`)
+      qc.invalidateQueries({ queryKey: haKeys.groups })
+    },
+    onError: (err) => toast.error(`Failed to create HA group — ${err.message}`),
+  })
+}
+
+export function useDeleteHAGroup() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (group: string) => api.del(`cluster/ha/groups/${encodeURIComponent(group)}`),
+    onSuccess: (_, group) => {
+      toast.success(`HA group "${group}" deleted`)
+      qc.invalidateQueries({ queryKey: haKeys.groups })
+    },
+    onError: (err) => toast.error(`Failed to delete HA group — ${err.message}`),
   })
 }

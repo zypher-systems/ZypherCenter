@@ -95,7 +95,11 @@ export function useCreateVMSnapshot(node: string, vmid: number) {
   return useMutation({
     mutationFn: (params: { snapname: string; description?: string; vmstate?: number }) =>
       api.post<string>(`nodes/${node}/qemu/${vmid}/snapshot`, params),
-    onSuccess: () => qc.invalidateQueries({ queryKey: vmKeys.snapshots(node, vmid) }),
+    onSuccess: (_, vars) => {
+      toast.success(`Snapshot "${vars.snapname}" task started`)
+      qc.invalidateQueries({ queryKey: vmKeys.snapshots(node, vmid) })
+    },
+    onError: (err) => toast.error(`Snapshot failed — ${err.message}`),
   })
 }
 
@@ -104,7 +108,11 @@ export function useDeleteVMSnapshot(node: string, vmid: number) {
   return useMutation({
     mutationFn: (snapname: string) =>
       api.del<string>(`nodes/${node}/qemu/${vmid}/snapshot/${snapname}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: vmKeys.snapshots(node, vmid) }),
+    onSuccess: (_, snapname) => {
+      toast.success(`Snapshot "${snapname}" delete task started`)
+      qc.invalidateQueries({ queryKey: vmKeys.snapshots(node, vmid) })
+    },
+    onError: (err) => toast.error(`Delete failed — ${err.message}`),
   })
 }
 
@@ -113,10 +121,40 @@ export function useRollbackVMSnapshot(node: string, vmid: number) {
   return useMutation({
     mutationFn: (snapname: string) =>
       api.post<string>(`nodes/${node}/qemu/${vmid}/snapshot/${snapname}/rollback`),
-    onSuccess: () => {
+    onSuccess: (_, snapname) => {
+      toast.success(`Rollback to "${snapname}" task started`)
       qc.invalidateQueries({ queryKey: vmKeys.status(node, vmid) })
       qc.invalidateQueries({ queryKey: vmKeys.snapshots(node, vmid) })
     },
+    onError: (err) => toast.error(`Rollback failed — ${err.message}`),
+  })
+}
+
+export function useMigrateVM(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { target: string; online?: number; with_local_disks?: number }) =>
+      api.post<string>(`nodes/${node}/qemu/${vmid}/migrate`, params),
+    onSuccess: (_, vars) => {
+      toast.success(`VM ${vmid}: migration to ${vars.target} task started`)
+      qc.invalidateQueries({ queryKey: vmKeys.status(node, vmid) })
+      qc.invalidateQueries({ queryKey: ['cluster', 'resources'] })
+    },
+    onError: (err) => toast.error(`Migration failed — ${err.message}`),
+  })
+}
+
+export function useCloneVM(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { newid: number; name?: string; full?: number; description?: string }) =>
+      api.post<string>(`nodes/${node}/qemu/${vmid}/clone`, params),
+    onSuccess: (_, vars) => {
+      toast.success(`Clone to VM ${vars.newid} task started`)
+      qc.invalidateQueries({ queryKey: vmKeys.list(node) })
+      qc.invalidateQueries({ queryKey: ['cluster', 'resources'] })
+    },
+    onError: (err) => toast.error(`Clone failed — ${err.message}`),
   })
 }
 

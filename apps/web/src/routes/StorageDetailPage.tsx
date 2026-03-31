@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { HardDrive, Package, Server } from 'lucide-react'
-import { useStorage, useStorageContent } from '@/lib/queries/storage'
+import { HardDrive, Package, Server, Trash2 } from 'lucide-react'
+import { useStorage, useStorageContent, useDeleteStorageContent } from '@/lib/queries/storage'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import {
   Table,
@@ -37,7 +37,6 @@ export function StorageDetailPage() {
   const { data: storages } = useStorage()
   const storageInfo = storages?.find((s) => s.storage === storageid)
 
-  // Use first available node; in a real app we'd let users pick
   const targetNode = activeNode || storageInfo?.nodes?.split(',')[0]?.trim() || 'pve'
 
   const { data: content, isLoading } = useStorageContent(
@@ -45,6 +44,7 @@ export function StorageDetailPage() {
     storageid!,
     contentFilter || undefined,
   )
+  const deleteContent = useDeleteStorageContent(targetNode, storageid!)
 
   return (
     <div className="space-y-4">
@@ -84,12 +84,13 @@ export function StorageDetailPage() {
                   <TableHead>Size</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>VM</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {content?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-text-muted py-10">
+                    <TableCell colSpan={6} className="text-center text-text-muted py-10">
                       No content
                     </TableCell>
                   </TableRow>
@@ -115,6 +116,20 @@ export function StorageDetailPage() {
                       </TableCell>
                       <TableCell className="font-mono text-text-muted text-sm">
                         {item.vmid ?? '—'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete "${item.volid.split(':').pop()}"?`)) {
+                              deleteContent.mutate(item.volid)
+                            }
+                          }}
+                          disabled={deleteContent.isPending}
+                          className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                        >
+                          <Trash2 className="size-3" />
+                          Delete
+                        </button>
                       </TableCell>
                     </TableRow>
                   ))

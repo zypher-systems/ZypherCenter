@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { toast } from 'sonner'
 import type { StorageConfig, StorageContentItem } from '@zyphercenter/proxmox-types'
 
 export const storageKeys = {
@@ -25,5 +26,18 @@ export function useStorageContent(node: string, storageId: string, content?: str
         `nodes/${node}/storage/${storageId}/content${content ? `?content=${content}` : ''}`,
       ),
     enabled: !!node && !!storageId,
+  })
+}
+
+export function useDeleteStorageContent(node: string, storageId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (volid: string) =>
+      api.del(`nodes/${node}/storage/${storageId}/content/${encodeURIComponent(volid)}`),
+    onSuccess: (_, volid) => {
+      toast.success(`Deleted ${volid.split('/').pop() ?? volid}`)
+      qc.invalidateQueries({ queryKey: storageKeys.content(node, storageId) })
+    },
+    onError: (err) => toast.error(`Delete failed — ${err.message}`),
   })
 }

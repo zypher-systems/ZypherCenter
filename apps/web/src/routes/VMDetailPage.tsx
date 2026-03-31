@@ -27,9 +27,12 @@ import {
   useCreateVMSnapshot,
   useDeleteVMSnapshot,
   useRollbackVMSnapshot,
+  useMigrateVM,
+  useCloneVM,
 } from '@/lib/queries/vms'
-import { useClusterBackupJobs } from '@/lib/queries/cluster'
+import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered } from '@/lib/queries/nodes'
+import { useNextVMId } from '@/lib/queries/vms'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -644,6 +647,101 @@ function VMBackupsTab({ node, vmid }: { node: string; vmid: number }) {
   )
 }
 
+// ── Migrate / Clone dialogs ───────────────────────────────────────────────────
+
+function MigrateDialog({ node, vmid, isRunning, onClose }: { node: string; vmid: number; isRunning: boolean; onClose: () => void }) {
+  const { data: nodes } = useClusterResources('node')
+  const migrate = useMigrateVM(node, vmid)
+  const [target, setTarget] = useState('')
+  const [withDisks, setWithDisks] = useState(false)
+
+  const otherNodes = (nodes ?? []).map((n) => n.node).filter((n) => n && n !== node)
+
+  function submit() {
+    if (!target) return
+    migrate.mutate(
+      { target, online: isRunning ? 1 : 0, with_local_disks: withDisks ? 1 : 0 },
+      { onSuccess: onClose },
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-bg-card border border-border-muted rounded-xl p-6 w-full max-w-sm shadow-xl space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-base font-semibold text-text-primary">Migrate VM {vmid}</h2>
+        <div>
+          <label className="block text-xs text-text-muted mb-1">Target Node *</label>
+          <select
+            className="w-full rounded-md border border-border-muted bg-bg-input px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+          >
+            <option value="">Select node…</option>
+            {otherNodes.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <input id="wd-cb" type="checkbox" checked={withDisks} onChange={(e) => setWithDisks(e.target.checked)} className="accent-accent" />
+          <label htmlFor="wd-cb" className="text-sm text-text-secondary cursor-pointer">With local disks</label>
+        </div>
+        {isRunning && <p className="text-xs text-status-migrating">VM is running — online migration will be attempted.</p>}
+        <div className="flex gap-2 pt-1">
+          <button onClick={submit} disabled={migrate.isPending || !target} className="flex-1 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-50">
+            {migrate.isPending ? 'Migrating…' : 'Migrate'}
+          </button>
+          <button onClick={onClose} className="flex-1 rounded-md border border-border-muted px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover">Cancel</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CloneVMDialog({ node, vmid, onClose }: { node: string; vmid: number; onClose: () => void }) {
+  const { data: nextId } = useNextVMId()
+  const clone = useCloneVM(node, vmid)
+  const [newid, setNewid] = useState('')
+  const [name, setName] = useState('')
+  const [full, setFull] = useState(true)
+
+  // pre-fill with next available ID
+  useState(() => { if (nextId && !newid) setNewid(String(nextId)) })
+
+  function submit() {
+    const id = Number(newid)
+    if (!id) return
+    clone.mutate(
+      { newid: id, name: name.trim() || undefined, full: full ? 1 : 0 },
+      { onSuccess: onClose },
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-bg-card border border-border-muted rounded-xl p-6 w-full max-w-sm shadow-xl space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-base font-semibold text-text-primary">Clone VM {vmid}</h2>
+        <div>
+          <label className="block text-xs text-text-muted mb-1">New VM ID *</label>
+          <input className="w-full rounded-md border border-border-muted bg-bg-input px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent" type="number" placeholder={String(nextId ?? '')} value={newid} onChange={(e) => setNewid(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-xs text-text-muted mb-1">Name</label>
+          <input className="w-full rounded-md border border-border-muted bg-bg-input px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent" placeholder="Optional name" value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div className="flex items-center gap-2">
+          <input id="full-cb" type="checkbox" checked={full} onChange={(e) => setFull(e.target.checked)} className="accent-accent" />
+          <label htmlFor="full-cb" className="text-sm text-text-secondary cursor-pointer">Full clone (independent copy)</label>
+        </div>
+        <div className="flex gap-2 pt-1">
+          <button onClick={submit} disabled={clone.isPending || !newid} className="flex-1 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-50">
+            {clone.isPending ? 'Cloning…' : 'Clone'}
+          </button>
+          <button onClick={onClose} className="flex-1 rounded-md border border-border-muted px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover">Cancel</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Placeholder tab ───────────────────────────────────────────────────────────
 
 // ── VM Detail Page ────────────────────────────────────────────────────────────
@@ -652,6 +750,8 @@ export function VMDetailPage() {
   const { node, vmid: vmidParam } = useParams<{ node: string; vmid: string }>()
   const vmid = Number(vmidParam)
   const [tab, setTab] = useState('summary')
+  const [showMigrate, setShowMigrate] = useState(false)
+  const [showClone, setShowClone] = useState(false)
 
   const { data: status, isLoading } = useVMStatus(node!, vmid)
   const start = useVMStart(node!, vmid)
@@ -666,6 +766,8 @@ export function VMDetailPage() {
 
   return (
     <div className="space-y-5">
+      {showMigrate && <MigrateDialog node={node!} vmid={vmid} isRunning={isRunning} onClose={() => setShowMigrate(false)} />}
+      {showClone && <CloneVMDialog node={node!} vmid={vmid} onClose={() => setShowClone(false)} />}
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
@@ -696,6 +798,12 @@ export function VMDetailPage() {
               </Button>
             </>
           )}
+          <Button size="sm" variant="outline" onClick={() => setShowMigrate(true)}>
+            Migrate
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setShowClone(true)}>
+            Clone
+          </Button>
           <Button size="sm" variant="outline" asChild>
             <Link to={`/nodes/${node}/vms/${vmid}/console`}>
               <Terminal className="size-4" /> Console

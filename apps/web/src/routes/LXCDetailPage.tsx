@@ -25,9 +25,12 @@ import {
   useCreateLXCSnapshot,
   useDeleteLXCSnapshot,
   useRollbackLXCSnapshot,
+  useMigrateLXC,
+  useCloneLXC,
 } from '@/lib/queries/lxc'
-import { useClusterBackupJobs } from '@/lib/queries/cluster'
+import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered } from '@/lib/queries/nodes'
+import { useNextVMId } from '@/lib/queries/vms'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -556,18 +559,76 @@ export function LXCDetailPage() {
   const { node, vmid: vmidParam } = useParams<{ node: string; vmid: string }>()
   const vmid = Number(vmidParam)
   const { data: status, isLoading } = useLXCStatus(node!, vmid)
+  const [showMigrate, setShowMigrate] = useState(false)
+  const [showClone, setShowClone] = useState(false)
 
   const start = useLXCStart(node!, vmid)
   const stop = useLXCStop(node!, vmid)
   const shutdown = useLXCShutdown(node!, vmid)
   const reboot = useLXCReboot(node!, vmid)
+  const migrate = useMigrateLXC(node!, vmid)
+  const clone = useCloneLXC(node!, vmid)
+
+  const { data: nodes } = useClusterResources('node')
+  const { data: nextId } = useNextVMId()
 
   const isRunning = status?.status === 'running'
   const isStopped = status?.status === 'stopped'
 
+  const otherNodes = (nodes ?? []).map((n) => n.node).filter((n) => n && n !== node)
+
+  // ── Migrate state
+  const [migrTarget, setMigrTarget] = useState('')
+  // ── Clone state
+  const [cloneId, setCloneId] = useState('')
+  const [cloneName, setCloneName] = useState('')
+
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* Migrate modal */}
+      {showMigrate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowMigrate(false)}>
+          <div className="bg-bg-card border border-border-muted rounded-xl p-6 w-full max-w-sm shadow-xl space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-text-primary">Migrate CT {vmid}</h2>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Target Node *</label>
+              <select className="w-full rounded-md border border-border-muted bg-bg-input px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent" value={migrTarget} onChange={(e) => setMigrTarget(e.target.value)}>
+                <option value="">Select node…</option>
+                {otherNodes.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            {isRunning && <p className="text-xs text-status-migrating">Container is running — online migration will be attempted.</p>}
+            <div className="flex gap-2">
+              <button onClick={() => { if (migrTarget) migrate.mutate({ target: migrTarget, online: isRunning ? 1 : 0 }, { onSuccess: () => setShowMigrate(false) }) }} disabled={migrate.isPending || !migrTarget} className="flex-1 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-50">
+                {migrate.isPending ? 'Migrating…' : 'Migrate'}
+              </button>
+              <button onClick={() => setShowMigrate(false)} className="flex-1 rounded-md border border-border-muted px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Clone modal */}
+      {showClone && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowClone(false)}>
+          <div className="bg-bg-card border border-border-muted rounded-xl p-6 w-full max-w-sm shadow-xl space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-text-primary">Clone CT {vmid}</h2>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">New CT ID *</label>
+              <input className="w-full rounded-md border border-border-muted bg-bg-input px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent" type="number" placeholder={String(nextId ?? '')} value={cloneId} onChange={(e) => setCloneId(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Hostname</label>
+              <input className="w-full rounded-md border border-border-muted bg-bg-input px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent" placeholder="Optional hostname" value={cloneName} onChange={(e) => setCloneName(e.target.value)} />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => { const id = Number(cloneId); if (id) clone.mutate({ newid: id, hostname: cloneName.trim() || undefined }, { onSuccess: () => setShowClone(false) }) }} disabled={clone.isPending || !cloneId} className="flex-1 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-50">
+                {clone.isPending ? 'Cloning…' : 'Clone'}
+              </button>
+              <button onClick={() => setShowClone(false)} className="flex-1 rounded-md border border-border-muted px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-hover">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon-sm" asChild>
@@ -629,6 +690,12 @@ export function LXCDetailPage() {
                   <Terminal className="size-4 mr-1.5" />
                   Console
                 </Link>
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowMigrate(true)}>
+                Migrate
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowClone(true)}>
+                Clone
               </Button>
             </>
           )}
