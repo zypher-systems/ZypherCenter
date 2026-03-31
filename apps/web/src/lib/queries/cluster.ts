@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type {
   ClusterStatusItem, ClusterResource, ClusterOptions, BackupJob, ReplicationJob,
@@ -46,11 +46,43 @@ export function useClusterBackupJobs() {
   })
 }
 
+export function useCreateBackupJob() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) => api.post('cluster/backup', params),
+    onSuccess: () => qc.invalidateQueries({ queryKey: clusterKeys.backup() }),
+  })
+}
+
+export function useDeleteBackupJob() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.del(`cluster/backup/${encodeURIComponent(id)}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: clusterKeys.backup() }),
+  })
+}
+
 export function useClusterReplication() {
   return useQuery({
     queryKey: clusterKeys.replication(),
     queryFn: () => api.get<ReplicationJob[]>('cluster/replication'),
     refetchInterval: 30_000,
+  })
+}
+
+export function useCreateReplicationJob() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) => api.post('cluster/replication', params),
+    onSuccess: () => qc.invalidateQueries({ queryKey: clusterKeys.replication() }),
+  })
+}
+
+export function useDeleteReplicationJob() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.del(`cluster/replication/${encodeURIComponent(id)}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: clusterKeys.replication() }),
   })
 }
 

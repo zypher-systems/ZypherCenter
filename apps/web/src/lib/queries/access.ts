@@ -96,3 +96,20 @@ export function useDeleteACL() {
     onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.acl }),
   })
 }
+
+export function useCreateRealm() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) =>
+      api.post(`access/domains`, params),
+    onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.realms }),
+  })
+}
+
+export function useDeleteRealm() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (realm: string) => api.del(`access/domains/${encodeURIComponent(realm)}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.realms }),
+  })
+}
