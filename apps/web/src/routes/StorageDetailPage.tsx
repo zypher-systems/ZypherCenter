@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router'
 import { HardDrive, Package, Server, Trash2 } from 'lucide-react'
 import { useStorage, useStorageContent, useDeleteStorageContent } from '@/lib/queries/storage'
+import { useNodeStorage } from '@/lib/queries/nodes'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import {
   Table,
@@ -12,8 +13,9 @@ import {
   TableRow,
 } from '@/components/ui/Table'
 import { Button } from '@/components/ui/Button'
+import { ResourceGauge } from '@/components/ui/ResourceGauge'
 import { SkeletonCard } from '@/components/ui/Skeleton'
-import { formatBytes, formatTimestamp } from '@/lib/utils'
+import { formatBytes, formatPercent, formatTimestamp } from '@/lib/utils'
 
 const CONTENT_TYPES = [
   { value: '', label: 'All' },
@@ -38,6 +40,9 @@ export function StorageDetailPage() {
   const storageInfo = storages?.find((s) => s.storage === storageid)
 
   const targetNode = activeNode || storageInfo?.nodes?.split(',')[0]?.trim() || 'pve'
+
+  const { data: nodeStorages } = useNodeStorage(targetNode)
+  const capacityInfo = nodeStorages?.find((ns) => ns.storage === storageid)
 
   const { data: content, isLoading } = useStorageContent(
     targetNode,
@@ -70,6 +75,53 @@ export function StorageDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Capacity card */}
+      {capacityInfo && capacityInfo.total != null && capacityInfo.total > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <HardDrive className="size-4 text-text-muted" />
+              <CardTitle className="text-sm font-medium">Capacity</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-6">
+              <div className="space-y-1.5">
+                <p className="text-xs text-text-muted">Used</p>
+                <p className="text-lg font-semibold tabular-nums text-text-primary">
+                  {formatBytes(capacityInfo.used ?? 0)}
+                </p>
+                <p className="text-xs text-text-disabled">
+                  {formatPercent(capacityInfo.used_fraction ?? ((capacityInfo.used ?? 0) / capacityInfo.total))} of total
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs text-text-muted">Available</p>
+                <p className="text-lg font-semibold tabular-nums text-text-primary">
+                  {formatBytes(capacityInfo.avail ?? 0)}
+                </p>
+                <p className="text-xs text-text-disabled">free space</p>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs text-text-muted">Total</p>
+                <p className="text-lg font-semibold tabular-nums text-text-primary">
+                  {formatBytes(capacityInfo.total)}
+                </p>
+                <p className="text-xs text-text-disabled">{targetNode}</p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <ResourceGauge
+                label=""
+                used={capacityInfo.used ?? 0}
+                total={capacityInfo.total}
+                format="bytes"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Content type filter */}
       <div className="flex items-center gap-1 flex-wrap">
