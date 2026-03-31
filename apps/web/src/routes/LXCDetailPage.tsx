@@ -346,50 +346,122 @@ function LXCBackupsTab({ node, vmid }: { node: string; vmid: number }) {
   )
 }
 
+function LXCNotesCard({ node, vmid }: { node: string; vmid: number }) {
+  const { data: config } = useLXCConfig(node, vmid)
+  const updateConfig = useUpdateLXCConfig(node, vmid)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+
+  const notes = (config?.description as string | undefined) ?? ''
+
+  function startEdit() { setDraft(notes); setEditing(true) }
+  function cancel() { setEditing(false) }
+  function save() {
+    updateConfig.mutate({ description: draft }, { onSuccess: () => setEditing(false) })
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium">Notes</CardTitle>
+          {!editing ? (
+            <button onClick={startEdit} className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-accent">
+              <Pencil className="size-3" />Edit
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button onClick={cancel} className="text-xs text-text-muted hover:text-text-secondary"><X className="size-3.5" /></button>
+              <button onClick={save} disabled={updateConfig.isPending} className="inline-flex items-center gap-1 text-xs text-accent hover:text-accent-hover disabled:opacity-50">
+                <Check className="size-3" />{updateConfig.isPending ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {editing ? (
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={5}
+            className="w-full rounded border border-border-subtle bg-bg-input px-3 py-2 text-sm text-text-primary outline-none focus:border-accent resize-y font-mono"
+            placeholder="Add notes…"
+            autoFocus
+          />
+        ) : notes ? (
+          <pre className="text-sm text-text-secondary whitespace-pre-wrap font-sans leading-relaxed">{notes}</pre>
+        ) : (
+          <p className="text-sm text-text-disabled italic">No notes — click Edit to add</p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function SummaryTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: status } = useLXCStatus(node, vmid)
+  const { data: config } = useLXCConfig(node, vmid)
   if (!status) return null
+
+  const tags = (config?.tags as string | undefined)?.split(/[;,]/).map((t) => t.trim()).filter(Boolean) ?? []
 
   const stats: { label: string; value: string }[] = [
     { label: 'Status', value: status.status },
     ...(status.uptime ? [{ label: 'Uptime', value: formatUptime(status.uptime) }] : []),
     ...(status.cpus ? [{ label: 'CPUs', value: String(status.cpus) }] : []),
+    ...(status.netin != null ? [{ label: 'Net In', value: formatBytes(status.netin) }] : []),
+    ...(status.netout != null ? [{ label: 'Net Out', value: formatBytes(status.netout) }] : []),
   ]
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Resources</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {status.cpu != null && (
-            <ResourceGauge label="CPU" used={status.cpu} total={1} format="percent" />
-          )}
-          {status.mem != null && status.maxmem != null && (
-            <ResourceGauge label="Memory" used={status.mem} total={status.maxmem} />
-          )}
-          {status.disk != null && status.maxdisk != null && (
-            <ResourceGauge label="Disk" used={status.disk} total={status.maxdisk} />
-          )}
-        </CardContent>
-      </Card>
+    <div className="space-y-4">
+      {tags.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {tags.map((tag) => (
+            <span key={tag} className="inline-flex items-center rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent border border-accent/20">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Resources</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {status.cpu != null && (
+              <ResourceGauge label="CPU" used={status.cpu} total={1} format="percent" />
+            )}
+            {status.mem != null && status.maxmem != null && (
+              <ResourceGauge label="Memory" used={status.mem} total={status.maxmem} />
+            )}
+            {status.disk != null && status.maxdisk != null && (
+              <ResourceGauge label="Disk" used={status.disk} total={status.maxdisk} />
+            )}
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Info</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="space-y-2">
-            {stats.map(({ label, value }) => (
-              <div key={label} className="flex justify-between text-sm">
-                <dt className="text-text-muted">{label}</dt>
-                <dd className="text-text-primary font-medium">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </CardContent>
-      </Card>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Info</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <dl className="space-y-2">
+                {stats.map(({ label, value }) => (
+                  <div key={label} className="flex justify-between text-sm">
+                    <dt className="text-text-muted">{label}</dt>
+                    <dd className="text-text-primary font-medium">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </CardContent>
+          </Card>
+          <LXCNotesCard node={node} vmid={vmid} />
+        </div>
+      </div>
     </div>
   )
 }

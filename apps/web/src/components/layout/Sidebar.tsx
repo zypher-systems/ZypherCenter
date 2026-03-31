@@ -30,6 +30,7 @@ import {
   CircleDot,
   Globe,
   Timer,
+  Cog,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/stores/ui'
@@ -155,6 +156,7 @@ function NodeTree({
             { label: 'Updates', to: `/nodes/${nodeName}/updates`, icon: <RefreshCw /> },
             { label: 'DNS', to: `/nodes/${nodeName}/dns`, icon: <Globe /> },
             { label: 'Time', to: `/nodes/${nodeName}/time`, icon: <Timer /> },
+            { label: 'Services', to: `/nodes/${nodeName}/services`, icon: <Cog /> },
             { label: 'Syslog', to: `/nodes/${nodeName}/syslog`, icon: <ScrollText /> },
             { label: 'Tasks', to: `/nodes/${nodeName}/tasks`, icon: <Clock /> },
           ].map((item) => (

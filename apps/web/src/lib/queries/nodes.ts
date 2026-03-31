@@ -250,3 +250,34 @@ export function useUpdateNodeTime(node: string) {
     onError: (err) => toast.error(`Failed to update timezone — ${err.message}`),
   })
 }
+
+// ── Services ──────────────────────────────────────────────────────────────────
+
+export interface NodeService {
+  name: string
+  desc?: string
+  state?: string
+  unit_state?: string
+}
+
+export function useNodeServices(node: string) {
+  return useQuery({
+    queryKey: [...nodeKeys.all(node), 'services'],
+    queryFn: () => api.get<NodeService[]>(`nodes/${node}/services`),
+    refetchInterval: 15_000,
+    enabled: !!node,
+  })
+}
+
+export function useNodeServiceAction(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ service, action }: { service: string; action: 'start' | 'stop' | 'restart' | 'reload' }) =>
+      api.post(`nodes/${node}/services/${service}/${action}`, {}),
+    onSuccess: (_, { service, action }) => {
+      toast.success(`Service ${service} ${action}ed`)
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'services'] })
+    },
+    onError: (err) => toast.error(`Service action failed — ${err.message}`),
+  })
+}
