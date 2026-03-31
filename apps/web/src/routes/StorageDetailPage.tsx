@@ -55,6 +55,20 @@ export function StorageDetailPage() {
             {storageInfo?.type ?? 'storage'} · {storageInfo?.content?.replace(/,/g, ', ') ?? ''}
           </p>
         </div>
+        {storageInfo?.nodes && storageInfo.nodes.includes(',') && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-text-muted">Node:</span>
+            <select
+              value={activeNode || (storageInfo.nodes!.split(',')[0] ?? '').trim()}
+              onChange={(e) => setActiveNode(e.target.value)}
+              className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+            >
+              {storageInfo.nodes.split(',').map((n) => n.trim()).map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Content type filter */}

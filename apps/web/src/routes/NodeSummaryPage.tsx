@@ -7,8 +7,10 @@ import {
   Clock,
   Server,
   Activity,
+  Power,
+  RefreshCw,
 } from 'lucide-react'
-import { useNodeStatus, useNodeRrdData } from '@/lib/queries/nodes'
+import { useNodeStatus, useNodeRrdData, useNodePower } from '@/lib/queries/nodes'
 import { useVMs } from '@/lib/queries/vms'
 import { useLXCs } from '@/lib/queries/lxc'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -184,6 +186,7 @@ export function NodeSummaryPage() {
   const { data: status, isLoading } = useNodeStatus(node!)
   const { data: vms } = useVMs(node!)
   const { data: lxcs } = useLXCs(node!)
+  const nodePower = useNodePower(node!)
 
   if (isLoading) {
     return (
@@ -220,6 +223,28 @@ export function NodeSummaryPage() {
           </p>
         </div>
         <StatusBadge status="running" label="Online" className="ml-auto" />
+        <button
+          type="button"
+          disabled={nodePower.isPending}
+          onClick={() => {
+            if (confirm(`Reboot node ${node}?`)) nodePower.mutate('reboot')
+          }}
+          className="inline-flex items-center gap-1.5 rounded border border-border-subtle px-2.5 py-1.5 text-xs text-text-secondary hover:border-accent/50 hover:text-text-primary disabled:opacity-50"
+        >
+          <RefreshCw className="size-3.5" />
+          Reboot
+        </button>
+        <button
+          type="button"
+          disabled={nodePower.isPending}
+          onClick={() => {
+            if (confirm(`Shutdown node ${node}? This will stop all guests.`)) nodePower.mutate('shutdown')
+          }}
+          className="inline-flex items-center gap-1.5 rounded border border-status-error/40 px-2.5 py-1.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+        >
+          <Power className="size-3.5" />
+          Shutdown
+        </button>
       </div>
 
       {/* Resource summary cards */}

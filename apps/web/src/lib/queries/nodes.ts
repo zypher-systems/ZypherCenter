@@ -154,6 +154,16 @@ export function useNodeAptUpgrade(node: string) {
   })
 }
 
+export function useNodePower(node: string) {
+  return useMutation({
+    mutationFn: (command: 'reboot' | 'shutdown') =>
+      api.post(`nodes/${node}/status`, { command }),
+    onSuccess: (_, command) =>
+      toast.success(`Node ${node} ${command} initiated`),
+    onError: (err) => toast.error(`Failed — ${err.message}`),
+  })
+}
+
 export function useNodeTasksFiltered(
   node: string,
   params?: { vmid?: number; typefilter?: string; limit?: number },
