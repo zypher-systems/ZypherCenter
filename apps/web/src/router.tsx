@@ -42,6 +42,7 @@ import { HAPage } from '@/routes/HAPage'
 import { SDNPage } from '@/routes/SDNPage'
 import { ClusterFirewallPage } from '@/routes/ClusterFirewallPage'
 import { ClusterOptionsPage } from '@/routes/ClusterOptionsPage'
+import { CephPage } from '@/routes/CephPage'
 
 // Access
 import { AccessUsersPage } from '@/routes/AccessUsersPage'
@@ -113,6 +114,7 @@ export const router = createBrowserRouter([
       { path: 'cluster/sdn', element: <SDNPage /> },
       { path: 'cluster/firewall', element: <ClusterFirewallPage /> },
       { path: 'cluster/options', element: <ClusterOptionsPage /> },
+      { path: 'cluster/ceph', element: <CephPage /> },
 
       // Access management
       { path: 'access/users', element: <AccessUsersPage /> },

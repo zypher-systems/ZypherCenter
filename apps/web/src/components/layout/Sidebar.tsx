@@ -27,6 +27,7 @@ import {
   PanelLeft,
   Cpu,
   MemoryStick,
+  CircleDot,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/stores/ui'
@@ -224,8 +225,9 @@ export function Sidebar() {
     { label: 'Dashboard', to: '/', icon: <Layers />, exact: true },
     { label: 'Virtual Machines', to: '/vms', icon: <Monitor /> },
     { label: 'Containers', to: '/lxc', icon: <Box /> },
-    { label: 'Storage', to: '/storage', icon: <Database /> },
-    { label: 'Backup Jobs', to: '/cluster/backup', icon: <HardDrive /> },
+    { label: 'Storage',     to: '/storage',              icon: <Database /> },
+    { label: 'Ceph',        to: '/cluster/ceph',         icon: <CircleDot /> },
+    { label: 'Backup Jobs', to: '/cluster/backup',       icon: <HardDrive /> },
     { label: 'Replication', to: '/cluster/replication', icon: <GitFork /> },
     { label: 'HA', to: '/cluster/ha', icon: <ShieldCheck /> },
     { label: 'SDN', to: '/cluster/sdn', icon: <Network /> },
