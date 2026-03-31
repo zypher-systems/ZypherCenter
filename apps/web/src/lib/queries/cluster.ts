@@ -140,6 +140,130 @@ export function useClusterFirewallOptions() {
   })
 }
 
+export function useUpdateClusterFirewallOptions() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Partial<FirewallOptions>) => api.put('cluster/firewall/options', params),
+    onSuccess: () => {
+      toast.success('Firewall options updated')
+      qc.invalidateQueries({ queryKey: fwk.options() })
+    },
+    onError: (err) => toast.error(`Failed to update firewall options — ${err.message}`),
+  })
+}
+
+export function useCreateClusterFirewallRule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { action: string; type: string; enable?: number; comment?: string; source?: string; dest?: string; proto?: string; dport?: string; sport?: string; macro?: string; iface?: string }) =>
+      api.post('cluster/firewall/rules', params),
+    onSuccess: () => {
+      toast.success('Firewall rule created')
+      qc.invalidateQueries({ queryKey: fwk.rules() })
+    },
+    onError: (err) => toast.error(`Failed to create rule — ${err.message}`),
+  })
+}
+
+export function useDeleteClusterFirewallRule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (pos: number) => api.del(`cluster/firewall/rules/${pos}`),
+    onSuccess: () => {
+      toast.success('Firewall rule deleted')
+      qc.invalidateQueries({ queryKey: fwk.rules() })
+    },
+    onError: (err) => toast.error(`Failed to delete rule — ${err.message}`),
+  })
+}
+
+export function useCreateClusterFirewallGroup() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { group: string; comment?: string }) =>
+      api.post('cluster/firewall/groups', params),
+    onSuccess: (_, vars) => {
+      toast.success(`Security group "${vars.group}" created`)
+      qc.invalidateQueries({ queryKey: fwk.groups() })
+    },
+    onError: (err) => toast.error(`Failed to create group — ${err.message}`),
+  })
+}
+
+export function useDeleteClusterFirewallGroup() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (group: string) => api.del(`cluster/firewall/groups/${encodeURIComponent(group)}`),
+    onSuccess: (_, group) => {
+      toast.success(`Security group "${group}" deleted`)
+      qc.invalidateQueries({ queryKey: fwk.groups() })
+    },
+    onError: (err) => toast.error(`Failed to delete group — ${err.message}`),
+  })
+}
+
+export function useCreateClusterFirewallAlias() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { name: string; cidr: string; comment?: string }) =>
+      api.post('cluster/firewall/aliases', params),
+    onSuccess: (_, vars) => {
+      toast.success(`Alias "${vars.name}" created`)
+      qc.invalidateQueries({ queryKey: fwk.aliases() })
+    },
+    onError: (err) => toast.error(`Failed to create alias — ${err.message}`),
+  })
+}
+
+export function useDeleteClusterFirewallAlias() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => api.del(`cluster/firewall/aliases/${encodeURIComponent(name)}`),
+    onSuccess: (_, name) => {
+      toast.success(`Alias "${name}" deleted`)
+      qc.invalidateQueries({ queryKey: fwk.aliases() })
+    },
+    onError: (err) => toast.error(`Failed to delete alias — ${err.message}`),
+  })
+}
+
+export function useCreateClusterFirewallIPSet() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { name: string; comment?: string }) =>
+      api.post('cluster/firewall/ipset', params),
+    onSuccess: (_, vars) => {
+      toast.success(`IP set "${vars.name}" created`)
+      qc.invalidateQueries({ queryKey: fwk.ipsets() })
+    },
+    onError: (err) => toast.error(`Failed to create IP set — ${err.message}`),
+  })
+}
+
+export function useDeleteClusterFirewallIPSet() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => api.del(`cluster/firewall/ipset/${encodeURIComponent(name)}`),
+    onSuccess: (_, name) => {
+      toast.success(`IP set "${name}" deleted`)
+      qc.invalidateQueries({ queryKey: fwk.ipsets() })
+    },
+    onError: (err) => toast.error(`Failed to delete IP set — ${err.message}`),
+  })
+}
+
+export function useUpdateClusterOptions() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) => api.put('cluster/options', params),
+    onSuccess: () => {
+      toast.success('Cluster options updated')
+      qc.invalidateQueries({ queryKey: clusterKeys.options() })
+    },
+    onError: (err) => toast.error(`Failed to update options — ${err.message}`),
+  })
+}
+
 // ── SDN ─────────────────────────────────────────────────────────────────────────────────
 
 export function useSDNVNets() {

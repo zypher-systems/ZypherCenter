@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { toast } from 'sonner'
 import type { NodeStatus, NetworkInterface, NodeDisk, AptPackage, NodeStorage } from '@zyphercenter/proxmox-types'
 
 export const nodeKeys = {
@@ -89,6 +90,31 @@ export function useNodeRrdData(node: string, timeframe: 'hour' | 'day' = 'hour')
       api.get<RrdDataPoint[]>(`nodes/${node}/rrddata?timeframe=${timeframe}&cf=AVERAGE`),
     refetchInterval: 30_000,
     enabled: !!node,
+  })
+}
+
+export function useWipeDisk(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (disk: string) => api.put(`nodes/${node}/disks/wipedisk`, { disk }),
+    onSuccess: (_, disk) => {
+      toast.success(`Disk ${disk} wiped`)
+      qc.invalidateQueries({ queryKey: nodeKeys.disks(node) })
+    },
+    onError: (err) => toast.error(`Wipe failed — ${err.message}`),
+  })
+}
+
+export function useInitDisk(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { disk: string; uuid?: string }) =>
+      api.post(`nodes/${node}/disks/initgpt`, params),
+    onSuccess: (_, vars) => {
+      toast.success(`Disk ${vars.disk} initialized`)
+      qc.invalidateQueries({ queryKey: nodeKeys.disks(node) })
+    },
+    onError: (err) => toast.error(`Init failed — ${err.message}`),
   })
 }
 

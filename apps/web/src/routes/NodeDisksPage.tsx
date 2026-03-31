@@ -1,6 +1,6 @@
 import { useParams } from 'react-router'
-import { HardDrive, Cpu } from 'lucide-react'
-import { useNodeDisks } from '@/lib/queries/nodes'
+import { HardDrive } from 'lucide-react'
+import { useNodeDisks, useWipeDisk, useInitDisk } from '@/lib/queries/nodes'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   Table,
@@ -26,6 +26,8 @@ function DiskHealth({ health }: { health?: string }) {
 export function NodeDisksPage() {
   const { node } = useParams<{ node: string }>()
   const { data: disks, isLoading } = useNodeDisks(node!)
+  const wipe = useWipeDisk(node!)
+  const init = useInitDisk(node!)
 
   return (
     <div className="space-y-4">
@@ -49,12 +51,13 @@ export function NodeDisksPage() {
                   <TableHead>S.M.A.R.T.</TableHead>
                   <TableHead>Wearout</TableHead>
                   <TableHead>Serial</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {disks?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-text-muted py-10">
+                    <TableCell colSpan={8} className="text-center text-text-muted py-10">
                       No disks found
                     </TableCell>
                   </TableRow>
@@ -88,8 +91,32 @@ export function NodeDisksPage() {
                       </TableCell>
                       <TableCell className="font-mono text-xs text-text-muted">
                         {disk.serial ?? '—'}
-                      </TableCell>
-                    </TableRow>
+                      </TableCell>                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => {
+                              if (confirm(`Initialize (GPT) ${disk.devpath}? This will wipe all data!`)) {
+                                init.mutate({ disk: disk.devpath })
+                              }
+                            }}
+                            disabled={init.isPending}
+                            className="inline-flex items-center gap-1 rounded border border-border-subtle px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-elevated disabled:opacity-50"
+                          >
+                            Init GPT
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Wipe disk ${disk.devpath}? ALL DATA WILL BE LOST!`)) {
+                                wipe.mutate(disk.devpath)
+                              }
+                            }}
+                            disabled={wipe.isPending}
+                            className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                          >
+                            Wipe
+                          </button>
+                        </div>
+                      </TableCell>                    </TableRow>
                   ))
                 )}
               </TableBody>

@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { Link } from 'react-router'
-import { Database, HardDrive } from 'lucide-react'
-import { useStorage } from '@/lib/queries/storage'
+import { Database, Plus, Trash2 } from 'lucide-react'
+import { useStorage, useCreateStorage, useDeleteStorage } from '@/lib/queries/storage'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   Table,
@@ -10,18 +11,113 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/Table'
-import { ResourceGauge } from '@/components/ui/ResourceGauge'
 import { SkeletonCard } from '@/components/ui/Skeleton'
-import { formatBytes } from '@/lib/utils'
+import { Button } from '@/components/ui/Button'
+
+const STORAGE_TYPES = ['dir', 'nfs', 'cifs', 'btrfs', 'lvm', 'lvmthin', 'zfspool', 'rbd', 'cephfs', 'iscsi', 'iscsidirect', 'glusterfs', 'pbs']
+const CONTENT_OPTS = ['images', 'rootdir', 'vztmpl', 'iso', 'backup', 'snippets']
+
+function CreateStorageDialog({ onClose }: { onClose: () => void }) {
+  const [storage, setStorage] = useState('')
+  const [type, setType] = useState('dir')
+  const [path, setPath] = useState('')
+  const [content, setContent] = useState<string[]>(['images'])
+  const create = useCreateStorage()
+
+  function toggleContent(c: string) {
+    setContent((prev) => prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c])
+  }
+
+  function submit() {
+    if (!storage.trim()) return
+    const params: Record<string, unknown> = {
+      storage: storage.trim(),
+      type,
+      content: content.join(','),
+    }
+    if (path) params.path = path
+    create.mutate(params, { onSuccess: () => onClose() })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-text-primary">Create Storage</h2>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">ID <span className="text-status-error">*</span></label>
+            <input
+              value={storage}
+              onChange={(e) => setStorage(e.target.value)}
+              placeholder="e.g. local-backup"
+              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Type <span className="text-status-error">*</span></label>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+            >
+              {STORAGE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          {(type === 'dir' || type === 'btrfs') && (
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Path</label>
+              <input
+                value={path}
+                onChange={(e) => setPath(e.target.value)}
+                placeholder="/mnt/storage"
+                className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+              />
+            </div>
+          )}
+          <div>
+            <label className="block text-sm text-text-secondary mb-2">Content Types</label>
+            <div className="flex flex-wrap gap-2">
+              {CONTENT_OPTS.map((c) => (
+                <label key={c} className="flex items-center gap-1.5 text-sm text-text-secondary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={content.includes(c)}
+                    onChange={() => toggleContent(c)}
+                    className="accent-accent"
+                  />
+                  {c}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={submit} disabled={!storage.trim() || content.length === 0 || create.isPending}>
+            {create.isPending ? 'Creating…' : 'Create'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function StorageListPage() {
   const { data: storages, isLoading } = useStorage()
+  const deleteStorage = useDeleteStorage()
+  const [showCreate, setShowCreate] = useState(false)
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-text-primary">Storage</h1>
-        <p className="text-sm text-text-muted mt-0.5">All configured storage pools in the cluster</p>
+      {showCreate && <CreateStorageDialog onClose={() => setShowCreate(false)} />}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-text-primary">Storage</h1>
+          <p className="text-sm text-text-muted mt-0.5">All configured storage pools in the cluster</p>
+        </div>
+        <Button size="sm" onClick={() => setShowCreate(true)}>
+          <Plus className="size-3.5 mr-1" />Add Storage
+        </Button>
       </div>
 
       {isLoading ? (
@@ -37,12 +133,13 @@ export function StorageListPage() {
                   <TableHead>Content Types</TableHead>
                   <TableHead>Nodes</TableHead>
                   <TableHead>Enabled</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {storages?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-text-muted py-10">
+                    <TableCell colSpan={6} className="text-center text-text-muted py-10">
                       No storage configured
                     </TableCell>
                   </TableRow>
@@ -80,6 +177,19 @@ export function StorageListPage() {
                           />
                           {s.disable ? 'Disabled' : 'Enabled'}
                         </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete storage "${s.storage}"? This only removes the configuration.`)) {
+                              deleteStorage.mutate(s.storage)
+                            }
+                          }}
+                          disabled={deleteStorage.isPending}
+                          className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                        >
+                          <Trash2 className="size-3" />Remove
+                        </button>
                       </TableCell>
                     </TableRow>
                   ))

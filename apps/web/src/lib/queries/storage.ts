@@ -29,6 +29,30 @@ export function useStorageContent(node: string, storageId: string, content?: str
   })
 }
 
+export function useCreateStorage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) => api.post('storage', params),
+    onSuccess: (_, vars) => {
+      toast.success(`Storage "${vars.storage}" created`)
+      qc.invalidateQueries({ queryKey: storageKeys.list() })
+    },
+    onError: (err) => toast.error(`Failed to create storage — ${err.message}`),
+  })
+}
+
+export function useDeleteStorage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (storageId: string) => api.del(`storage/${encodeURIComponent(storageId)}`),
+    onSuccess: (_, storageId) => {
+      toast.success(`Storage "${storageId}" deleted`)
+      qc.invalidateQueries({ queryKey: storageKeys.list() })
+    },
+    onError: (err) => toast.error(`Failed to delete storage — ${err.message}`),
+  })
+}
+
 export function useDeleteStorageContent(node: string, storageId: string) {
   const qc = useQueryClient()
   return useMutation({
