@@ -227,6 +227,19 @@ export function useCreateVMFirewallRule(node: string, vmid: number) {
   })
 }
 
+export function useUpdateVMConfig(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) =>
+      api.put(`nodes/${node}/qemu/${vmid}/config`, params),
+    onSuccess: () => {
+      toast.success('VM configuration updated')
+      qc.invalidateQueries({ queryKey: vmKeys.config(node, vmid) })
+    },
+    onError: (err) => toast.error(`Update failed — ${err.message}`),
+  })
+}
+
 export function useDeleteVMFirewallRule(node: string, vmid: number) {
   const qc = useQueryClient()
   return useMutation({

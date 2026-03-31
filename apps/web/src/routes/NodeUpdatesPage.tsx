@@ -1,7 +1,6 @@
-import { useState } from 'react'
 import { useParams } from 'react-router'
 import { RefreshCw, Download } from 'lucide-react'
-import { useNodeUpdates } from '@/lib/queries/nodes'
+import { useNodeUpdates, useNodeAptUpgrade } from '@/lib/queries/nodes'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   Table,
@@ -17,7 +16,7 @@ import { SkeletonCard } from '@/components/ui/Skeleton'
 export function NodeUpdatesPage() {
   const { node } = useParams<{ node: string }>()
   const { data: packages, isLoading, refetch, isFetching } = useNodeUpdates(node!)
-  const [upgrading, setUpgrading] = useState(false)
+  const upgrade = useNodeAptUpgrade(node!)
 
   const hasUpdates = (packages?.length ?? 0) > 0
 
@@ -47,17 +46,8 @@ export function NodeUpdatesPage() {
           {hasUpdates && (
             <Button
               size="sm"
-              disabled={upgrading}
-              onClick={() => {
-                setUpgrading(true)
-                // Proxmox upgrade is done via POST /nodes/{node}/apt/update (which runs apt-get upgrade)
-                fetch(`/api/proxmox/nodes/${node}/apt/update`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({}),
-                  credentials: 'include',
-                }).finally(() => setUpgrading(false))
-              }}
+              disabled={upgrade.isPending}
+              onClick={() => upgrade.mutate()}
             >
               <Download className="size-4 mr-1.5" />
               Upgrade All

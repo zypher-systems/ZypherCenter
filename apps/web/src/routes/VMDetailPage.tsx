@@ -15,6 +15,9 @@ import {
   Activity,
   Plus,
   Trash2,
+  Pencil,
+  Check,
+  X,
 } from 'lucide-react'
 import {
   useVMStatus,
@@ -33,6 +36,7 @@ import {
   useRollbackVMSnapshot,
   useMigrateVM,
   useCloneVM,
+  useUpdateVMConfig,
 } from '@/lib/queries/vms'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered } from '@/lib/queries/nodes'
@@ -306,31 +310,126 @@ function SnapshotsTab({ node, vmid }: { node: string; vmid: number }) {
 
 function VMOptionsTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: config } = useVMConfig(node, vmid)
+  const updateConfig = useUpdateVMConfig(node, vmid)
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+
   if (!config) return null
 
-  const rows: { key: string; label: string; fmt?: (v: unknown) => string }[] = [
-    { key: 'onboot',      label: 'Start at boot',    fmt: (v) => v ? 'Yes' : 'No' },
-    { key: 'protection',  label: 'Protection',        fmt: (v) => v ? 'Enabled' : 'Disabled' },
-    { key: 'acpi',        label: 'ACPI',              fmt: (v) => v ? 'Enabled' : 'Disabled' },
-    { key: 'kvm',         label: 'KVM',               fmt: (v) => v != null ? (v ? 'Enabled' : 'Disabled') : 'Default' },
-    { key: 'tablet',      label: 'USB Tablet',        fmt: (v) => v ? 'Enabled' : 'Disabled' },
-    { key: 'agent',       label: 'QEMU Agent',        fmt: (v) => String(v ?? '—') },
-    { key: 'hotplug',     label: 'Hotplug',           fmt: (v) => String(v ?? '—') },
-    { key: 'numa',        label: 'NUMA',              fmt: (v) => v ? 'Enabled' : 'Disabled' },
-    { key: 'balloon',     label: 'Balloon',           fmt: (v) => String(v ?? '0') },
-    { key: 'localtime',   label: 'Local time',        fmt: (v) => v ? 'Enabled' : 'Disabled' },
-    { key: 'hookscript',  label: 'Hook script',       fmt: (v) => String(v ?? '—') },
-    { key: 'startdate',   label: 'Start date',        fmt: (v) => String(v ?? '—') },
-    { key: 'tags',        label: 'Tags',              fmt: (v) => String(v ?? '—') },
-    { key: 'description', label: 'Description',       fmt: (v) => String(v ?? '—') },
+  // Boolean toggle options
+  const boolOpts: { key: string; label: string }[] = [
+    { key: 'onboot',     label: 'Start at boot' },
+    { key: 'protection', label: 'Protection' },
+    { key: 'acpi',       label: 'ACPI' },
+    { key: 'tablet',     label: 'USB Tablet' },
+    { key: 'numa',       label: 'NUMA' },
+    { key: 'localtime',  label: 'Local time' },
   ]
+
+  // Text-editable options
+  const textOpts: { key: string; label: string }[] = [
+    { key: 'description', label: 'Description' },
+    { key: 'tags',        label: 'Tags' },
+    { key: 'hookscript',  label: 'Hook script' },
+  ]
+
+  // Read-only display options
+  const readOpts: { key: string; label: string; fmt?: (v: unknown) => string }[] = [
+    { key: 'kvm',      label: 'KVM',          fmt: (v) => v != null ? (v ? 'Enabled' : 'Disabled') : 'Default' },
+    { key: 'agent',    label: 'QEMU Agent',   fmt: (v) => String(v ?? '—') },
+    { key: 'hotplug',  label: 'Hotplug',      fmt: (v) => String(v ?? '—') },
+    { key: 'balloon',  label: 'Balloon',      fmt: (v) => String(v ?? '0') },
+    { key: 'startdate', label: 'Start date',  fmt: (v) => String(v ?? '—') },
+  ]
+
+  function startEdit(key: string) {
+    setEditingKey(key)
+    const val = config![key as keyof typeof config]
+    setEditValue(val != null ? String(val) : '')
+  }
+
+  function cancelEdit() { setEditingKey(null); setEditValue('') }
+
+  function saveEdit(key: string) {
+    updateConfig.mutate({ [key]: editValue }, { onSuccess: cancelEdit })
+  }
+
+  function toggleBool(key: string) {
+    const cur = config![key as keyof typeof config]
+    updateConfig.mutate({ [key]: cur ? 0 : 1 })
+  }
 
   return (
     <Card>
       <CardHeader><CardTitle>VM Options</CardTitle></CardHeader>
       <CardContent className="p-0">
         <div className="divide-y divide-border-muted">
-          {rows.map(({ key, label, fmt }) => {
+          {/* Boolean toggles */}
+          {boolOpts.map(({ key, label }) => {
+            const val = config[key as keyof typeof config]
+            const isOn = !!val
+            return (
+              <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                <span className="text-text-muted">{label}</span>
+                <button
+                  onClick={() => toggleBool(key)}
+                  disabled={updateConfig.isPending}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
+                    isOn ? 'bg-accent' : 'bg-border-muted'
+                  }`}
+                >
+                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                    isOn ? 'translate-x-4' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+            )
+          })}
+
+          {/* Text-editable options */}
+          {textOpts.map(({ key, label }) => {
+            const val = config[key as keyof typeof config]
+            const isEditing = editingKey === key
+            return (
+              <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                <span className="text-text-muted shrink-0">{label}</span>
+                {isEditing ? (
+                  <div className="flex items-center gap-1.5 flex-1 justify-end">
+                    <input
+                      autoFocus
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(key); if (e.key === 'Escape') cancelEdit() }}
+                      className="w-full max-w-xs rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-sm text-text-primary outline-none focus:border-accent"
+                    />
+                    <button
+                      onClick={() => saveEdit(key)}
+                      disabled={updateConfig.isPending}
+                      className="text-status-running hover:opacity-80 disabled:opacity-50"
+                    >
+                      <Check className="size-3.5" />
+                    </button>
+                    <button onClick={cancelEdit} className="text-text-muted hover:opacity-80">
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-text-primary text-right">{val != null ? String(val) : '—'}</span>
+                    <button
+                      onClick={() => startEdit(key)}
+                      className="text-text-muted hover:text-text-primary"
+                    >
+                      <Pencil className="size-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {/* Read-only options */}
+          {readOpts.map(({ key, label, fmt }) => {
             const val = config[key as keyof typeof config]
             if (val == null) return null
             return (
@@ -350,6 +449,10 @@ function VMOptionsTab({ node, vmid }: { node: string; vmid: number }) {
 
 function CloudInitTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: config } = useVMConfig(node, vmid)
+  const updateConfig = useUpdateVMConfig(node, vmid)
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+
   if (!config) return null
 
   const hasCiDrive = Object.keys(config).some(
@@ -371,31 +474,78 @@ function CloudInitTab({ node, vmid }: { node: string; vmid: number }) {
 
   const sshkeys = config['sshkeys' as keyof typeof config] as string | undefined
 
+  const editableFields: { key: string; label: string; type?: 'password' }[] = [
+    { key: 'ciuser',       label: 'Username' },
+    { key: 'cipassword',   label: 'Password', type: 'password' },
+    { key: 'nameserver',   label: 'DNS Server' },
+    { key: 'searchdomain', label: 'Search Domain' },
+  ]
+
+  function startEdit(key: string) {
+    setEditingKey(key)
+    const val = config![key as keyof typeof config]
+    setEditValue(key === 'cipassword' ? '' : (val != null ? String(val) : ''))
+  }
+
+  function cancelEdit() { setEditingKey(null); setEditValue('') }
+
+  function saveEdit(key: string) {
+    updateConfig.mutate({ [key]: editValue }, { onSuccess: cancelEdit })
+  }
+
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader><CardTitle>User &amp; Credentials</CardTitle></CardHeader>
         <CardContent className="p-0">
           <div className="divide-y divide-border-muted">
-            {(['ciuser', 'nameserver', 'searchdomain'] as const).map((key) => {
+            {editableFields.map(({ key, label, type }) => {
               const val = config[key as keyof typeof config]
-              if (val == null) return null
-              const labelMap: Record<string, string> = {
-                ciuser: 'Username', nameserver: 'DNS Server', searchdomain: 'Search Domain',
-              }
+              const isEditing = editingKey === key
+              const displayVal = key === 'cipassword'
+                ? (val != null ? '••••••••' : '—')
+                : (val != null ? String(val) : '—')
               return (
-                <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                  <span className="text-text-muted">{labelMap[key]}</span>
-                  <span className="text-text-primary font-mono">{String(val)}</span>
+                <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                  <span className="text-text-muted shrink-0">{label}</span>
+                  {isEditing ? (
+                    <div className="flex items-center gap-1.5 flex-1 justify-end">
+                      <input
+                        autoFocus
+                        type={type ?? 'text'}
+                        value={editValue}
+                        placeholder={type === 'password' ? 'New password' : undefined}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(key); if (e.key === 'Escape') cancelEdit() }}
+                        className="w-full max-w-xs rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-sm text-text-primary outline-none focus:border-accent"
+                      />
+                      <button
+                        onClick={() => saveEdit(key)}
+                        disabled={updateConfig.isPending}
+                        className="text-status-running hover:opacity-80 disabled:opacity-50"
+                      >
+                        <Check className="size-3.5" />
+                      </button>
+                      <button onClick={cancelEdit} className="text-text-muted hover:opacity-80">
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className={`font-mono ${key === 'cipassword' ? 'text-text-muted tracking-widest' : 'text-text-primary'}`}>
+                        {displayVal}
+                      </span>
+                      <button
+                        onClick={() => startEdit(key)}
+                        className="text-text-muted hover:text-text-primary"
+                      >
+                        <Pencil className="size-3" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )
             })}
-            {config['cipassword' as keyof typeof config] != null && (
-              <div className="flex items-center justify-between px-4 py-2.5 text-sm">
-                <span className="text-text-muted">Password</span>
-                <span className="text-text-muted font-mono tracking-widest">••••••••</span>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
@@ -405,14 +555,48 @@ function CloudInitTab({ node, vmid }: { node: string; vmid: number }) {
           <CardHeader><CardTitle>Network (IP Config)</CardTitle></CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border-muted">
-              {ipconfigs.map((key) => (
-                <div key={key} className="flex items-start justify-between px-4 py-2.5 text-sm gap-4">
-                  <span className="text-text-muted shrink-0">{key}</span>
-                  <span className="text-text-primary font-mono text-right break-all text-xs">
-                    {String(config[key as keyof typeof config])}
-                  </span>
-                </div>
-              ))}
+              {ipconfigs.map((key) => {
+                const isEditing = editingKey === key
+                const val = config[key as keyof typeof config]
+                return (
+                  <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                    <span className="text-text-muted shrink-0">{key}</span>
+                    {isEditing ? (
+                      <div className="flex items-center gap-1.5 flex-1 justify-end">
+                        <input
+                          autoFocus
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(key); if (e.key === 'Escape') cancelEdit() }}
+                          className="w-full max-w-xs rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-xs font-mono text-text-primary outline-none focus:border-accent"
+                        />
+                        <button
+                          onClick={() => saveEdit(key)}
+                          disabled={updateConfig.isPending}
+                          className="text-status-running hover:opacity-80 disabled:opacity-50"
+                        >
+                          <Check className="size-3.5" />
+                        </button>
+                        <button onClick={cancelEdit} className="text-text-muted hover:opacity-80">
+                          <X className="size-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-text-primary font-mono text-right break-all text-xs">
+                          {val != null ? String(val) : '—'}
+                        </span>
+                        <button
+                          onClick={() => startEdit(key)}
+                          className="text-text-muted hover:text-text-primary shrink-0"
+                        >
+                          <Pencil className="size-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </CardContent>
         </Card>

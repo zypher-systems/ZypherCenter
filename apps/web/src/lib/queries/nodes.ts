@@ -142,6 +142,18 @@ export function useInitDisk(node: string) {
   })
 }
 
+export function useNodeAptUpgrade(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.put(`nodes/${node}/apt/update`, {}),
+    onSuccess: () => {
+      toast.success('Package upgrade task started')
+      qc.invalidateQueries({ queryKey: nodeKeys.updates(node) })
+    },
+    onError: (err) => toast.error(`Upgrade failed — ${err.message}`),
+  })
+}
+
 export function useNodeTasksFiltered(
   node: string,
   params?: { vmid?: number; typefilter?: string; limit?: number },
