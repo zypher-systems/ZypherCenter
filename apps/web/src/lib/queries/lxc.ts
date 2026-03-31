@@ -202,3 +202,29 @@ export function useLXCFirewallOptions(node: string, vmid: number) {
     enabled: !!node && !!vmid,
   })
 }
+
+export function useCreateLXCFirewallRule(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { action: string; type: string; enable?: number; comment?: string; source?: string; dest?: string; proto?: string; dport?: string; sport?: string; macro?: string }) =>
+      api.post(`nodes/${node}/lxc/${vmid}/firewall/rules`, params),
+    onSuccess: () => {
+      toast.success('Firewall rule created')
+      qc.invalidateQueries({ queryKey: [...lxcKeys.detail(node, vmid), 'firewall', 'rules'] })
+    },
+    onError: (err) => toast.error(`Failed to create rule — ${err.message}`),
+  })
+}
+
+export function useDeleteLXCFirewallRule(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (pos: number) =>
+      api.del(`nodes/${node}/lxc/${vmid}/firewall/rules/${pos}`),
+    onSuccess: () => {
+      toast.success('Firewall rule deleted')
+      qc.invalidateQueries({ queryKey: [...lxcKeys.detail(node, vmid), 'firewall', 'rules'] })
+    },
+    onError: (err) => toast.error(`Failed to delete rule — ${err.message}`),
+  })
+}

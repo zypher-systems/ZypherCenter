@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router'
-import { Play, Square, RotateCcw, Power, Terminal, Search } from 'lucide-react'
-import { useLXCs, useLXCStart, useLXCStop, useLXCShutdown, useLXCReboot } from '@/lib/queries/lxc'
+import { Play, Square, RotateCcw, Power, Terminal, Search, Plus } from 'lucide-react'
+import { useLXCs, useLXCStart, useLXCStop, useLXCShutdown, useLXCReboot, useCreateLXC } from '@/lib/queries/lxc'
+import { useNextVMId } from '@/lib/queries/vms'
+import { useNodeStorage } from '@/lib/queries/nodes'
 import { Card, CardContent } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -16,6 +18,129 @@ import {
 } from '@/components/ui/Table'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import { formatBytes, formatPercent, formatUptime } from '@/lib/utils'
+
+function CreateLXCDialog({ node, onClose }: { node: string; onClose: () => void }) {
+  const { data: nextId } = useNextVMId()
+  const { data: storages } = useNodeStorage(node)
+  const createLXC = useCreateLXC(node)
+
+  const [vmid, setVmid] = useState('')
+  const [hostname, setHostname] = useState('')
+  const [password, setPassword] = useState('')
+  const [ostemplate, setOstemplate] = useState('')
+  const [memory, setMemory] = useState('512')
+  const [swap, setSwap] = useState('512')
+  const [cores, setCores] = useState('1')
+  const [rootStorage, setRootStorage] = useState('')
+  const [rootSize, setRootSize] = useState('8')
+  const [onboot, setOnboot] = useState(false)
+  const [unprivileged, setUnprivileged] = useState(true)
+  const [start, setStart] = useState(false)
+
+  const rootStores = (storages ?? []).filter((s) =>
+    s.content?.split(',').some((c) => ['images', 'rootdir'].includes(c.trim()))
+  )
+
+  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent'
+
+  function submit() {
+    const id = Number(vmid) || nextId
+    if (!id || !hostname.trim() || !password || !ostemplate.trim()) return
+    createLXC.mutate({
+      vmid: id,
+      hostname: hostname.trim(),
+      password,
+      memory: Number(memory),
+      swap: Number(swap),
+      cores: Number(cores),
+      ostemplate: ostemplate.trim(),
+      rootfs: rootStorage ? `${rootStorage}:${rootSize}` : 'local-lvm:8',
+      onboot: onboot ? 1 : 0,
+      unprivileged: unprivileged ? 1 : 0,
+      start: start ? 1 : 0,
+    }, { onSuccess: () => onClose() })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-md p-6 space-y-3 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg font-semibold text-text-primary">Create Container</h2>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">CT ID *</label>
+            <input type="number" value={vmid} onChange={(e) => setVmid(e.target.value)} placeholder={String(nextId ?? '100')} className={inp} />
+          </div>
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">Hostname *</label>
+            <input value={hostname} onChange={(e) => setHostname(e.target.value)} placeholder="my-container" className={inp} />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs text-text-secondary mb-1">Password *</label>
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Root password" className={inp} />
+        </div>
+
+        <div>
+          <label className="block text-xs text-text-secondary mb-1">OS Template *</label>
+          <input value={ostemplate} onChange={(e) => setOstemplate(e.target.value)} placeholder="local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst" className={inp} />
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">Memory (MiB)</label>
+            <input type="number" value={memory} onChange={(e) => setMemory(e.target.value)} className={inp} />
+          </div>
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">Swap (MiB)</label>
+            <input type="number" value={swap} onChange={(e) => setSwap(e.target.value)} className={inp} />
+          </div>
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">Cores</label>
+            <input type="number" min="1" value={cores} onChange={(e) => setCores(e.target.value)} className={inp} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">Root Storage</label>
+            <select value={rootStorage} onChange={(e) => setRootStorage(e.target.value)} className={inp}>
+              <option value="">local-lvm (default)</option>
+              {rootStores.map((s) => <option key={s.storage} value={s.storage}>{s.storage}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">Disk Size (GiB)</label>
+            <input type="number" min="1" value={rootSize} onChange={(e) => setRootSize(e.target.value)} className={inp} />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
+            <input type="checkbox" checked={unprivileged} onChange={(e) => setUnprivileged(e.target.checked)} />
+            Unprivileged container
+          </label>
+          <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
+            <input type="checkbox" checked={onboot} onChange={(e) => setOnboot(e.target.checked)} />
+            Start at boot
+          </label>
+          <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
+            <input type="checkbox" checked={start} onChange={(e) => setStart(e.target.checked)} />
+            Start after creation
+          </label>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={submit} disabled={createLXC.isPending || !hostname || !password || !ostemplate}>
+            <Plus className="size-3.5 mr-1" />{createLXC.isPending ? 'Creating…' : 'Create CT'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 type LXCItem = {
   vmid: number
@@ -124,6 +249,7 @@ function LXCRow({ ct, node }: { ct: LXCItem; node: string }) {
 export function LXCListPage() {
   const { node } = useParams<{ node: string }>()
   const [search, setSearch] = useState('')
+  const [showCreate, setShowCreate] = useState(false)
   const { data: lxcs, isLoading } = useLXCs(node!)
 
   const filtered = lxcs?.filter((ct) => {
@@ -138,6 +264,7 @@ export function LXCListPage() {
 
   return (
     <div className="space-y-4">
+      {showCreate && <CreateLXCDialog node={node!} onClose={() => setShowCreate(false)} />}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-text-primary">Containers</h1>
@@ -153,6 +280,9 @@ export function LXCListPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Plus className="size-4 mr-1" />New CT
+          </Button>
         </div>
       </div>
 

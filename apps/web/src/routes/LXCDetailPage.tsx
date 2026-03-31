@@ -11,6 +11,8 @@ import {
   Settings,
   ChevronLeft,
   Activity,
+  Plus,
+  Trash2,
 } from 'lucide-react'
 import {
   useLXCStatus,
@@ -22,6 +24,8 @@ import {
   useLXCReboot,
   useLXCFirewallRules,
   useLXCFirewallOptions,
+  useCreateLXCFirewallRule,
+  useDeleteLXCFirewallRule,
   useCreateLXCSnapshot,
   useDeleteLXCSnapshot,
   useRollbackLXCSnapshot,
@@ -62,9 +66,87 @@ function FWActionBadge({ action }: { action: string }) {
 function LXCFirewallTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: rules   } = useLXCFirewallRules(node, vmid)
   const { data: options } = useLXCFirewallOptions(node, vmid)
+  const createRule = useCreateLXCFirewallRule(node, vmid)
+  const deleteRule = useDeleteLXCFirewallRule(node, vmid)
+  const [showAdd, setShowAdd] = useState(false)
+  const [dir, setDir] = useState('in')
+  const [action, setAction] = useState('ACCEPT')
+  const [macro, setMacro] = useState('')
+  const [proto, setProto] = useState('')
+  const [src, setSrc] = useState('')
+  const [dest, setDest] = useState('')
+  const [dport, setDport] = useState('')
+  const [comment, setComment] = useState('')
   const enabled = options?.enable === 1
+  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent'
+
+  function submitRule() {
+    createRule.mutate(
+      { type: dir, action, macro: macro || undefined, proto: proto || undefined, source: src || undefined, dest: dest || undefined, dport: dport || undefined, enable: 1 },
+      { onSuccess: () => { setShowAdd(false); setMacro(''); setSrc(''); setDest(''); setDport(''); setComment('') } }
+    )
+  }
+
   return (
     <div className="space-y-4">
+      {showAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-md p-6 space-y-3">
+            <h2 className="text-base font-semibold text-text-primary">Add Firewall Rule</h2>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Direction</label>
+                <select value={dir} onChange={(e) => setDir(e.target.value)} className={inp}>
+                  <option value="in">IN</option><option value="out">OUT</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Action</label>
+                <select value={action} onChange={(e) => setAction(e.target.value)} className={inp}>
+                  <option>ACCEPT</option><option>DROP</option><option>REJECT</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">Macro (optional)</label>
+              <input value={macro} onChange={(e) => setMacro(e.target.value)} placeholder="SSH, HTTP, HTTPS…" className={inp} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Source</label>
+                <input value={src} onChange={(e) => setSrc(e.target.value)} placeholder="any" className={inp} />
+              </div>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Dest</label>
+                <input value={dest} onChange={(e) => setDest(e.target.value)} placeholder="any" className={inp} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Protocol</label>
+                <select value={proto} onChange={(e) => setProto(e.target.value)} className={inp}>
+                  <option value="">any</option><option value="tcp">tcp</option><option value="udp">udp</option><option value="icmp">icmp</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Dest Port</label>
+                <input value={dport} onChange={(e) => setDport(e.target.value)} placeholder="80,443" className={inp} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">Comment</label>
+              <input value={comment} onChange={(e) => setComment(e.target.value)} className={inp} />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}>Cancel</Button>
+              <Button size="sm" onClick={submitRule} disabled={createRule.isPending}>
+                <Plus className="size-3.5 mr-1" />{createRule.isPending ? 'Adding…' : 'Add Rule'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {options && (
         <Card>
           <CardHeader className="pb-2">
@@ -93,10 +175,15 @@ function LXCFirewallTab({ node, vmid }: { node: string; vmid: number }) {
       )}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">
-            Rules
-            <span className="ml-2 text-xs font-normal text-text-muted">{rules?.length ?? 0} rule{rules?.length !== 1 ? 's' : ''}</span>
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium">
+              Rules
+              <span className="ml-2 text-xs font-normal text-text-muted">{rules?.length ?? 0} rule{rules?.length !== 1 ? 's' : ''}</span>
+            </CardTitle>
+            <Button size="sm" onClick={() => setShowAdd(true)}>
+              <Plus className="size-3.5 mr-1" />Add Rule
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {!rules?.length ? (
@@ -114,6 +201,7 @@ function LXCFirewallTab({ node, vmid }: { node: string; vmid: number }) {
                   <TableHead>Port</TableHead>
                   <TableHead>Comment</TableHead>
                   <TableHead className="w-10">On</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -129,6 +217,15 @@ function LXCFirewallTab({ node, vmid }: { node: string; vmid: number }) {
                     <TableCell className="text-text-muted text-xs max-w-[180px] truncate">{rule.comment ?? ''}</TableCell>
                     <TableCell>
                       <span className={`inline-block size-2 rounded-full ${rule.enable !== 0 ? 'bg-status-running' : 'bg-border'}`} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <button
+                        onClick={() => { if (confirm(`Delete rule #${rule.pos}?`)) deleteRule.mutate(rule.pos) }}
+                        disabled={deleteRule.isPending}
+                        className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
                     </TableCell>
                   </TableRow>
                 ))}

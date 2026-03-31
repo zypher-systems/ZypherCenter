@@ -72,6 +72,30 @@ export function useNodeApplyNetwork(node: string) {
   })
 }
 
+export function useCreateNodeNetworkInterface(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) => api.post(`nodes/${node}/network`, params),
+    onSuccess: (_, vars) => {
+      toast.success(`Interface "${vars.iface}" created — click Apply to activate`)
+      qc.invalidateQueries({ queryKey: nodeKeys.network(node) })
+    },
+    onError: (err) => toast.error(`Failed to create interface — ${err.message}`),
+  })
+}
+
+export function useDeleteNodeNetworkInterface(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (iface: string) => api.del(`nodes/${node}/network/${iface}`),
+    onSuccess: (_, iface) => {
+      toast.success(`Interface "${iface}" removed — click Apply to activate`)
+      qc.invalidateQueries({ queryKey: nodeKeys.network(node) })
+    },
+    onError: (err) => toast.error(`Failed to delete interface — ${err.message}`),
+  })
+}
+
 export interface RrdDataPoint {
   time: number
   cpu?: number
