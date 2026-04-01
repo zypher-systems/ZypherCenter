@@ -50,7 +50,7 @@ function FWActionBadge({ action }: { action: string }) {
 }
 
 function inp(extra?: string) {
-  return `w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent ${extra ?? ''}`
+  return `w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark] ${extra ?? ''}`
 }
 
 function CreateRuleDialog({ onClose }: { onClose: () => void }) {

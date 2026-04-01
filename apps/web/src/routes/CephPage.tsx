@@ -506,7 +506,7 @@ function CreatePoolDialog({ node, onClose }: { node: string; onClose: () => void
   const [minSize, setMinSize] = useState('2')
   const [app, setApp]         = useState('rbd')
 
-  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent'
+  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]'
 
   function submit() {
     if (!name.trim()) return

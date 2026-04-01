@@ -41,7 +41,7 @@ function CreateLXCDialog({ node, onClose }: { node: string; onClose: () => void 
     s.content?.split(',').some((c) => ['images', 'rootdir'].includes(c.trim()))
   )
 
-  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent'
+  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]'
 
   function submit() {
     const id = Number(vmid) || nextId

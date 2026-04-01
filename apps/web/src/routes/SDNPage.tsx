@@ -59,7 +59,7 @@ function CreateVNetDialog({
           <div>
             <label className="block text-sm text-text-secondary mb-1">Zone <span className="text-status-error">*</span></label>
             <select value={zone} onChange={(e) => setZone(e.target.value)}
-              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
+              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]">
               {zones.map((z) => (
                 <option key={z['zone'] as string} value={z['zone'] as string}>{z['zone'] as string}</option>
               ))}
@@ -120,7 +120,7 @@ function CreateZoneDialog({ onClose }: { onClose: () => void }) {
           <div>
             <label className="block text-sm text-text-secondary mb-1">Type <span className="text-status-error">*</span></label>
             <select value={type} onChange={(e) => setType(e.target.value)}
-              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
+              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]">
               {ZONE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>

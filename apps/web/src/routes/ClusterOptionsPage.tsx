@@ -39,7 +39,7 @@ function EditOptionsDialog({
     update.mutate(patch, { onSuccess: () => onClose() })
   }
 
-  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent'
+  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">

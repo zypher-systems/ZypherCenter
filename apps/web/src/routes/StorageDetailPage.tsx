@@ -66,7 +66,7 @@ export function StorageDetailPage() {
             <select
               value={activeNode || (storageInfo.nodes!.split(',')[0] ?? '').trim()}
               onChange={(e) => setActiveNode(e.target.value)}
-              className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+              className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
             >
               {storageInfo.nodes.split(',').map((n) => n.trim()).map((n) => (
                 <option key={n} value={n}>{n}</option>

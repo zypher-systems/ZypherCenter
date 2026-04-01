@@ -203,7 +203,7 @@ export function NodeTimePage() {
                     size={8}
                     value={timezone}
                     onChange={(e) => setTimezone(e.target.value)}
-                    className="w-full rounded border border-border-subtle bg-bg-input px-2 py-1 text-sm text-text-primary outline-none focus:border-accent font-mono"
+                    className="w-full rounded border border-border-subtle bg-bg-input px-2 py-1 text-sm text-text-primary outline-none focus:border-accent font-mono [color-scheme:dark]"
                   >
                     {filtered.map((tz) => (
                       <option key={tz} value={tz}>{tz}</option>

@@ -65,7 +65,7 @@ export function GlobalTasksPage() {
             <select
               value={nodeFilter}
               onChange={(e) => setNodeFilter(e.target.value)}
-              className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+              className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
             >
               <option value="">All nodes</option>
               {nodes.map((n) => <option key={n} value={n}>{n}</option>)}
@@ -75,7 +75,7 @@ export function GlobalTasksPage() {
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+              className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
             >
               <option value="">All types</option>
               {types.map((t) => <option key={t} value={t}>{t}</option>)}

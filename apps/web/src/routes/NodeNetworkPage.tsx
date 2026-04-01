@@ -37,7 +37,7 @@ function CreateInterfaceDialog({ node, existingIfaces, onClose }: { node: string
   const [comment, setComment] = useState('')
   const [autostart, setAutostart] = useState(true)
 
-  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent'
+  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]'
 
   function submit() {
     if (!name.trim()) return

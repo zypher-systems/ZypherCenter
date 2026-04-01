@@ -72,7 +72,7 @@ function AddACLDialog({ open, onClose }: { open: boolean; onClose: () => void })
                 id="acl-type"
                 value={type}
                 onChange={(e) => setType(e.target.value as 'user' | 'group')}
-                className="flex h-9 w-full rounded-md border border-border bg-bg-input px-3 py-1 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                className="flex h-9 w-full rounded-md border border-border bg-bg-input px-3 py-1 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-accent [color-scheme:dark]"
               >
                 <option value="user">User</option>
                 <option value="group">Group</option>
@@ -95,7 +95,7 @@ function AddACLDialog({ open, onClose }: { open: boolean; onClose: () => void })
               id="acl-role"
               value={roleid}
               onChange={(e) => setRoleid(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-border bg-bg-input px-3 py-1 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              className="flex h-9 w-full rounded-md border border-border bg-bg-input px-3 py-1 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-accent [color-scheme:dark]"
               required
             >
               <option value="">Select role…</option>

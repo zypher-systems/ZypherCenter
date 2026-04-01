@@ -79,7 +79,7 @@ function CreateRealmDialog({ open, onClose }: { open: boolean; onClose: () => vo
     })
   }
 
-  const inputCls = 'flex h-9 w-full rounded-md border border-border bg-bg-input px-3 py-1 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-accent'
+  const inputCls = 'flex h-9 w-full rounded-md border border-border bg-bg-input px-3 py-1 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-accent [color-scheme:dark]'
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose() }}>

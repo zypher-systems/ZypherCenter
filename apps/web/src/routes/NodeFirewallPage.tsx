@@ -34,7 +34,7 @@ function FirewallActionBadge({ action }: { action: string }) {
   )
 }
 
-const fieldCls = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent'
+const fieldCls = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]'
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 

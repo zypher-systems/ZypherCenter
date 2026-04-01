@@ -83,7 +83,7 @@ function LXCFirewallTab({ node, vmid }: { node: string; vmid: number }) {
   const [dport, setDport] = useState('')
   const [comment, setComment] = useState('')
   const enabled = options?.enable === 1
-  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent'
+  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]'
 
   function submitRule() {
     createRule.mutate(
@@ -907,7 +907,7 @@ export function LXCDetailPage() {
             <h2 className="text-base font-semibold text-text-primary">Migrate CT {vmid}</h2>
             <div>
               <label className="block text-xs text-text-muted mb-1">Target Node *</label>
-              <select className="w-full rounded-md border border-border-muted bg-bg-input px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent" value={migrTarget} onChange={(e) => setMigrTarget(e.target.value)}>
+              <select className="w-full rounded-md border border-border-muted bg-bg-input px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent [color-scheme:dark]" value={migrTarget} onChange={(e) => setMigrTarget(e.target.value)}>
                 <option value="">Select node…</option>
                 {otherNodes.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>

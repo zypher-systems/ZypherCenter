@@ -719,7 +719,7 @@ function VMFirewallTab({ node, vmid }: { node: string; vmid: number }) {
   const [comment, setComment] = useState('')
 
   const enabled = options?.enable === 1
-  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent'
+  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]'
 
   function submitRule() {
     createRule.mutate(
@@ -1025,7 +1025,7 @@ function MigrateDialog({ node, vmid, isRunning, onClose }: { node: string; vmid:
         <div>
           <label className="block text-xs text-text-muted mb-1">Target Node *</label>
           <select
-            className="w-full rounded-md border border-border-muted bg-bg-input px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+            className="w-full rounded-md border border-border-muted bg-bg-input px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent [color-scheme:dark]"
             value={target}
             onChange={(e) => setTarget(e.target.value)}
           >
