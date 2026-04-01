@@ -1468,6 +1468,10 @@ function VMOptionsTab({ node, vmid }: { node: string; vmid: number }) {
   const updateConfig = useUpdateVMConfig(node, vmid)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [editStartup, setEditStartup] = useState(false)
+  const [sOrder, setSOrder] = useState('')
+  const [sUp, setSUp] = useState('')
+  const [sDown, setSDown] = useState('')
 
   if (!config) return null
 

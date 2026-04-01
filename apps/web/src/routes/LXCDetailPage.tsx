@@ -1308,6 +1308,10 @@ function LXCOptionsTab({ node, vmid }: { node: string; vmid: number }) {
   const updateConfig = useUpdateLXCConfig(node, vmid)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [editStartup, setEditStartup] = useState(false)
+  const [sOrder, setSOrder] = useState('')
+  const [sUp, setSUp] = useState('')
+  const [sDown, setSDown] = useState('')
 
   if (!config) return null
 
@@ -1331,9 +1335,31 @@ function LXCOptionsTab({ node, vmid }: { node: string; vmid: number }) {
 
   // Read-only options
   const readOpts: { key: string; label: string }[] = [
-    { key: 'startup', label: 'Startup order' },
-    { key: 'lock',    label: 'Lock' },
+    { key: 'lock', label: 'Lock' },
   ]
+
+  // Startup order editor helpers
+  function parseStartup(raw: unknown) {
+    const s = String(raw ?? '')
+    const get = (k: string) => s.split(',').find((p) => p.startsWith(`${k}=`))?.slice(k.length + 1) ?? ''
+    return { order: get('order'), up: get('up'), down: get('down') }
+  }
+  const startupRaw = cfgRecord['startup'] as string | undefined
+  const startupParsed = parseStartup(startupRaw)
+
+  function openStartupEdit() {
+    setSOrder(startupParsed.order)
+    setSUp(startupParsed.up)
+    setSDown(startupParsed.down)
+    setEditStartup(true)
+  }
+  function saveStartup() {
+    const parts = []
+    if (sOrder) parts.push(`order=${sOrder}`)
+    if (sUp)    parts.push(`up=${sUp}`)
+    if (sDown)  parts.push(`down=${sDown}`)
+    updateConfig.mutate({ startup: parts.join(',') || undefined }, { onSuccess: () => setEditStartup(false) })
+  }
 
   // Parse features string into a set of enabled features
   const featuresStr = cfgRecord.features ? String(cfgRecord.features) : ''
@@ -1433,6 +1459,40 @@ function LXCOptionsTab({ node, vmid }: { node: string; vmid: number }) {
               </div>
             )
           })}
+
+          {/* Startup order editor */}
+          <div className="flex items-start justify-between px-4 py-2.5 text-sm gap-4">
+            <span className="text-text-muted shrink-0 mt-0.5">Startup order</span>
+            {editStartup ? (
+              <div className="flex flex-col gap-2 flex-1 items-end">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-text-muted w-14 text-right">Order</label>
+                  <input value={sOrder} onChange={(e) => setSOrder(e.target.value)} placeholder="1" className="w-20 rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-sm font-mono text-text-primary outline-none focus:border-accent" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-text-muted w-14 text-right">Up delay</label>
+                  <input value={sUp} onChange={(e) => setSUp(e.target.value)} placeholder="0" className="w-20 rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-sm font-mono text-text-primary outline-none focus:border-accent" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-text-muted w-14 text-right">Down delay</label>
+                  <input value={sDown} onChange={(e) => setSDown(e.target.value)} placeholder="0" className="w-20 rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-sm font-mono text-text-primary outline-none focus:border-accent" />
+                </div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <button onClick={saveStartup} disabled={updateConfig.isPending} className="text-status-running hover:opacity-80 disabled:opacity-50"><Check className="size-3.5" /></button>
+                  <button onClick={() => setEditStartup(false)} className="text-text-muted hover:opacity-80"><X className="size-3.5" /></button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-text-primary font-mono text-right">
+                  {startupRaw
+                    ? startupRaw
+                    : <span className="text-text-muted not-italic">—</span>}
+                </span>
+                <button onClick={openStartupEdit} className="text-text-muted hover:text-text-primary"><Pencil className="size-3" /></button>
+              </div>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
