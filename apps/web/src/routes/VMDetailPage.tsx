@@ -48,6 +48,7 @@ import {
   useTemplateVM,
   useVMAgentOsInfo,
   useVMAgentNetworkInterfaces,
+  useVMAgentFsInfo,
   useMoveVMDisk,
   useRegenerateCloudInit,
   useVMRrdData,
@@ -1074,6 +1075,7 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
 function AgentTab({ node, vmid, isRunning }: { node: string; vmid: number; isRunning: boolean }) {
   const { data: osRaw, isLoading: osLoading, isError: osErr } = useVMAgentOsInfo(node, vmid, isRunning)
   const { data: netRaw, isLoading: netLoading, isError: netErr } = useVMAgentNetworkInterfaces(node, vmid, isRunning)
+  const { data: fsRaw, isLoading: fsLoading } = useVMAgentFsInfo(node, vmid, isRunning)
 
   if (!isRunning) {
     return (
@@ -1085,6 +1087,8 @@ function AgentTab({ node, vmid, isRunning }: { node: string; vmid: number; isRun
 
   const osInfo = (osRaw as Record<string, unknown> | undefined)?.result as Record<string, unknown> | undefined
   const ifaces = ((netRaw as Record<string, unknown> | undefined)?.result as { name: string; 'ip-addresses'?: { 'ip-address': string; 'ip-address-type': string; prefix: number }[]; statistics?: Record<string, number> }[] | undefined) ?? []
+  type FsEntry = { name: string; mountpoint: string; type: string; 'total-bytes'?: number; 'used-bytes'?: number; disk?: { dev: string }[] }
+  const fsEntries = ((fsRaw as Record<string, unknown> | undefined)?.result as FsEntry[] | undefined) ?? []
 
   return (
     <div className="space-y-4">
@@ -1109,6 +1113,49 @@ function AgentTab({ node, vmid, isRunning }: { node: string; vmid: number; isRun
                 </div>
               ))}
             </dl>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Filesystem info */}
+      <Card>
+        <CardHeader><CardTitle className="flex items-center gap-2"><HardDrive className="size-4" />Guest Filesystems</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          {fsLoading && <p className="px-4 py-6 text-sm text-text-muted animate-pulse">Loading…</p>}
+          {!fsLoading && fsEntries.length === 0 && (
+            <p className="px-4 py-6 text-sm text-text-muted">Filesystem data unavailable.</p>
+          )}
+          {fsEntries.length > 0 && (
+            <div className="divide-y divide-border-muted">
+              {fsEntries.map((fs) => {
+                const total = fs['total-bytes'] ?? 0
+                const used = fs['used-bytes'] ?? 0
+                const pct = total > 0 ? Math.round((used / total) * 100) : null
+                const fmt = (b: number) => b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : b >= 1e6 ? `${(b / 1e6).toFixed(0)} MB` : `${b} B`
+                const barColor = pct == null ? 'bg-accent' : pct >= 90 ? 'bg-status-error' : pct >= 75 ? 'bg-status-warning' : 'bg-accent'
+                return (
+                  <div key={fs.mountpoint} className="px-4 py-3 space-y-1.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono text-text-primary truncate">{fs.mountpoint}</span>
+                        <span className="text-xs text-text-muted shrink-0 bg-bg-elevated border border-border-muted rounded px-1.5 py-0.5">{fs.type}</span>
+                      </div>
+                      <span className="text-xs text-text-muted shrink-0 ml-3">
+                        {total > 0 ? `${fmt(used)} / ${fmt(total)}` : '—'}
+                      </span>
+                    </div>
+                    {pct != null && (
+                      <div className="w-full h-1.5 rounded-full bg-bg-elevated overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    )}
+                    {fs.disk && fs.disk.length > 0 && (
+                      <p className="text-xs text-text-muted font-mono">{fs.disk.map((d) => d.dev).join(', ')}</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           )}
         </CardContent>
       </Card>

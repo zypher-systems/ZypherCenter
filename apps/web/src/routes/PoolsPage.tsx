@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { Plus, Trash2, ChevronDown, ChevronRight, Monitor, Box, Database } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronRight, Monitor, Box, Database, UserPlus } from 'lucide-react'
 import {
   usePools,
   usePool,
   useCreatePool,
   useUpdatePool,
   useDeletePool,
+  useAddPoolMembers,
+  useRemovePoolMembers,
 } from '@/lib/queries/cluster'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -193,7 +195,11 @@ function MemberLink({ m }: { m: PoolMember }) {
 function PoolRow({ pool: summary }: { pool: Pool }) {
   const [expanded, setExpanded] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [addingVmid, setAddingVmid] = useState(false)
+  const [newVmid, setNewVmid] = useState('')
   const deletePool = useDeletePool()
+  const addMembers = useAddPoolMembers()
+  const removeMembers = useRemovePoolMembers()
   const { data: detail, isLoading: loadingDetail } = usePool(expanded ? summary.poolid : '')
 
   const members = detail?.members ?? []
@@ -201,6 +207,24 @@ function PoolRow({ pool: summary }: { pool: Pool }) {
   function handleDelete() {
     if (confirm(`Delete pool "${summary.poolid}"? Members will not be deleted, just unassigned.`)) {
       deletePool.mutate(summary.poolid)
+    }
+  }
+
+  function handleAddVmid() {
+    const trimmed = newVmid.trim()
+    if (!trimmed) return
+    addMembers.mutate({ poolid: summary.poolid, vms: trimmed }, {
+      onSuccess: () => { setNewVmid(''); setAddingVmid(false) },
+    })
+  }
+
+  function handleRemoveMember(m: PoolMember) {
+    if (m.type === 'qemu' || m.type === 'lxc') {
+      if (!confirm(`Remove ${m.name ?? `VM/CT ${m.vmid}`} from pool "${summary.poolid}"?`)) return
+      removeMembers.mutate({ poolid: summary.poolid, vms: String(m.vmid) })
+    } else if (m.type === 'storage' && m.storage) {
+      if (!confirm(`Remove storage "${m.storage}" from pool "${summary.poolid}"?`)) return
+      removeMembers.mutate({ poolid: summary.poolid, storage: m.storage })
     }
   }
 
@@ -243,29 +267,72 @@ function PoolRow({ pool: summary }: { pool: Pool }) {
           <TableCell colSpan={4} className="bg-bg-hover/30 pl-8 pb-4 pt-2">
             {loadingDetail ? (
               <p className="text-sm text-text-muted">Loading members…</p>
-            ) : members.length === 0 ? (
-              <p className="text-sm text-text-disabled italic">No members in this pool</p>
             ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-text-muted">
-                    <th className="text-left font-normal pb-1 w-8"></th>
-                    <th className="text-left font-normal pb-1 pr-4">Name / ID</th>
-                    <th className="text-left font-normal pb-1 pr-4">Node</th>
-                    <th className="text-left font-normal pb-1">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                {members.map((m: PoolMember) => (
-                    <tr key={m.id} className="border-t border-border-subtle/50">
-                      <td className="py-1 pr-2"><MemberIcon type={m.type} /></td>
-                      <td className="py-1 pr-4"><MemberLink m={m} /></td>
-                      <td className="py-1 pr-4 text-text-secondary">{m.node ?? '—'}</td>
-                      <td className="py-1 text-text-secondary">{m.status ?? '—'}</td>
+              <>
+                <table className="w-full text-sm mb-2">
+                  <thead>
+                    <tr className="text-text-muted">
+                      <th className="text-left font-normal pb-1 w-8"></th>
+                      <th className="text-left font-normal pb-1 pr-4">Name / ID</th>
+                      <th className="text-left font-normal pb-1 pr-4">Node</th>
+                      <th className="text-left font-normal pb-1">Status</th>
+                      <th className="text-right font-normal pb-1 w-8"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {members.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-2 text-text-disabled italic">No members in this pool</td>
+                      </tr>
+                    ) : members.map((m: PoolMember) => (
+                      <tr key={m.id} className="border-t border-border-subtle/50">
+                        <td className="py-1 pr-2"><MemberIcon type={m.type} /></td>
+                        <td className="py-1 pr-4"><MemberLink m={m} /></td>
+                        <td className="py-1 pr-4 text-text-secondary">{m.node ?? '—'}</td>
+                        <td className="py-1 text-text-secondary">{m.status ?? '—'}</td>
+                        <td className="py-1 text-right">
+                          <button
+                            onClick={() => handleRemoveMember(m)}
+                            disabled={removeMembers.isPending}
+                            title="Remove from pool"
+                            className="text-text-muted hover:text-status-error disabled:opacity-40"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {addingVmid ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={newVmid}
+                      onChange={(e) => setNewVmid(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddVmid(); if (e.key === 'Escape') setAddingVmid(false) }}
+                      placeholder="VM/CT ID (e.g. 100,101)"
+                      className="rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent w-44"
+                    />
+                    <button
+                      onClick={handleAddVmid}
+                      disabled={addMembers.isPending || !newVmid.trim()}
+                      className="text-xs text-accent hover:opacity-80 disabled:opacity-40"
+                    >
+                      {addMembers.isPending ? '…' : 'Add'}
+                    </button>
+                    <button onClick={() => setAddingVmid(false)} className="text-xs text-text-muted hover:text-text-primary">Cancel</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddingVmid(true)}
+                    className="flex items-center gap-1 text-xs text-text-muted hover:text-accent mt-1"
+                  >
+                    <UserPlus className="size-3" /> Add VM/CT by ID
+                  </button>
+                )}
+              </>
             )}
           </TableCell>
         </TableRow>

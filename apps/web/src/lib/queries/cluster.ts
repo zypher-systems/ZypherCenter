@@ -431,3 +431,29 @@ export function useDeletePool() {
     onError: (err) => toast.error(`Failed to delete pool — ${err.message}`),
   })
 }
+
+export function useAddPoolMembers() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ poolid, vms, storage }: { poolid: string; vms?: string; storage?: string }) =>
+      api.put(`pools/${encodeURIComponent(poolid)}`, { vms, storage }),
+    onSuccess: (_, vars) => {
+      toast.success('Pool member(s) added')
+      qc.invalidateQueries({ queryKey: poolKeys.detail(vars.poolid) })
+    },
+    onError: (err) => toast.error(`Failed to add member — ${err.message}`),
+  })
+}
+
+export function useRemovePoolMembers() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ poolid, vms, storage }: { poolid: string; vms?: string; storage?: string }) =>
+      api.put(`pools/${encodeURIComponent(poolid)}`, { vms, storage, delete: 1 }),
+    onSuccess: (_, vars) => {
+      toast.success('Pool member(s) removed')
+      qc.invalidateQueries({ queryKey: poolKeys.detail(vars.poolid) })
+    },
+    onError: (err) => toast.error(`Failed to remove member — ${err.message}`),
+  })
+}

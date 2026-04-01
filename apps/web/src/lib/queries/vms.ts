@@ -308,6 +308,7 @@ export function useTemplateVM(node: string, vmid: number) {
 export const agentKeys = {
   osinfo:     (node: string, vmid: number) => ['agent', node, vmid, 'osinfo']     as const,
   interfaces: (node: string, vmid: number) => ['agent', node, vmid, 'interfaces'] as const,
+  fsinfo:     (node: string, vmid: number) => ['agent', node, vmid, 'fsinfo']     as const,
 }
 
 export function useVMAgentOsInfo(node: string, vmid: number, enabled = true) {
@@ -323,6 +324,15 @@ export function useVMAgentNetworkInterfaces(node: string, vmid: number, enabled 
   return useQuery({
     queryKey: agentKeys.interfaces(node, vmid),
     queryFn: () => api.get(`nodes/${node}/qemu/${vmid}/agent/network-get-interfaces`),
+    enabled: !!node && !!vmid && enabled,
+    retry: false,
+  })
+}
+
+export function useVMAgentFsInfo(node: string, vmid: number, enabled = true) {
+  return useQuery({
+    queryKey: agentKeys.fsinfo(node, vmid),
+    queryFn: () => api.get(`nodes/${node}/qemu/${vmid}/agent/get-fsinfo`),
     enabled: !!node && !!vmid && enabled,
     retry: false,
   })
