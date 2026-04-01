@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { Network, Activity, Plus, Trash2 } from 'lucide-react'
-import { useNodeNetwork, useNodeApplyNetwork, useCreateNodeNetworkInterface, useDeleteNodeNetworkInterface } from '@/lib/queries/nodes'
+import { Network, Activity, Plus, Trash2, Pencil } from 'lucide-react'
+import { useNodeNetwork, useNodeApplyNetwork, useCreateNodeNetworkInterface, useDeleteNodeNetworkInterface, useUpdateNodeNetworkInterface } from '@/lib/queries/nodes'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import {
   Table,
@@ -154,9 +154,37 @@ export function NodeNetworkPage() {
   const { data: ifaces, isLoading } = useNodeNetwork(node!)
   const applyNetwork = useNodeApplyNetwork(node!)
   const deleteIface = useDeleteNodeNetworkInterface(node!)
+  const updateIface = useUpdateNodeNetworkInterface(node!)
   const [showCreate, setShowCreate] = useState(false)
+  const [editingIface, setEditingIface] = useState<string | null>(null)
+  const [editAddress, setEditAddress] = useState('')
+  const [editNetmask, setEditNetmask] = useState('')
+  const [editGateway, setEditGateway] = useState('')
+  const [editBridgePorts, setEditBridgePorts] = useState('')
+  const [editComment, setEditComment] = useState('')
 
   const existingIfaceNames = (ifaces ?? []).map((i) => i.iface).filter(Boolean)
+
+  function startEdit(iface: typeof ifaces extends Array<infer T> | undefined ? T : never) {
+    const r = iface as Record<string, unknown>
+    setEditingIface(iface.iface)
+    setEditAddress((r['address'] as string) ?? '')
+    setEditNetmask((r['netmask'] as string) ?? '')
+    setEditGateway((r['gateway'] as string) ?? '')
+    setEditBridgePorts((r['bridge_ports'] as string) ?? '')
+    setEditComment((r['comments'] as string) ?? '')
+  }
+
+  function saveEdit() {
+    if (!editingIface) return
+    const params: Record<string, unknown> = { type: ifaces?.find((i) => i.iface === editingIface)?.type ?? 'bridge' }
+    if (editAddress) params['address'] = editAddress
+    if (editNetmask) params['netmask'] = editNetmask
+    if (editGateway) params['gateway'] = editGateway
+    if (editBridgePorts) params['bridge_ports'] = editBridgePorts
+    if (editComment) params['comments'] = editComment
+    updateIface.mutate({ iface: editingIface, params }, { onSuccess: () => setEditingIface(null) })
+  }
 
   return (
     <div className="space-y-4">
@@ -204,46 +232,102 @@ export function NodeNetworkPage() {
               <TableBody>
                 {ifaces?.map((iface) => {
                   const isPhysical = ['eth', 'ens', 'enp', 'em', 'eno', 'wlan'].some((p) => iface.iface.startsWith(p))
+                  const r = iface as Record<string, unknown>
+                  const isEditing = editingIface === iface.iface
                   return (
-                    <TableRow key={iface.iface}>
-                      <TableCell className="font-medium font-mono text-text-primary">
-                        <div className="flex items-center gap-2">
-                          <Network className="size-3.5 text-text-muted shrink-0" />
-                          {iface.iface}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-text-secondary text-xs uppercase tracking-wide">
-                        {ifaceType(iface)}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm text-text-secondary">
-                        {iface.address ? `${iface.address}${iface.netmask ? '/' + iface.netmask : ''}` : '—'}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm text-text-secondary">
-                        {iface.address6 ? `${iface.address6}${iface.netmask6 ? '/' + iface.netmask6 : ''}` : '—'}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-text-muted">
-                        {(iface as Record<string, unknown>)['hwaddr'] as string ?? '—'}
-                      </TableCell>
-                      <TableCell className="text-text-secondary">
-                        {(iface as Record<string, unknown>)['speed'] != null
-                          ? `${(iface as Record<string, unknown>)['speed']} Mbit/s`
-                          : '—'}
-                      </TableCell>
-                      <TableCell>
-                        <span className={`inline-flex size-2 rounded-full ${iface.active ? 'bg-status-running' : 'bg-status-stopped'}`} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {!isPhysical && (
-                          <button
-                            onClick={() => { if (confirm(`Remove interface "${iface.iface}"? Changes take effect after Apply.`)) deleteIface.mutate(iface.iface) }}
-                            disabled={deleteIface.isPending}
-                            className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
-                          >
-                            <Trash2 className="size-3" />
-                          </button>
-                        )}
-                      </TableCell>
-                    </TableRow>
+                    <>
+                      <TableRow key={iface.iface}>
+                        <TableCell className="font-medium font-mono text-text-primary">
+                          <div className="flex items-center gap-2">
+                            <Network className="size-3.5 text-text-muted shrink-0" />
+                            {iface.iface}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-text-secondary text-xs uppercase tracking-wide">
+                          {ifaceType(iface)}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-text-secondary">
+                          {iface.address ? `${iface.address}${iface.netmask ? '/' + iface.netmask : ''}` : '—'}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-text-secondary">
+                          {iface.address6 ? `${iface.address6}${iface.netmask6 ? '/' + iface.netmask6 : ''}` : '—'}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-text-muted">
+                          {r['hwaddr'] as string ?? '—'}
+                        </TableCell>
+                        <TableCell className="text-text-secondary">
+                          {r['speed'] != null ? `${r['speed']} Mbit/s` : '—'}
+                        </TableCell>
+                        <TableCell>
+                          <span className={`inline-flex size-2 rounded-full ${iface.active ? 'bg-status-running' : 'bg-status-stopped'}`} />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => isEditing ? setEditingIface(null) : startEdit(iface)}
+                              className="inline-flex items-center gap-1 rounded border border-border-subtle px-2 py-0.5 text-xs text-text-muted hover:text-accent hover:border-accent/40 disabled:opacity-50"
+                            >
+                              <Pencil className="size-3" />
+                            </button>
+                            {!isPhysical && (
+                              <button
+                                onClick={() => { if (confirm(`Remove interface "${iface.iface}"? Changes take effect after Apply.`)) deleteIface.mutate(iface.iface) }}
+                                disabled={deleteIface.isPending}
+                                className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                              >
+                                <Trash2 className="size-3" />
+                              </button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {isEditing && (
+                        <TableRow key={`${iface.iface}-edit`}>
+                          <TableCell colSpan={8} className="bg-bg-hover/50 px-4 py-3">
+                            <div className="flex flex-wrap items-end gap-3">
+                              <div>
+                                <label className="block text-xs text-text-muted mb-0.5">IPv4 Address</label>
+                                <input value={editAddress} onChange={(e) => setEditAddress(e.target.value)}
+                                  placeholder="192.168.1.1"
+                                  className="w-36 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-text-muted mb-0.5">Netmask</label>
+                                <input value={editNetmask} onChange={(e) => setEditNetmask(e.target.value)}
+                                  placeholder="255.255.255.0"
+                                  className="w-36 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-text-muted mb-0.5">Gateway</label>
+                                <input value={editGateway} onChange={(e) => setEditGateway(e.target.value)}
+                                  placeholder="192.168.1.1"
+                                  className="w-36 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                              </div>
+                              {(iface.type === 'bridge' || r['bridge_ports'] != null) && (
+                                <div>
+                                  <label className="block text-xs text-text-muted mb-0.5">Bridge Ports</label>
+                                  <input value={editBridgePorts} onChange={(e) => setEditBridgePorts(e.target.value)}
+                                    placeholder="ens3"
+                                    className="w-28 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                                </div>
+                              )}
+                              <div>
+                                <label className="block text-xs text-text-muted mb-0.5">Comment</label>
+                                <input value={editComment} onChange={(e) => setEditComment(e.target.value)}
+                                  placeholder="Optional"
+                                  className="w-40 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button size="sm" disabled={updateIface.isPending} onClick={saveEdit}>
+                                  {updateIface.isPending ? '…' : 'Apply'}
+                                </Button>
+                                <button onClick={() => setEditingIface(null)} className="text-text-muted hover:text-text-primary text-xs">Cancel</button>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
                   )
                 })}
               </TableBody>

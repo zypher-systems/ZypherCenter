@@ -98,6 +98,19 @@ export function useDeleteNodeNetworkInterface(node: string) {
   })
 }
 
+export function useUpdateNodeNetworkInterface(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ iface, params }: { iface: string; params: Record<string, unknown> }) =>
+      api.put(`nodes/${node}/network/${iface}`, params),
+    onSuccess: (_, { iface }) => {
+      toast.success(`Interface "${iface}" updated — click Apply to activate`)
+      qc.invalidateQueries({ queryKey: nodeKeys.network(node) })
+    },
+    onError: (err) => toast.error(`Failed to update interface — ${err.message}`),
+  })
+}
+
 export interface RrdDataPoint {
   time: number
   cpu?: number
