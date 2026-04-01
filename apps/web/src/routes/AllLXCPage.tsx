@@ -119,9 +119,13 @@ function LXCRow({ ct }: { ct: ClusterResource }) {
 export function AllLXCPage() {
   const { data: resources, isLoading } = useClusterResources()
   const [search, setSearch] = useState('')
+  const [nodeFilter, setNodeFilter] = useState('')
 
-  const containers = (resources ?? [])
-    .filter((r) => r.type === 'lxc')
+  const allContainers = (resources ?? []).filter((r) => r.type === 'lxc')
+  const nodeList = [...new Set(allContainers.map((c) => c.node ?? '').filter(Boolean))].sort()
+
+  const containers = allContainers
+    .filter((r) => !nodeFilter || r.node === nodeFilter)
     .filter(
       (r) =>
         search === '' ||
@@ -143,15 +147,25 @@ export function AllLXCPage() {
         </div>
         <div className="flex items-center gap-2">
           <CreateLXCDialog />
+          {nodeList.length > 1 && (
+            <select
+              value={nodeFilter}
+              onChange={(e) => setNodeFilter(e.target.value)}
+              className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+            >
+              <option value="">All nodes</option>
+              {nodeList.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          )}
           <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-text-muted" />
-          <Input
-            placeholder="Filter containers…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 w-56"
-          />
-        </div>
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-text-muted" />
+            <Input
+              placeholder="Filter containers…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 w-56"
+            />
+          </div>
         </div>
       </div>
 

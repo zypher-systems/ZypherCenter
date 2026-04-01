@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, ChevronRight } from 'lucide-react'
 import { useNodeTasks } from '@/lib/queries/nodes'
+import { useTaskLog } from '@/lib/queries/tasks'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   Table,
@@ -37,14 +38,38 @@ function TaskStatusBadge({ exitstatus }: { exitstatus?: string }) {
   )
 }
 
+function TaskLogRow({ node, upid }: { node: string; upid: string }) {
+  const { data: lines, isLoading } = useTaskLog(node, upid, true)
+  return (
+    <TableRow className="bg-bg-elevated hover:bg-bg-elevated">
+      <TableCell colSpan={7} className="p-0 border-t border-border-muted">
+        <div className="max-h-72 overflow-y-auto">
+          {isLoading ? (
+            <p className="px-4 py-3 text-xs text-text-muted animate-pulse">Loading log…</p>
+          ) : (
+            <pre className="px-4 py-3 text-xs font-mono text-text-secondary whitespace-pre-wrap break-all leading-relaxed">
+              {lines?.map((l) => l.t).join('\n') || 'No output'}
+            </pre>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  )
+}
+
 export function NodeTasksPage() {
   const { node } = useParams<{ node: string }>()
   const { data: tasks, isLoading, refetch, isFetching } = useNodeTasks(node!)
   const [typeFilter, setTypeFilter] = useState('')
+  const [expandedUpid, setExpandedUpid] = useState<string | null>(null)
 
   const taskList = (tasks as Record<string, unknown>[] | undefined) ?? []
   const types = [...new Set(taskList.map((t) => t['type'] as string))].sort()
   const filtered = typeFilter ? taskList.filter((t) => t['type'] === typeFilter) : taskList
+
+  function toggleRow(upid: string) {
+    setExpandedUpid((prev) => (prev === upid ? null : upid))
+  }
 
   return (
     <div className="space-y-4">
@@ -79,6 +104,7 @@ export function NodeTasksPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-6" />
                   <TableHead>Start Time</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>ID</TableHead>
@@ -93,32 +119,47 @@ export function NodeTasksPage() {
                   const starttime = task['starttime'] as number
                   const endtime = task['endtime'] as number | undefined
                   const duration = endtime ? endtime - starttime : undefined
+                  const isExpanded = expandedUpid === upid
                   return (
-                    <TableRow key={upid}>
-                      <TableCell className="tabular-nums text-text-secondary text-sm">
-                        {starttime ? formatTimestamp(starttime) : '—'}
-                      </TableCell>
-                      <TableCell className="font-medium text-text-primary text-sm">
-                        {task['type'] as string}
-                      </TableCell>
-                      <TableCell className="text-text-muted text-sm">
-                        {(task['id'] as string) ?? '—'}
-                      </TableCell>
-                      <TableCell className="text-text-secondary text-sm">
-                        {task['user'] as string}
-                      </TableCell>
-                      <TableCell className="tabular-nums text-text-secondary text-sm">
-                        {duration ? formatUptime(duration) : '—'}
-                      </TableCell>
-                      <TableCell>
-                        <TaskStatusBadge exitstatus={task['exitstatus'] as string | undefined} />
-                      </TableCell>
-                    </TableRow>
+                    <>
+                      <TableRow
+                        key={upid}
+                        className="cursor-pointer select-none"
+                        onClick={() => toggleRow(upid)}
+                      >
+                        <TableCell className="pr-0">
+                          <ChevronRight
+                            className={`size-3.5 text-text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                          />
+                        </TableCell>
+                        <TableCell className="tabular-nums text-text-secondary text-sm">
+                          {starttime ? formatTimestamp(starttime) : '—'}
+                        </TableCell>
+                        <TableCell className="font-medium text-text-primary text-sm">
+                          {task['type'] as string}
+                        </TableCell>
+                        <TableCell className="text-text-muted text-sm font-mono">
+                          {(task['id'] as string) ?? '—'}
+                        </TableCell>
+                        <TableCell className="text-text-secondary text-sm">
+                          {task['user'] as string}
+                        </TableCell>
+                        <TableCell className="tabular-nums text-text-secondary text-sm">
+                          {duration ? formatUptime(duration) : '—'}
+                        </TableCell>
+                        <TableCell>
+                          <TaskStatusBadge exitstatus={task['exitstatus'] as string | undefined} />
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && (
+                        <TaskLogRow key={`${upid}-log`} node={node!} upid={upid} />
+                      )}
+                    </>
                   )
                 })}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-text-muted py-10">
+                    <TableCell colSpan={7} className="text-center text-text-muted py-10">
                       No tasks
                     </TableCell>
                   </TableRow>
