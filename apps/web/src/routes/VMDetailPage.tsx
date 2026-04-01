@@ -133,9 +133,18 @@ function SummaryTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: status } = useVMStatus(node, vmid)
   const { data: config } = useVMConfig(node, vmid)
   const updateConfig = useUpdateVMConfig(node, vmid)
+  const isRunning = status?.status === 'running'
+  const { data: netRaw } = useVMAgentNetworkInterfaces(node, vmid, isRunning)
   const [addingTag, setAddingTag] = useState(false)
   const [newTag, setNewTag] = useState('')
   if (!status) return null
+
+  // Extract non-loopback IPs from agent
+  const agentIfaces = ((netRaw as Record<string, unknown> | undefined)?.result as { name: string; 'ip-addresses'?: { 'ip-address': string; 'ip-address-type': string; prefix: number }[] }[] | undefined) ?? []
+  const guestIPs = agentIfaces
+    .filter((iface) => iface.name !== 'lo')
+    .flatMap((iface) => (iface['ip-addresses'] ?? []).map((ip) => ({ iface: iface.name, addr: ip['ip-address'], prefix: ip.prefix, type: ip['ip-address-type'] })))
+    .filter((ip) => !ip.addr.startsWith('fe80') && ip.addr !== '127.0.0.1' && ip.addr !== '::1')
 
   const tags = (config?.tags as string | undefined)?.split(/[;,]/).map((t) => t.trim()).filter(Boolean) ?? []
 
@@ -221,6 +230,19 @@ function SummaryTab({ node, vmid }: { node: string; vmid: number }) {
                 <div className="flex justify-between text-text-muted">
                   <span>PID</span>
                   <span className="text-text-secondary font-mono">{status.pid}</span>
+                </div>
+              )}
+              {guestIPs.length > 0 && (
+                <div className="pt-1 border-t border-border-muted">
+                  <span className="text-text-muted">IP Addresses</span>
+                  <div className="mt-0.5 space-y-0.5">
+                    {guestIPs.slice(0, 6).map((ip) => (
+                      <div key={`${ip.iface}-${ip.addr}`} className="flex items-center justify-between">
+                        <span className="text-text-muted opacity-70">{ip.iface}</span>
+                        <span className="text-text-secondary font-mono">{ip.addr}/{ip.prefix}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
