@@ -18,6 +18,8 @@ import {
   Pencil,
   Check,
   X,
+  Cpu,
+  Network,
 } from 'lucide-react'
 import {
   useVMStatus,
@@ -40,6 +42,8 @@ import {
   useDeleteVM,
   useResizeVMDisk,
   useTemplateVM,
+  useVMAgentOsInfo,
+  useVMAgentNetworkInterfaces,
 } from '@/lib/queries/vms'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered, useNodeStorage, useVzdump } from '@/lib/queries/nodes'
@@ -464,6 +468,92 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
           </CardContent>
         </Card>
       )}
+    </div>
+  )
+}
+
+// ── Agent tab ────────────────────────────────────────────────────────────────
+
+function AgentTab({ node, vmid, isRunning }: { node: string; vmid: number; isRunning: boolean }) {
+  const { data: osRaw, isLoading: osLoading, isError: osErr } = useVMAgentOsInfo(node, vmid, isRunning)
+  const { data: netRaw, isLoading: netLoading, isError: netErr } = useVMAgentNetworkInterfaces(node, vmid, isRunning)
+
+  if (!isRunning) {
+    return (
+      <div className="flex items-center justify-center py-20 text-text-muted text-sm">
+        VM must be running to read guest agent data.
+      </div>
+    )
+  }
+
+  const osInfo = (osRaw as Record<string, unknown> | undefined)?.result as Record<string, unknown> | undefined
+  const ifaces = ((netRaw as Record<string, unknown> | undefined)?.result as { name: string; 'ip-addresses'?: { 'ip-address': string; 'ip-address-type': string; prefix: number }[]; statistics?: Record<string, number> }[] | undefined) ?? []
+
+  return (
+    <div className="space-y-4">
+      {/* OS info */}
+      <Card>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Cpu className="size-4" />Guest OS Information</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          {osLoading && <p className="px-4 py-6 text-sm text-text-muted animate-pulse">Loading…</p>}
+          {osErr && <p className="px-4 py-6 text-sm text-status-error">Agent not available — make sure QEMU Guest Agent is installed and running.</p>}
+          {osInfo && (
+            <dl className="divide-y divide-border-muted">
+              {([
+                ['Name',    osInfo['name']],
+                ['Version', osInfo['version']],
+                ['Kernel',  osInfo['kernel-version']],
+                ['Machine', osInfo['machine']],
+                ['Vendor',  osInfo['vendor']],
+              ] as [string, unknown][]).filter(([, v]) => v != null).map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                  <span className="text-text-muted">{label}</span>
+                  <span className="text-text-primary font-mono text-xs">{String(value)}</span>
+                </div>
+              ))}
+            </dl>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Network interfaces */}
+      <Card>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Network className="size-4" />Guest Network Interfaces</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          {netLoading && <p className="px-4 py-6 text-sm text-text-muted animate-pulse">Loading…</p>}
+          {netErr && <p className="px-4 py-6 text-sm text-status-error">Network interface data unavailable.</p>}
+          {ifaces.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Interface</TableHead>
+                  <TableHead>IP Addresses</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ifaces.map((iface) => (
+                  <TableRow key={iface.name}>
+                    <TableCell className="font-mono text-sm text-text-primary">{iface.name}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-0.5">
+                        {(iface['ip-addresses'] ?? []).map((ip) => (
+                          <span key={`${ip['ip-address']}`} className="font-mono text-xs text-text-secondary">
+                            {ip['ip-address']}/{ip.prefix}
+                            <span className="ml-1.5 text-text-muted">({ip['ip-address-type']})</span>
+                          </span>
+                        ))}
+                        {(!iface['ip-addresses'] || iface['ip-addresses'].length === 0) && (
+                          <span className="text-text-muted text-xs">—</span>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -1515,6 +1605,7 @@ export function VMDetailPage() {
           <TabsTrigger value="hardware"><HardDrive className="size-3.5" /> Hardware</TabsTrigger>
           <TabsTrigger value="options"><Settings className="size-3.5" /> Options</TabsTrigger>
           <TabsTrigger value="cloudinit"><Cloud className="size-3.5" /> Cloud-Init</TabsTrigger>
+          <TabsTrigger value="agent"><Cpu className="size-3.5" /> Agent</TabsTrigger>
           <TabsTrigger value="snapshots"><Camera className="size-3.5" /> Snapshots</TabsTrigger>
           <TabsTrigger value="backups"><Archive className="size-3.5" /> Backups</TabsTrigger>
           <TabsTrigger value="firewall"><Shield className="size-3.5" /> Firewall</TabsTrigger>
@@ -1524,6 +1615,7 @@ export function VMDetailPage() {
         <TabsContent value="hardware"><HardwareTab node={node!} vmid={vmid} /></TabsContent>
         <TabsContent value="options"><VMOptionsTab node={node!} vmid={vmid} /></TabsContent>
         <TabsContent value="cloudinit"><CloudInitTab node={node!} vmid={vmid} /></TabsContent>
+        <TabsContent value="agent"><AgentTab node={node!} vmid={vmid} isRunning={isRunning} /></TabsContent>
         <TabsContent value="snapshots"><SnapshotsTab node={node!} vmid={vmid} /></TabsContent>
         <TabsContent value="backups"><VMBackupsTab node={node!} vmid={vmid} /></TabsContent>
         <TabsContent value="firewall"><VMFirewallTab node={node!} vmid={vmid} /></TabsContent>

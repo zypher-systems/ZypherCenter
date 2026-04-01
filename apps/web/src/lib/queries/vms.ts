@@ -304,3 +304,26 @@ export function useTemplateVM(node: string, vmid: number) {
     onError: (err) => toast.error(`Failed — ${err.message}`),
   })
 }
+
+export const agentKeys = {
+  osinfo:     (node: string, vmid: number) => ['agent', node, vmid, 'osinfo']     as const,
+  interfaces: (node: string, vmid: number) => ['agent', node, vmid, 'interfaces'] as const,
+}
+
+export function useVMAgentOsInfo(node: string, vmid: number, enabled = true) {
+  return useQuery({
+    queryKey: agentKeys.osinfo(node, vmid),
+    queryFn: () => api.get(`nodes/${node}/qemu/${vmid}/agent/get-osinfo`),
+    enabled: !!node && !!vmid && enabled,
+    retry: false,
+  })
+}
+
+export function useVMAgentNetworkInterfaces(node: string, vmid: number, enabled = true) {
+  return useQuery({
+    queryKey: agentKeys.interfaces(node, vmid),
+    queryFn: () => api.get(`nodes/${node}/qemu/${vmid}/agent/network-get-interfaces`),
+    enabled: !!node && !!vmid && enabled,
+    retry: false,
+  })
+}
