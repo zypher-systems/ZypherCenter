@@ -82,3 +82,16 @@ export function useUploadContent(node: string, storageId: string) {
     onError: (err) => toast.error(`Upload failed — ${err.message}`),
   })
 }
+
+export function usePruneBackups(node: string, storageId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params?: { type?: string; vmid?: number }) =>
+      api.post(`nodes/${node}/storage/${storageId}/prunebackups`, params ?? {}),
+    onSuccess: () => {
+      toast.success('Prune completed')
+      qc.invalidateQueries({ queryKey: storageKeys.content(node, storageId) })
+    },
+    onError: (err) => toast.error(`Prune failed — ${err.message}`),
+  })
+}

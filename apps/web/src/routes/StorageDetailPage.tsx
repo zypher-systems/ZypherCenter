@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useParams } from 'react-router'
-import { HardDrive, Package, Server, Trash2, Upload, RotateCcw } from 'lucide-react'
-import { useStorage, useStorageContent, useDeleteStorageContent, useUploadContent } from '@/lib/queries/storage'
+import { HardDrive, Package, Server, Trash2, Upload, RotateCcw, Scissors } from 'lucide-react'
+import { useStorage, useStorageContent, useDeleteStorageContent, useUploadContent, usePruneBackups } from '@/lib/queries/storage'
 import { useNodeStorage } from '@/lib/queries/nodes'
 import { useRestoreVM } from '@/lib/queries/vms'
 import { useRestoreLXC } from '@/lib/queries/lxc'
@@ -169,12 +169,14 @@ export function StorageDetailPage() {
   )
   const deleteContent = useDeleteStorageContent(targetNode, storageid!)
   const uploadContent = useUploadContent(targetNode, storageid!)
+  const pruneBackups = usePruneBackups(targetNode, storageid!)
 
   // Allowed content types for upload
   const supportedContent = storageInfo?.content?.split(',').map((s) => s.trim()) ?? []
   const canUploadIso = supportedContent.includes('iso') || supportedContent.length === 0
   const canUploadTemplate = supportedContent.includes('vztmpl') || supportedContent.length === 0
   const canUpload = canUploadIso || canUploadTemplate
+  const hasBackupContent = supportedContent.includes('backup')
 
   function handleUpload() {
     if (!uploadFile) return
@@ -203,6 +205,20 @@ export function StorageDetailPage() {
           {canUpload && (
             <Button size="sm" variant="default" onClick={() => setShowUpload(true)}>
               <Upload className="size-3.5" /> Upload
+            </Button>
+          )}
+          {hasBackupContent && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={pruneBackups.isPending}
+              onClick={() => {
+                if (confirm(`Prune old backups from ${storageid}? Backups exceeding the configured retention policy will be deleted.`)) {
+                  pruneBackups.mutate({ type: 'backup' })
+                }
+              }}
+            >
+              <Scissors className="size-3.5" />{pruneBackups.isPending ? ' Pruning…' : ' Prune Backups'}
             </Button>
           )}
           {storageInfo?.nodes && storageInfo.nodes.includes(',') && (
