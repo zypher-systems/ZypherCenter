@@ -352,3 +352,25 @@ export function useRegenerateCloudInit(node: string, vmid: number) {
     onError: (err) => toast.error(`Failed — ${err.message}`),
   })
 }
+
+export interface VMRrdPoint {
+  time: number
+  cpu?: number
+  mem?: number
+  maxmem?: number
+  netin?: number
+  netout?: number
+  diskread?: number
+  diskwrite?: number
+  [key: string]: number | undefined
+}
+
+export function useVMRrdData(node: string, vmid: number, timeframe: 'hour' | 'day' = 'hour') {
+  return useQuery({
+    queryKey: [...vmKeys.detail(node, vmid), 'rrddata', timeframe],
+    queryFn: () =>
+      api.get<VMRrdPoint[]>(`nodes/${node}/qemu/${vmid}/rrddata?timeframe=${timeframe}&cf=AVERAGE`),
+    refetchInterval: 30_000,
+    enabled: !!node && !!vmid,
+  })
+}
