@@ -20,6 +20,8 @@ import {
   X,
   Cpu,
   Network,
+  PauseCircle,
+  PlayCircle,
 } from 'lucide-react'
 import {
   useVMStatus,
@@ -29,6 +31,8 @@ import {
   useVMStop,
   useVMShutdown,
   useVMReboot,
+  useVMSuspend,
+  useVMResume,
   useVMFirewallRules,
   useVMFirewallOptions,
   useCreateVMFirewallRule,
@@ -1584,6 +1588,8 @@ export function VMDetailPage() {
   const stop = useVMStop(node!, vmid)
   const shutdown = useVMShutdown(node!, vmid)
   const reboot = useVMReboot(node!, vmid)
+  const suspend = useVMSuspend(node!, vmid)
+  const resume = useVMResume(node!, vmid)
   const deleteVM = useDeleteVM(node!)
   const convertToTemplate = useTemplateVM(node!, vmid)
   const navigate = useNavigate()
@@ -1592,6 +1598,7 @@ export function VMDetailPage() {
 
   const isRunning = status?.status === 'running'
   const isStopped = status?.status === 'stopped'
+  const isPaused = status?.status === 'paused'
   const isTemplate = status?.template === 1
 
   return (
@@ -1615,6 +1622,11 @@ export function VMDetailPage() {
               <Play className="size-4" /> Start
             </Button>
           )}
+          {isPaused && (
+            <Button size="sm" onClick={() => resume.mutate()} disabled={resume.isPending}>
+              <PlayCircle className="size-4" /> Resume
+            </Button>
+          )}
           {isRunning && (
             <>
               <Button size="sm" variant="outline" onClick={() => shutdown.mutate()} disabled={shutdown.isPending}>
@@ -1622,6 +1634,9 @@ export function VMDetailPage() {
               </Button>
               <Button size="sm" variant="outline" onClick={() => reboot.mutate()} disabled={reboot.isPending}>
                 <RotateCcw className="size-4" /> Reboot
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => suspend.mutate()} disabled={suspend.isPending}>
+                <PauseCircle className="size-4" /> Suspend
               </Button>
               <Button size="sm" variant="destructive" onClick={() => stop.mutate()} disabled={stop.isPending}>
                 <Square className="size-4" /> Stop
