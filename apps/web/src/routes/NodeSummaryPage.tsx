@@ -10,7 +10,7 @@ import {
   Power,
   RefreshCw,
 } from 'lucide-react'
-import { useNodeStatus, useNodeRrdData, useNodePower, useNodeSubscription, useNodeHardwarePCI } from '@/lib/queries/nodes'
+import { useNodeStatus, useNodeRrdData, useNodePower, useNodeSubscription, useNodeHardwarePCI, useNodeZFSPools, useNodeDisks } from '@/lib/queries/nodes'
 import { useVMs } from '@/lib/queries/vms'
 import { useLXCs } from '@/lib/queries/lxc'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -189,6 +189,8 @@ export function NodeSummaryPage() {
   const nodePower = useNodePower(node!)
   const { data: sub } = useNodeSubscription(node!)
   const { data: pciDevices } = useNodeHardwarePCI(node!)
+  const { data: zfsPools } = useNodeZFSPools(node!)
+  const { data: nodeDisks } = useNodeDisks(node!)
 
   if (isLoading) {
     return (
@@ -440,6 +442,99 @@ export function NodeSummaryPage() {
                   <span className="text-xs text-text-muted font-mono shrink-0">{dev.class}</span>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ZFS Pools */}
+      {zfsPools && zfsPools.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">ZFS Pools ({zfsPools.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border-muted">
+              {zfsPools.map((pool) => {
+                const healthColor =
+                  pool.health === 'ONLINE' || pool.state === 'ONLINE' ? 'text-status-running'
+                  : pool.health === 'DEGRADED' || pool.state === 'DEGRADED' ? 'text-status-warning'
+                  : 'text-status-error'
+                const used = pool.alloc && pool.size ? pool.alloc / pool.size : null
+                return (
+                  <div key={pool.name} className="flex items-center gap-4 px-4 py-2.5">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-text-primary">{pool.name}</span>
+                        <span className={cn('text-xs font-medium', healthColor)}>
+                          {pool.health ?? pool.state ?? '—'}
+                        </span>
+                      </div>
+                      {(pool.size != null) && (
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <span className="text-xs text-text-muted">
+                            {formatBytes(pool.alloc ?? 0)} used / {formatBytes(pool.size)}
+                          </span>
+                          {used != null && (
+                            <div className="flex-1 max-w-32 h-1.5 rounded-full bg-bg-hover overflow-hidden">
+                              <div
+                                className={cn('h-full rounded-full', used > 0.9 ? 'bg-status-error' : used > 0.7 ? 'bg-status-warning' : 'bg-accent')}
+                                style={{ width: `${Math.min(100, used * 100).toFixed(1)}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {pool.scan && (
+                      <span className="text-xs text-text-muted shrink-0">{pool.scan}</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Physical Disks */}
+      {nodeDisks && nodeDisks.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Physical Disks ({nodeDisks.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border-muted">
+              {nodeDisks.map((disk) => {
+                const healthColor = disk.health === 'PASSED' ? 'text-status-running'
+                  : disk.health ? 'text-status-error'
+                  : 'text-text-muted'
+                return (
+                  <div key={disk.devpath} className="flex items-center gap-3 px-4 py-2.5">
+                    <HardDrive className="size-3.5 text-text-muted shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono text-text-primary">{disk.devpath}</span>
+                        <span className="text-xs text-text-muted">{disk.model ?? ''}</span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5">
+                        <span className="text-xs text-text-muted">{formatBytes(disk.size)}</span>
+                        {disk.type && <span className="text-xs text-text-muted">{disk.type.toUpperCase()}</span>}
+                        {disk.serial && <span className="text-xs text-text-muted font-mono">{disk.serial}</span>}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      {disk.health && (
+                        <span className={cn('text-xs font-medium', healthColor)}>{disk.health}</span>
+                      )}
+                      {disk.wearout != null && String(disk.wearout) !== 'N/A' && (
+                        <p className="text-xs text-text-muted">Wear: {disk.wearout}%</p>
+                      )}
+                      {disk.used && <p className="text-xs text-text-muted">{disk.used}</p>}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </CardContent>
         </Card>

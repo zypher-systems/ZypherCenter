@@ -455,3 +455,25 @@ export function useNodeHardwarePCI(node: string) {
     staleTime: 5 * 60_000,
   })
 }
+
+export interface ZFSPool {
+  name: string
+  state: string
+  status?: string
+  size?: number
+  alloc?: number
+  free?: number
+  health?: string
+  scan?: string
+  errors?: string
+  [key: string]: unknown
+}
+
+export function useNodeZFSPools(node: string) {
+  return useQuery({
+    queryKey: [...nodeKeys.all(node), 'disks', 'zfs'],
+    queryFn: () => api.get<ZFSPool[]>(`nodes/${node}/disks/zfs`),
+    enabled: !!node,
+    staleTime: 60_000,
+  })
+}
