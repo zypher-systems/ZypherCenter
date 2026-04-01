@@ -627,6 +627,12 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
     updateConfig.mutate({ [key]: editValue }, { onSuccess: cancelEdit })
   }
 
+  function parseNetConfig(str: string): Record<string, string> {
+    return Object.fromEntries(
+      String(str).split(',').map((seg) => { const i = seg.indexOf('='); return i === -1 ? [seg, ''] : [seg.slice(0, i), seg.slice(i + 1)] })
+    )
+  }
+
   return (
     <div className="space-y-4">
       <Card>
@@ -703,11 +709,40 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
                         </button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2">
-                        <span className="text-text-primary font-mono text-xs break-all">{String(cfgRecord[k])}</span>
-                        <button onClick={() => startEdit(k)} className="text-text-muted hover:text-text-primary shrink-0">
-                          <Pencil className="size-3" />
-                        </button>
+                      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                        {(() => {
+                          const parsed = parseNetConfig(String(cfgRecord[k]))
+                          const labels: [string, string][] = [
+                            ['name', 'Interface'],
+                            ['bridge', 'Bridge'],
+                            ['hwaddr', 'MAC'],
+                            ['ip', 'IPv4'],
+                            ['ip6', 'IPv6'],
+                            ['tag', 'VLAN'],
+                            ['rate', 'Rate'],
+                          ]
+                          return (
+                            <>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                {labels.filter(([key]) => parsed[key]).map(([key, label]) => (
+                                  <span key={key} className="text-xs">
+                                    <span className="text-text-muted">{label}: </span>
+                                    <span className="text-text-primary font-medium">{parsed[key]}</span>
+                                  </span>
+                                ))}
+                                {parsed.firewall === '1' && (
+                                  <span className="text-xs text-status-running">Firewall</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-text-muted font-mono text-xs truncate opacity-50">{String(cfgRecord[k])}</span>
+                                <button onClick={() => startEdit(k)} className="text-text-muted hover:text-text-primary shrink-0">
+                                  <Pencil className="size-3" />
+                                </button>
+                              </div>
+                            </>
+                          )
+                        })()}
                       </div>
                     )}
                   </div>
