@@ -279,6 +279,30 @@ export function useDeleteClusterFirewallIPSet() {
   })
 }
 
+export function useCreateClusterFirewallIPSetEntry(name: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { cidr: string; comment?: string; nomatch?: number }) =>
+      api.post(`cluster/firewall/ipset/${encodeURIComponent(name)}`, params),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...clusterKeys.all, 'firewall', 'ipset', name] })
+    },
+    onError: (err) => toast.error(`Failed to add entry — ${err.message}`),
+  })
+}
+
+export function useDeleteClusterFirewallIPSetEntry(name: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (cidr: string) =>
+      api.del(`cluster/firewall/ipset/${encodeURIComponent(name)}/${encodeURIComponent(cidr)}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...clusterKeys.all, 'firewall', 'ipset', name] })
+    },
+    onError: (err) => toast.error(`Failed to remove entry — ${err.message}`),
+  })
+}
+
 export function useUpdateClusterOptions() {
   const qc = useQueryClient()
   return useMutation({

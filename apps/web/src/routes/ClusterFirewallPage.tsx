@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Shield, List, Network, Tag, Plus, Trash2 } from 'lucide-react'
+import { Shield, List, Network, Tag, Plus, Trash2, ChevronRight } from 'lucide-react'
 import {
   useClusterFirewallRules,
   useClusterFirewallOptions,
   useClusterFirewallGroups,
   useClusterFirewallIPSets,
+  useClusterFirewallIPSetEntries,
   useClusterFirewallAliases,
   useCreateClusterFirewallRule,
   useDeleteClusterFirewallRule,
@@ -12,6 +13,8 @@ import {
   useDeleteClusterFirewallGroup,
   useCreateClusterFirewallIPSet,
   useDeleteClusterFirewallIPSet,
+  useCreateClusterFirewallIPSetEntry,
+  useDeleteClusterFirewallIPSetEntry,
   useCreateClusterFirewallAlias,
   useDeleteClusterFirewallAlias,
 } from '@/lib/queries/cluster'
@@ -398,10 +401,100 @@ function GroupsTab() {
   )
 }
 
+function IPSetEntriesPanel({ name }: { name: string }) {
+  const { data: entries, isLoading } = useClusterFirewallIPSetEntries(name)
+  const addEntry = useCreateClusterFirewallIPSetEntry(name)
+  const removeEntry = useDeleteClusterFirewallIPSetEntry(name)
+  const [newCidr, setNewCidr] = useState('')
+  const [newComment, setNewComment] = useState('')
+  const [newNomatch, setNewNomatch] = useState(false)
+  const [adding, setAdding] = useState(false)
+
+  function handleAdd() {
+    const cidr = newCidr.trim()
+    if (!cidr) return
+    addEntry.mutate(
+      { cidr, comment: newComment.trim() || undefined, nomatch: newNomatch ? 1 : undefined },
+      { onSuccess: () => { setNewCidr(''); setNewComment(''); setNewNomatch(false); setAdding(false) } }
+    )
+  }
+
+  if (isLoading) return <p className="px-4 py-2 text-xs text-text-muted animate-pulse">Loading entries…</p>
+
+  return (
+    <div className="border-t border-border-muted bg-bg-elevated">
+      {entries && entries.length > 0 && (
+        <div className="divide-y divide-border-muted/50">
+          {entries.map((entry) => (
+            <div key={entry.cidr} className="flex items-center justify-between px-6 py-2 gap-4">
+              <div className="flex items-center gap-3 text-sm">
+                {entry.nomatch ? (
+                  <span className="text-xs bg-status-error/10 text-status-error border border-status-error/20 rounded px-1.5 py-0.5">!</span>
+                ) : null}
+                <span className="font-mono text-text-primary">{entry.cidr}</span>
+                {entry.comment && <span className="text-text-muted text-xs">{entry.comment}</span>}
+              </div>
+              <button
+                onClick={() => { if (confirm(`Remove ${entry.cidr} from ${name}?`)) removeEntry.mutate(entry.cidr) }}
+                disabled={removeEntry.isPending}
+                className="text-text-muted hover:text-status-error disabled:opacity-40"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {adding ? (
+        <div className="flex flex-wrap items-end gap-2 px-6 py-3 border-t border-border-muted/50">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-text-muted">CIDR</label>
+            <input
+              autoFocus
+              value={newCidr}
+              onChange={(e) => setNewCidr(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') setAdding(false) }}
+              placeholder="10.0.0.0/24"
+              className="w-40 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs font-mono text-text-primary outline-none focus:border-accent"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-text-muted">Comment</label>
+            <input
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Optional"
+              className="w-32 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent"
+            />
+          </div>
+          <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer mb-0.5">
+            <input type="checkbox" checked={newNomatch} onChange={(e) => setNewNomatch(e.target.checked)} />
+            Nomatch
+          </label>
+          <Button size="sm" disabled={addEntry.isPending || !newCidr.trim()} onClick={handleAdd}>
+            {addEntry.isPending ? '…' : 'Add'}
+          </Button>
+          <button onClick={() => setAdding(false)} className="text-xs text-text-muted hover:text-text-primary">Cancel</button>
+        </div>
+      ) : (
+        <div className="px-6 py-2">
+          <button
+            onClick={() => setAdding(true)}
+            className="flex items-center gap-1 text-xs text-text-muted hover:text-accent"
+          >
+            <Plus className="size-3" /> Add entry
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function IPSetsTab() {
   const { data: ipsets, isLoading } = useClusterFirewallIPSets()
   const deleteIPSet = useDeleteClusterFirewallIPSet()
   const [showCreate, setShowCreate] = useState(false)
+  const [expandedSet, setExpandedSet] = useState<string | null>(null)
   if (isLoading) return <SkeletonCard />
   return (
     <>
@@ -417,32 +510,30 @@ function IPSetsTab() {
           {!ipsets?.length ? (
             <p className="text-center text-text-muted text-sm py-10">No IP sets defined</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Comment</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ipsets.map((s) => (
-                  <TableRow key={s.name}>
-                    <TableCell className="font-mono font-medium text-text-primary">{s.name}</TableCell>
-                    <TableCell className="text-text-muted text-sm">{s.comment ?? '—'}</TableCell>
-                    <TableCell className="text-right">
-                      <button
-                        onClick={() => { if (confirm(`Delete IP set "${s.name}"?`)) deleteIPSet.mutate(s.name) }}
-                        disabled={deleteIPSet.isPending}
-                        className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
-                      >
-                        <Trash2 className="size-3" />Delete
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="divide-y divide-border-muted">
+              {ipsets.map((s) => (
+                <div key={s.name}>
+                  <div
+                    className="flex items-center justify-between px-4 py-2.5 cursor-pointer hover:bg-bg-elevated select-none"
+                    onClick={() => setExpandedSet((prev) => (prev === s.name ? null : s.name))}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ChevronRight className={`size-3.5 text-text-muted transition-transform ${expandedSet === s.name ? 'rotate-90' : ''}`} />
+                      <span className="font-mono font-medium text-text-primary text-sm">{s.name}</span>
+                      {s.comment && <span className="text-text-muted text-xs">— {s.comment}</span>}
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); if (confirm(`Delete IP set "${s.name}"?`)) deleteIPSet.mutate(s.name) }}
+                      disabled={deleteIPSet.isPending}
+                      className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                    >
+                      <Trash2 className="size-3" />Delete
+                    </button>
+                  </div>
+                  {expandedSet === s.name && <IPSetEntriesPanel name={s.name} />}
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
