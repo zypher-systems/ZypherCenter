@@ -999,8 +999,29 @@ function LXCOptionsTab({ node, vmid }: { node: string; vmid: number }) {
   const readOpts: { key: string; label: string }[] = [
     { key: 'startup', label: 'Startup order' },
     { key: 'lock',    label: 'Lock' },
-    { key: 'features', label: 'Features' },
   ]
+
+  // Parse features string into a set of enabled features
+  const featuresStr = cfgRecord.features ? String(cfgRecord.features) : ''
+  const featuresMap: Record<string, string> = {}
+  featuresStr.split(',').forEach((seg) => {
+    const [k, v] = seg.split('=')
+    if (k) featuresMap[k.trim()] = v ?? '1'
+  })
+
+  const FEATURES = [
+    { key: 'nesting', label: 'Nesting', desc: 'Allow nested containers (Docker)' },
+    { key: 'keyctl',  label: 'Keyctl',  desc: 'Allow use of keyctl()' },
+    { key: 'fuse',    label: 'FUSE',    desc: 'Allow use of FUSE mounts' },
+    { key: 'mknod',   label: 'Mknod',   desc: 'Allow mknod for device files' },
+  ]
+
+  function toggleFeature(key: string) {
+    const nextMap = { ...featuresMap }
+    if (nextMap[key]) { delete nextMap[key] } else { nextMap[key] = '1' }
+    const next = Object.entries(nextMap).map(([k, v]) => `${k}=${v}`).join(',')
+    updateConfig.mutate({ features: next || undefined })
+  }
 
   function startEdit(key: string) {
     setEditingKey(key)
