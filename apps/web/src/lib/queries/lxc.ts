@@ -300,3 +300,25 @@ export function useLXCInterfaces(node: string, vmid: number, enabled = false) {
     refetchInterval: enabled ? 30_000 : false,
   })
 }
+
+export interface LXCRrdPoint {
+  time: number
+  cpu?: number
+  mem?: number
+  maxmem?: number
+  netin?: number
+  netout?: number
+  diskread?: number
+  diskwrite?: number
+  [key: string]: number | undefined
+}
+
+export function useLXCRrdData(node: string, vmid: number, timeframe: 'hour' | 'day' = 'hour') {
+  return useQuery({
+    queryKey: [...lxcKeys.detail(node, vmid), 'rrddata', timeframe],
+    queryFn: () =>
+      api.get<LXCRrdPoint[]>(`nodes/${node}/lxc/${vmid}/rrddata?timeframe=${timeframe}&cf=AVERAGE`),
+    refetchInterval: 30_000,
+    enabled: !!node && !!vmid,
+  })
+}
