@@ -432,3 +432,26 @@ export function useNodeSubscription(node: string) {
     staleTime: 5 * 60_000,
   })
 }
+
+export interface PCIDevice {
+  id: string
+  class: string
+  vendor: string
+  vendor_name?: string
+  device: string
+  device_name?: string
+  subsystem_vendor?: string
+  subsystem_device?: string
+  iommugroup?: number
+  mdev?: boolean
+  [key: string]: unknown
+}
+
+export function useNodeHardwarePCI(node: string) {
+  return useQuery({
+    queryKey: [...nodeKeys.all(node), 'hardware', 'pci'],
+    queryFn: () => api.get<PCIDevice[]>(`nodes/${node}/hardware/pci`),
+    enabled: !!node,
+    staleTime: 5 * 60_000,
+  })
+}

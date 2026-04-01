@@ -10,7 +10,7 @@ import {
   Power,
   RefreshCw,
 } from 'lucide-react'
-import { useNodeStatus, useNodeRrdData, useNodePower, useNodeSubscription } from '@/lib/queries/nodes'
+import { useNodeStatus, useNodeRrdData, useNodePower, useNodeSubscription, useNodeHardwarePCI } from '@/lib/queries/nodes'
 import { useVMs } from '@/lib/queries/vms'
 import { useLXCs } from '@/lib/queries/lxc'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -188,6 +188,7 @@ export function NodeSummaryPage() {
   const { data: lxcs } = useLXCs(node!)
   const nodePower = useNodePower(node!)
   const { data: sub } = useNodeSubscription(node!)
+  const { data: pciDevices } = useNodeHardwarePCI(node!)
 
   if (isLoading) {
     return (
@@ -412,6 +413,33 @@ export function NodeSummaryPage() {
               {sub.message && sub.status !== 'Active' && (
                 <div className="col-span-full text-status-error">{sub.message}</div>
               )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* PCI devices */}
+      {pciDevices && pciDevices.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">PCI Devices ({pciDevices.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border-muted">
+              {pciDevices.map((dev) => (
+                <div key={dev.id} className="flex items-start gap-3 px-4 py-2.5">
+                  <span className="font-mono text-xs text-text-muted pt-0.5 shrink-0 w-24">{dev.id}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-text-primary truncate">
+                      {dev.device_name ?? dev.device ?? '—'}
+                    </p>
+                    <p className="text-xs text-text-muted truncate">
+                      {dev.vendor_name ?? dev.vendor ?? ''}{dev.iommugroup != null ? ` · IOMMU group ${dev.iommugroup}` : ''}{dev.mdev ? ' · mdev' : ''}
+                    </p>
+                  </div>
+                  <span className="text-xs text-text-muted font-mono shrink-0">{dev.class}</span>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
