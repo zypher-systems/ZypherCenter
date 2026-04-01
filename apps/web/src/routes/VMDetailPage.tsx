@@ -1500,6 +1500,29 @@ function VMOptionsTab({ node, vmid }: { node: string; vmid: number }) {
     { key: 'startdate', label: 'Start date',  fmt: (v) => String(v ?? '—') },
   ]
 
+  // Startup order
+  const startupRaw = config['startup' as keyof typeof config] as string | undefined
+  function parseStartup(raw: unknown) {
+    const s = String(raw ?? '')
+    const get = (k: string) => s.split(',').find((p) => p.startsWith(`${k}=`))?.slice(k.length + 1) ?? ''
+    return { order: get('order'), up: get('up'), down: get('down') }
+  }
+  const startupParsed = parseStartup(startupRaw)
+
+  function openStartupEdit() {
+    setSOrder(startupParsed.order)
+    setSUp(startupParsed.up)
+    setSDown(startupParsed.down)
+    setEditStartup(true)
+  }
+  function saveStartup() {
+    const parts: string[] = []
+    if (sOrder) parts.push(`order=${sOrder}`)
+    if (sUp)    parts.push(`up=${sUp}`)
+    if (sDown)  parts.push(`down=${sDown}`)
+    updateConfig.mutate({ startup: parts.join(',') || undefined }, { onSuccess: () => setEditStartup(false) })
+  }
+
   const HOTPLUG_FEATURES = ['network', 'disk', 'cpu', 'memory', 'usb'] as const
   const hotplugRaw = config['hotplug' as keyof typeof config] as string | number | undefined
   const hotplugEnabled: string[] = (() => {
@@ -1613,6 +1636,38 @@ function VMOptionsTab({ node, vmid }: { node: string; vmid: number }) {
               </div>
             )
           })}
+
+          {/* Startup order */}
+          <div className="flex items-start justify-between px-4 py-2.5 text-sm gap-4">
+            <span className="text-text-muted shrink-0 mt-0.5">Startup order</span>
+            {editStartup ? (
+              <div className="flex flex-col gap-2 flex-1 items-end">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-text-muted w-14 text-right">Order</label>
+                  <input value={sOrder} onChange={(e) => setSOrder(e.target.value)} placeholder="1" className="w-20 rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-sm font-mono text-text-primary outline-none focus:border-accent" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-text-muted w-14 text-right">Up delay</label>
+                  <input value={sUp} onChange={(e) => setSUp(e.target.value)} placeholder="0" className="w-20 rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-sm font-mono text-text-primary outline-none focus:border-accent" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-text-muted w-14 text-right">Down delay</label>
+                  <input value={sDown} onChange={(e) => setSDown(e.target.value)} placeholder="0" className="w-20 rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-sm font-mono text-text-primary outline-none focus:border-accent" />
+                </div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <button onClick={saveStartup} disabled={updateConfig.isPending} className="text-status-running hover:opacity-80 disabled:opacity-50"><Check className="size-3.5" /></button>
+                  <button onClick={() => setEditStartup(false)} className="text-text-muted hover:opacity-80"><X className="size-3.5" /></button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-text-primary font-mono text-right">
+                  {startupRaw ?? <span className="text-text-muted not-italic">—</span>}
+                </span>
+                <button onClick={openStartupEdit} className="text-text-muted hover:text-text-primary"><Pencil className="size-3" /></button>
+              </div>
+            )}
+          </div>
 
           {/* Hotplug multi-select */}
           <div className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
