@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { toast } from 'sonner'
 import type { User, Group, Role, ACLEntry, Realm } from '@zyphercenter/proxmox-types'
 
 export const accessKeys = {
@@ -138,5 +139,14 @@ export function useDeleteRealm() {
   return useMutation({
     mutationFn: (realm: string) => api.del(`access/domains/${encodeURIComponent(realm)}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.realms }),
+  })
+}
+
+export function useChangeUserPassword() {
+  return useMutation({
+    mutationFn: ({ userid, password }: { userid: string; password: string }) =>
+      api.put('access/password', { userid, password }),
+    onSuccess: () => toast.success('Password changed'),
+    onError: (err) => toast.error(`Failed — ${err.message}`),
   })
 }

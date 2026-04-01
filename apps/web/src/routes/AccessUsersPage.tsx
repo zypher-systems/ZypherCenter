@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useUsers, useDeleteUser, useCreateUser, useUpdateUser, useRealms } from '@/lib/queries/access'
+import { useUsers, useDeleteUser, useCreateUser, useUpdateUser, useRealms, useChangeUserPassword } from '@/lib/queries/access'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   Table,
@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
-import { Plus, Trash2, User } from 'lucide-react'
+import { Plus, Trash2, User, KeyRound } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -118,7 +118,19 @@ export function AccessUsersPage() {
   const { data: users, isLoading } = useUsers()
   const deleteUser = useDeleteUser()
   const updateUser = useUpdateUser()
+  const changePassword = useChangeUserPassword()
   const [showCreate, setShowCreate] = useState(false)
+  const [changePwUser, setChangePwUser] = useState<string | null>(null)
+  const [newPw, setNewPw] = useState('')
+  const [confirmPw, setConfirmPw] = useState('')
+
+  function submitPw() {
+    if (!changePwUser || !newPw || newPw !== confirmPw) return
+    changePassword.mutate(
+      { userid: changePwUser, password: newPw },
+      { onSuccess: () => { setChangePwUser(null); setNewPw(''); setConfirmPw('') } },
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -148,7 +160,7 @@ export function AccessUsersPage() {
                   <TableHead>Groups</TableHead>
                   <TableHead>Enabled</TableHead>
                   <TableHead>Expires</TableHead>
-                  <TableHead className="w-16" />
+                  <TableHead className="w-24" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -206,19 +218,30 @@ export function AccessUsersPage() {
                           {user.expire ? formatTimestamp(user.expire) : 'Never'}
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            title="Delete user"
-                            disabled={deleteUser.isPending || user.userid === 'root@pam'}
-                            onClick={() => {
-                              if (confirm(`Delete user ${user.userid}?`)) {
-                                deleteUser.mutate(user.userid)
-                              }
-                            }}
-                          >
-                            <Trash2 className="size-3.5 text-text-muted hover:text-status-error" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              title="Change password"
+                              disabled={realm !== 'pam'}
+                              onClick={() => { setChangePwUser(user.userid); setNewPw(''); setConfirmPw('') }}
+                            >
+                              <KeyRound className="size-3.5 text-text-muted" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              title="Delete user"
+                              disabled={deleteUser.isPending || user.userid === 'root@pam'}
+                              onClick={() => {
+                                if (confirm(`Delete user ${user.userid}?`)) {
+                                  deleteUser.mutate(user.userid)
+                                }
+                              }}
+                            >
+                              <Trash2 className="size-3.5 text-text-muted hover:text-status-error" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )
@@ -228,6 +251,58 @@ export function AccessUsersPage() {
             </Table>
           </CardContent>
         </Card>
+      )}
+
+      {changePwUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <h2 className="text-base font-semibold text-text-primary">Change Password</h2>
+            <p className="text-sm text-text-muted">{changePwUser}</p>
+            <div className="space-y-2">
+              <div>
+                <Label htmlFor="new-pw">New Password</Label>
+                <Input
+                  id="new-pw"
+                  type="password"
+                  value={newPw}
+                  onChange={(e) => setNewPw(e.target.value)}
+                  autoFocus
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="confirm-pw">Confirm Password</Label>
+                <Input
+                  id="confirm-pw"
+                  type="password"
+                  value={confirmPw}
+                  onChange={(e) => setConfirmPw(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') submitPw() }}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            {confirmPw && newPw !== confirmPw && (
+              <p className="text-xs text-status-error">Passwords do not match</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setChangePwUser(null); setNewPw(''); setConfirmPw('') }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={!newPw || newPw !== confirmPw || changePassword.isPending}
+                onClick={submitPw}
+              >
+                {changePassword.isPending ? 'Saving…' : 'Change Password'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
