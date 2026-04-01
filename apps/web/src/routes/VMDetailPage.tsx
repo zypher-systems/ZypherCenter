@@ -40,7 +40,8 @@ import {
   useDeleteVM,
 } from '@/lib/queries/vms'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
-import { useNodeTasksFiltered } from '@/lib/queries/nodes'
+import { useNodeTasksFiltered, useVzdump } from '@/lib/queries/nodes'
+import { useStorage } from '@/lib/queries/storage'
 import { useNextVMId } from '@/lib/queries/vms'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -971,6 +972,25 @@ function VMFirewallTab({ node, vmid }: { node: string; vmid: number }) {
 function VMBackupsTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: jobs } = useClusterBackupJobs()
   const { data: tasks } = useNodeTasksFiltered(node, { vmid, typefilter: 'vzdump', limit: 20 })
+  const { data: allStorages } = useStorage()
+  const vzdump = useVzdump(node)
+
+  const [showBackupForm, setShowBackupForm] = useState(false)
+  const [bkStorage, setBkStorage] = useState('')
+  const [bkMode, setBkMode] = useState('snapshot')
+  const [bkCompress, setBkCompress] = useState('zstd')
+
+  const backupStorages = (allStorages ?? []).filter((s) =>
+    s.content?.split(',').map((c) => c.trim()).includes('backup')
+  )
+
+  function runBackup() {
+    if (!bkStorage) return
+    vzdump.mutate(
+      { vmid, storage: bkStorage, mode: bkMode, compress: bkCompress },
+      { onSuccess: () => setShowBackupForm(false) }
+    )
+  }
 
   // Filter backup jobs that include this vmid
   const relatedJobs = (jobs ?? []).filter((j) => {
@@ -980,6 +1000,64 @@ function VMBackupsTab({ node, vmid }: { node: string; vmid: number }) {
 
   return (
     <div className="space-y-4">
+      {/* Backup Now */}
+      <div className="flex justify-end">
+        <Button size="sm" variant="outline" onClick={() => setShowBackupForm((v) => !v)}>
+          <Archive className="size-3.5 mr-1.5" />{showBackupForm ? 'Cancel' : 'Backup Now'}
+        </Button>
+      </div>
+      {showBackupForm && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">On-Demand Backup</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Storage</label>
+                <select
+                  value={bkStorage}
+                  onChange={(e) => setBkStorage(e.target.value)}
+                  className="w-full rounded border border-border bg-bg-card text-text-primary text-sm px-2 py-1.5 [color-scheme:dark]"
+                >
+                  <option value="">— select —</option>
+                  {backupStorages.map((s) => (
+                    <option key={s.storage} value={s.storage}>{s.storage}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Mode</label>
+                <select
+                  value={bkMode}
+                  onChange={(e) => setBkMode(e.target.value)}
+                  className="w-full rounded border border-border bg-bg-card text-text-primary text-sm px-2 py-1.5 [color-scheme:dark]"
+                >
+                  <option value="snapshot">Snapshot</option>
+                  <option value="suspend">Suspend</option>
+                  <option value="stop">Stop</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Compression</label>
+                <select
+                  value={bkCompress}
+                  onChange={(e) => setBkCompress(e.target.value)}
+                  className="w-full rounded border border-border bg-bg-card text-text-primary text-sm px-2 py-1.5 [color-scheme:dark]"
+                >
+                  <option value="zstd">zstd (fast)</option>
+                  <option value="lzo">lzo (faster)</option>
+                  <option value="gzip">gzip (best)</option>
+                  <option value="0">None</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button size="sm" disabled={!bkStorage || vzdump.isPending} onClick={runBackup}>
+                {vzdump.isPending ? 'Starting…' : 'Start Backup'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {/* Scheduled Jobs */}
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Scheduled Backup Jobs</CardTitle></CardHeader>

@@ -338,3 +338,14 @@ export function useDeleteNodeFirewallRule(node: string) {
     onError: (err) => toast.error(`Failed to delete rule — ${err.message}`),
   })
 }
+
+export function useVzdump(node: string) {
+  return useMutation({
+    mutationFn: (params: { vmid: number; storage: string; mode?: string; compress?: string }) =>
+      api.post<string>(`nodes/${node}/vzdump`, params),
+    onSuccess: () => {
+      toast.success('Backup task started — check Tasks for progress')
+    },
+    onError: (err) => toast.error(`Backup failed — ${err.message}`),
+  })
+}
