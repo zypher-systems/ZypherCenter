@@ -591,15 +591,40 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: config, isLoading } = useLXCConfig(node, vmid)
   const updateConfig = useUpdateLXCConfig(node, vmid)
   const resizeDisk = useResizeLXCDisk(node, vmid)
+  const { data: allStorages } = useStorage()
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [resizingKey, setResizingKey] = useState<string | null>(null)
   const [resizeAmount, setResizeAmount] = useState('+10G')
+  const [showAddMp, setShowAddMp] = useState(false)
+  const [addMpStorage, setAddMpStorage] = useState('')
+  const [addMpSize, setAddMpSize] = useState('8')
+  const [addMpPath, setAddMpPath] = useState('')
 
   if (isLoading) return <SkeletonCard />
   if (!config) return null
 
   const cfgRecord = config as Record<string, unknown>
+
+  // Storages that support rootdir (LXC volumes)
+  const mpStorages = (allStorages ?? []).filter(
+    (s) => s.content?.split(',').map((c) => c.trim()).some((c) => ['rootdir', 'images', 'dir'].includes(c))
+  )
+
+  function getNextMpKey() {
+    const existing = Object.keys(cfgRecord).filter((k) => /^mp\d+$/.test(k)).map((k) => parseInt(k.slice(2), 10))
+    for (let i = 0; i <= 255; i++) { if (!existing.includes(i)) return `mp${i}` }
+    return 'mp0'
+  }
+
+  function addMountPoint() {
+    if (!addMpStorage || !addMpPath) return
+    const key = getNextMpKey()
+    updateConfig.mutate(
+      { [key]: `${addMpStorage}:${addMpSize},mp=${addMpPath}` },
+      { onSuccess: () => { setShowAddMp(false); setAddMpStorage(''); setAddMpSize('8'); setAddMpPath('') } }
+    )
+  }
 
   // Editable numeric/text fields
   const editableFields: { key: string; label: string; type?: string }[] = [
@@ -755,7 +780,40 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
 
       {mpKeys.length > 0 && (
         <Card>
-          <CardHeader><CardTitle>Disks &amp; Mount Points</CardTitle></CardHeader>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Disks &amp; Mount Points</CardTitle>
+              <Button size="sm" variant="outline" onClick={() => setShowAddMp((v) => !v)}>
+                <Plus className="size-3.5 mr-1" />{showAddMp ? 'Cancel' : 'Add MP'}
+              </Button>
+            </div>
+          </CardHeader>
+          {showAddMp && (
+            <div className="px-4 pb-3 flex flex-wrap items-end gap-3">
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Storage</label>
+                <select value={addMpStorage} onChange={(e) => setAddMpStorage(e.target.value)}
+                  className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]">
+                  <option value="">— select —</option>
+                  {mpStorages.map((s) => <option key={s.storage} value={s.storage}>{s.storage}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Size (GiB)</label>
+                <input type="number" min={1} value={addMpSize} onChange={(e) => setAddMpSize(e.target.value)}
+                  className="w-20 rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent" />
+              </div>
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Mount Path</label>
+                <input type="text" value={addMpPath} onChange={(e) => setAddMpPath(e.target.value)}
+                  placeholder="/mnt/data"
+                  className="w-36 rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent" />
+              </div>
+              <Button size="sm" disabled={updateConfig.isPending || !addMpStorage || !addMpPath} onClick={addMountPoint}>
+                {updateConfig.isPending ? '…' : 'Add'}
+              </Button>
+            </div>
+          )}
           <CardContent className="p-0">
             <div className="divide-y divide-border-muted">
               {mpKeys.map((k) => {
