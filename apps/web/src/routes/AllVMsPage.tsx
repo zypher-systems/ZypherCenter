@@ -124,6 +124,7 @@ export function AllVMsPage() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [nodeFilter, setNodeFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [sortKey, setSortKey] = useState<string>('vmid')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
@@ -143,6 +144,7 @@ export function AllVMsPage() {
 
   const filteredVms = allVms
     .filter((r) => !nodeFilter || r.node === nodeFilter)
+    .filter((r) => !statusFilter || r.status === statusFilter)
     .filter(
       (r) =>
         search === '' ||
@@ -211,6 +213,16 @@ export function AllVMsPage() {
         </div>
         <div className="flex items-center gap-2">
           <CreateVMDialog />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+          >
+            <option value="">All statuses</option>
+            <option value="running">Running</option>
+            <option value="stopped">Stopped</option>
+            <option value="paused">Paused</option>
+          </select>
           {nodeList.length > 1 && (
             <select
               value={nodeFilter}
