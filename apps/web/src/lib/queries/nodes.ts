@@ -469,6 +469,30 @@ export function useNodeHardwarePCI(node: string) {
   })
 }
 
+export interface USBDevice {
+  busnum: number
+  devnum: number
+  vendid: string
+  prodid: string
+  manufacturer?: string
+  product?: string
+  speed?: string
+  level?: number
+  usbpath?: string
+  port?: number
+  class?: number
+  [key: string]: unknown
+}
+
+export function useNodeHardwareUSB(node: string) {
+  return useQuery({
+    queryKey: [...nodeKeys.all(node), 'hardware', 'usb'],
+    queryFn: () => api.get<USBDevice[]>(`nodes/${node}/hardware/usb`),
+    enabled: !!node,
+    staleTime: 5 * 60_000,
+  })
+}
+
 export interface ZFSPool {
   name: string
   state: string

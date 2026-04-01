@@ -54,7 +54,7 @@ import {
   useVMRrdData,
 } from '@/lib/queries/vms'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
-import { useNodeTasksFiltered, useNodeStorage, useNodeNetwork, useVzdump } from '@/lib/queries/nodes'
+import { useNodeTasksFiltered, useNodeStorage, useNodeNetwork, useVzdump, useNodeHardwarePCI, useNodeHardwareUSB } from '@/lib/queries/nodes'
 import { useStorage, useStorageContent } from '@/lib/queries/storage'
 import { useNextVMId } from '@/lib/queries/vms'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -509,6 +509,8 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
   const moveDisk = useMoveVMDisk(node, vmid)
   const { data: nodeStorages } = useNodeStorage(node)
   const { data: nodeNetwork } = useNodeNetwork(node)
+  const { data: nodePCIDevices } = useNodeHardwarePCI(node)
+  const { data: nodeUSBDevices } = useNodeHardwareUSB(node)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [resizingKey, setResizingKey] = useState<string | null>(null)
@@ -528,6 +530,11 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
   const [editNetBridge, setEditNetBridge] = useState('')
   const [editNetTag, setEditNetTag] = useState('')
   const [editNetRate, setEditNetRate] = useState('')
+  const [showAddPCI, setShowAddPCI] = useState(false)
+  const [addPCIId, setAddPCIId] = useState('')
+  const [addPCIPcie, setAddPCIPcie] = useState(false)
+  const [showAddUSB, setShowAddUSB] = useState(false)
+  const [addUSBId, setAddUSBId] = useState('')
 
   if (!config) return null
 
@@ -1012,27 +1019,82 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
       {/* PCI Passthrough */}
       {(() => {
         const pciKeys = Object.keys(cfg).filter((k) => /^hostpci\d+$/.test(k))
-        if (pciKeys.length === 0) return null
+        const nextPciKey = `hostpci${pciKeys.length}`
+        function addPCI() {
+          if (!addPCIId.trim()) return
+          const val = addPCIPcie ? `${addPCIId.trim()},pcie=1` : addPCIId.trim()
+          updateConfig.mutate({ [nextPciKey]: val }, {
+            onSuccess: () => { setShowAddPCI(false); setAddPCIId(''); setAddPCIPcie(false) },
+          })
+        }
         return (
           <Card>
-            <CardHeader><CardTitle>PCI Devices</CardTitle></CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y divide-border-muted">
-                {pciKeys.map((k) => (
-                  <div key={k} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
-                    <span className="text-text-muted shrink-0 font-medium">{k}</span>
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <span className="text-text-primary font-mono text-xs break-all flex-1">{String(cfg[k])}</span>
-                      <button
-                        onClick={() => { if (confirm(`Detach ${k}?`)) updateConfig.mutate({ delete: k }) }}
-                        className="shrink-0 text-xs text-text-muted hover:text-status-error border border-border-subtle rounded px-1.5 py-0.5"
-                      >
-                        Detach
-                      </button>
-                    </div>
-                  </div>
-                ))}
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>PCI Devices</CardTitle>
+                <button
+                  onClick={() => setShowAddPCI((v) => !v)}
+                  className="flex items-center gap-1 text-xs text-text-muted hover:text-accent border border-border-subtle rounded px-2 py-1"
+                >
+                  <Plus className="size-3" /> Add PCI
+                </button>
               </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {showAddPCI && (
+                <div className="flex flex-wrap items-end gap-2 px-4 py-3 border-b border-border-muted bg-bg-elevated">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-text-muted">PCI Device</label>
+                    {nodePCIDevices && nodePCIDevices.length > 0 ? (
+                      <select
+                        value={addPCIId}
+                        onChange={(e) => setAddPCIId(e.target.value)}
+                        className="rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+                      >
+                        <option value="">— select —</option>
+                        {nodePCIDevices.map((d) => (
+                          <option key={d.id} value={d.id}>{d.id} — {d.device_name ?? d.vendor_name ?? 'Unknown'}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        value={addPCIId}
+                        onChange={(e) => setAddPCIId(e.target.value)}
+                        placeholder="0000:00:02.0"
+                        className="w-36 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs font-mono text-text-primary outline-none focus:border-accent"
+                      />
+                    )}
+                  </div>
+                  <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer">
+                    <input type="checkbox" checked={addPCIPcie} onChange={(e) => setAddPCIPcie(e.target.checked)} />
+                    PCIe
+                  </label>
+                  <Button size="sm" disabled={updateConfig.isPending || !addPCIId.trim()} onClick={addPCI}>
+                    {updateConfig.isPending ? '…' : 'Add'}
+                  </Button>
+                  <button onClick={() => setShowAddPCI(false)} className="text-xs text-text-muted hover:text-text-primary">Cancel</button>
+                </div>
+              )}
+              {pciKeys.length === 0 && !showAddPCI ? (
+                <p className="px-4 py-6 text-sm text-text-muted text-center">No PCI devices attached</p>
+              ) : (
+                <div className="divide-y divide-border-muted">
+                  {pciKeys.map((k) => (
+                    <div key={k} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                      <span className="text-text-muted shrink-0 font-medium">{k}</span>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-text-primary font-mono text-xs break-all flex-1">{String(cfg[k])}</span>
+                        <button
+                          onClick={() => { if (confirm(`Detach ${k}?`)) updateConfig.mutate({ delete: k }) }}
+                          className="shrink-0 text-xs text-text-muted hover:text-status-error border border-border-subtle rounded px-1.5 py-0.5"
+                        >
+                          Detach
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         )
@@ -1041,27 +1103,79 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
       {/* USB Passthrough */}
       {(() => {
         const usbKeys = Object.keys(cfg).filter((k) => /^usb\d+$/.test(k))
-        if (usbKeys.length === 0) return null
+        const nextUsbKey = `usb${usbKeys.length}`
+        function addUSB() {
+          if (!addUSBId.trim()) return
+          updateConfig.mutate({ [nextUsbKey]: `host=${addUSBId.trim()}` }, {
+            onSuccess: () => { setShowAddUSB(false); setAddUSBId('') },
+          })
+        }
         return (
           <Card>
-            <CardHeader><CardTitle>USB Devices</CardTitle></CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y divide-border-muted">
-                {usbKeys.map((k) => (
-                  <div key={k} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
-                    <span className="text-text-muted shrink-0 font-medium">{k}</span>
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <span className="text-text-primary font-mono text-xs break-all flex-1">{String(cfg[k])}</span>
-                      <button
-                        onClick={() => { if (confirm(`Detach ${k}?`)) updateConfig.mutate({ delete: k }) }}
-                        className="shrink-0 text-xs text-text-muted hover:text-status-error border border-border-subtle rounded px-1.5 py-0.5"
-                      >
-                        Detach
-                      </button>
-                    </div>
-                  </div>
-                ))}
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>USB Devices</CardTitle>
+                <button
+                  onClick={() => setShowAddUSB((v) => !v)}
+                  className="flex items-center gap-1 text-xs text-text-muted hover:text-accent border border-border-subtle rounded px-2 py-1"
+                >
+                  <Plus className="size-3" /> Add USB
+                </button>
               </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {showAddUSB && (
+                <div className="flex flex-wrap items-end gap-2 px-4 py-3 border-b border-border-muted bg-bg-elevated">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-text-muted">USB Device</label>
+                    {nodeUSBDevices && nodeUSBDevices.length > 0 ? (
+                      <select
+                        value={addUSBId}
+                        onChange={(e) => setAddUSBId(e.target.value)}
+                        className="rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+                      >
+                        <option value="">— select —</option>
+                        {nodeUSBDevices.map((d) => {
+                          const id = `${d.vendid}:${d.prodid}`
+                          const label = d.product ?? d.manufacturer ?? id
+                          return <option key={`${d.busnum}-${d.devnum}`} value={id}>{id} — {label}</option>
+                        })}
+                      </select>
+                    ) : (
+                      <input
+                        value={addUSBId}
+                        onChange={(e) => setAddUSBId(e.target.value)}
+                        placeholder="1234:5678"
+                        className="w-36 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs font-mono text-text-primary outline-none focus:border-accent"
+                      />
+                    )}
+                  </div>
+                  <Button size="sm" disabled={updateConfig.isPending || !addUSBId.trim()} onClick={addUSB}>
+                    {updateConfig.isPending ? '…' : 'Add'}
+                  </Button>
+                  <button onClick={() => setShowAddUSB(false)} className="text-xs text-text-muted hover:text-text-primary">Cancel</button>
+                </div>
+              )}
+              {usbKeys.length === 0 && !showAddUSB ? (
+                <p className="px-4 py-6 text-sm text-text-muted text-center">No USB devices attached</p>
+              ) : (
+                <div className="divide-y divide-border-muted">
+                  {usbKeys.map((k) => (
+                    <div key={k} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                      <span className="text-text-muted shrink-0 font-medium">{k}</span>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-text-primary font-mono text-xs break-all flex-1">{String(cfg[k])}</span>
+                        <button
+                          onClick={() => { if (confirm(`Detach ${k}?`)) updateConfig.mutate({ delete: k }) }}
+                          className="shrink-0 text-xs text-text-muted hover:text-status-error border border-border-subtle rounded px-1.5 py-0.5"
+                        >
+                          Detach
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         )
