@@ -38,6 +38,7 @@ import {
   useUpdateLXCConfig,
   useDeleteLXC,
   useResizeLXCDisk,
+  useTemplateLXC,
 } from '@/lib/queries/lxc'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered, useVzdump } from '@/lib/queries/nodes'
@@ -1005,6 +1006,8 @@ export function LXCDetailPage() {
 
   const isRunning = status?.status === 'running'
   const isStopped = status?.status === 'stopped'
+  const isTemplate = !!(status as Record<string, unknown> | undefined)?.template
+  const convertToTemplate = useTemplateLXC(node!, vmid)
 
   const otherNodes = (nodes ?? []).map((n) => n.node).filter((n) => n && n !== node)
 
@@ -1087,6 +1090,20 @@ export function LXCDetailPage() {
                 <Play className="size-4 mr-1.5" />
                 Start
               </Button>
+              {!isTemplate && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={convertToTemplate.isPending}
+                  onClick={() => {
+                    if (confirm(`Convert CT ${vmid} to a template? This cannot be undone.`)) {
+                      convertToTemplate.mutate()
+                    }
+                  }}
+                >
+                  To Template
+                </Button>
+              )}
               <Button
                 variant="destructive"
                 size="sm"

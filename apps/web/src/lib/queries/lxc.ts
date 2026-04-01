@@ -279,3 +279,15 @@ export function useResizeLXCDisk(node: string, vmid: number) {
     onError: (err) => toast.error(`Resize failed — ${err.message}`),
   })
 }
+
+export function useTemplateLXC(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.post(`nodes/${node}/lxc/${vmid}/template`, {}),
+    onSuccess: () => {
+      toast.success('Container converted to template')
+      qc.invalidateQueries({ queryKey: lxcKeys.status(node, vmid) })
+    },
+    onError: (err) => toast.error(`Failed — ${err.message}`),
+  })
+}
