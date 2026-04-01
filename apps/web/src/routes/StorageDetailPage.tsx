@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useParams } from 'react-router'
-import { HardDrive, Package, Server, Trash2 } from 'lucide-react'
-import { useStorage, useStorageContent, useDeleteStorageContent } from '@/lib/queries/storage'
+import { HardDrive, Package, Server, Trash2, Upload } from 'lucide-react'
+import { useStorage, useStorageContent, useDeleteStorageContent, useUploadContent } from '@/lib/queries/storage'
 import { useNodeStorage } from '@/lib/queries/nodes'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import {
@@ -36,6 +36,11 @@ export function StorageDetailPage() {
   const { storageid } = useParams<{ storageid: string }>()
   const [activeNode, setActiveNode] = useState<string>('')
   const [contentFilter, setContentFilter] = useState<string>('')
+  const [showUpload, setShowUpload] = useState(false)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadType, setUploadType] = useState<'iso' | 'vztmpl'>('iso')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const { data: storages } = useStorage()
   const storageInfo = storages?.find((s) => s.storage === storageid)
 
@@ -50,6 +55,27 @@ export function StorageDetailPage() {
     contentFilter || undefined,
   )
   const deleteContent = useDeleteStorageContent(targetNode, storageid!)
+  const uploadContent = useUploadContent(targetNode, storageid!)
+
+  // Allowed content types for upload
+  const supportedContent = storageInfo?.content?.split(',').map((s) => s.trim()) ?? []
+  const canUploadIso = supportedContent.includes('iso') || supportedContent.length === 0
+  const canUploadTemplate = supportedContent.includes('vztmpl') || supportedContent.length === 0
+  const canUpload = canUploadIso || canUploadTemplate
+
+  function handleUpload() {
+    if (!uploadFile) return
+    uploadContent.mutate(
+      { file: uploadFile, content: uploadType },
+      {
+        onSuccess: () => {
+          setShowUpload(false)
+          setUploadFile(null)
+          if (fileInputRef.current) fileInputRef.current.value = ''
+        },
+      },
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -60,21 +86,76 @@ export function StorageDetailPage() {
             {storageInfo?.type ?? 'storage'} · {storageInfo?.content?.replace(/,/g, ', ') ?? ''}
           </p>
         </div>
-        {storageInfo?.nodes && storageInfo.nodes.includes(',') && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-text-muted">Node:</span>
-            <select
-              value={activeNode || (storageInfo.nodes!.split(',')[0] ?? '').trim()}
-              onChange={(e) => setActiveNode(e.target.value)}
-              className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
-            >
-              {storageInfo.nodes.split(',').map((n) => n.trim()).map((n) => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {canUpload && (
+            <Button size="sm" variant="default" onClick={() => setShowUpload(true)}>
+              <Upload className="size-3.5" /> Upload
+            </Button>
+          )}
+          {storageInfo?.nodes && storageInfo.nodes.includes(',') && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-text-muted">Node:</span>
+              <select
+                value={activeNode || (storageInfo.nodes!.split(',')[0] ?? '').trim()}
+                onChange={(e) => setActiveNode(e.target.value)}
+                className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+              >
+                {storageInfo.nodes.split(',').map((n) => n.trim()).map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Upload dialog */}
+      {showUpload && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Upload className="size-4 text-text-muted" /> Upload ISO / Template
+              </CardTitle>
+              <button onClick={() => { setShowUpload(false); setUploadFile(null) }} className="text-text-muted hover:text-text-primary">
+                ✕
+              </button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-text-muted w-20">Type</span>
+              <select
+                value={uploadType}
+                onChange={(e) => setUploadType(e.target.value as 'iso' | 'vztmpl')}
+                className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+              >
+                {canUploadIso && <option value="iso">ISO Image</option>}
+                {canUploadTemplate && <option value="vztmpl">CT Template</option>}
+              </select>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-text-muted w-20">File</span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={uploadType === 'iso' ? '.iso,.img' : '.tar.gz,.tar.xz,.tar.zst'}
+                onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+                className="flex-1 text-sm text-text-primary file:mr-3 file:rounded file:border-0 file:bg-bg-surface file:px-2 file:py-1 file:text-xs file:text-text-secondary hover:file:bg-bg-surface/70"
+              />
+            </div>
+            {uploadFile && (
+              <p className="text-xs text-text-muted pl-[6rem]">{uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)</p>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button size="sm" variant="ghost" onClick={() => { setShowUpload(false); setUploadFile(null) }}>Cancel</Button>
+              <Button size="sm" onClick={handleUpload} disabled={!uploadFile || uploadContent.isPending}>
+                {uploadContent.isPending ? 'Uploading…' : 'Upload'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Capacity card */}
       {capacityInfo && capacityInfo.total != null && capacityInfo.total > 0 && (

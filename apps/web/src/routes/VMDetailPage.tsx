@@ -184,54 +184,127 @@ function SummaryTab({ node, vmid }: { node: string; vmid: number }) {
 
 function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: config } = useVMConfig(node, vmid)
+  const updateConfig = useUpdateVMConfig(node, vmid)
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
 
   if (!config) return null
 
-  const rows: { key: string; label: string }[] = [
-    { key: 'cores', label: 'CPU Cores' },
-    { key: 'sockets', label: 'Sockets' },
-    { key: 'cpu', label: 'CPU Type' },
-    { key: 'memory', label: 'Memory (MiB)' },
-    { key: 'balloon', label: 'Balloon Min (MiB)' },
-    { key: 'bios', label: 'BIOS' },
+  const cfg = config as Record<string, unknown>
+
+  function startEdit(key: string) {
+    setEditingKey(key)
+    setEditValue(cfg[key] != null ? String(cfg[key]) : '')
+  }
+  function cancelEdit() { setEditingKey(null); setEditValue('') }
+  function saveEdit(key: string, asNumber?: boolean) {
+    const value = asNumber ? Number(editValue) : editValue
+    updateConfig.mutate({ [key]: value }, { onSuccess: cancelEdit })
+  }
+
+  const editableRows: { key: string; label: string; numeric?: boolean }[] = [
+    { key: 'cores',   label: 'CPU Cores',       numeric: true },
+    { key: 'sockets', label: 'Sockets',          numeric: true },
+    { key: 'cpu',     label: 'CPU Type' },
+    { key: 'memory',  label: 'Memory (MiB)',      numeric: true },
+    { key: 'balloon', label: 'Balloon Min (MiB)', numeric: true },
+  ]
+  const readonlyRows: { key: string; label: string }[] = [
+    { key: 'bios',    label: 'BIOS' },
     { key: 'machine', label: 'Machine' },
-    { key: 'scsihw', label: 'SCSI Controller' },
-    { key: 'ostype', label: 'OS Type' },
-    { key: 'boot', label: 'Boot Order' },
-    { key: 'vga', label: 'VGA' },
-    { key: 'agent', label: 'QEMU Agent' },
+    { key: 'scsihw',  label: 'SCSI Controller' },
+    { key: 'ostype',  label: 'OS Type' },
+    { key: 'boot',    label: 'Boot Order' },
+    { key: 'vga',     label: 'VGA' },
+    { key: 'agent',   label: 'QEMU Agent' },
   ]
 
   // Dynamic disk/network keys
-  const dynamicKeys = Object.keys(config).filter(
+  const dynamicKeys = Object.keys(cfg).filter(
     (k) => /^(scsi|ide|sata|virtio|net)\d+$/.test(k),
   )
 
   return (
-    <Card>
-      <CardContent className="p-0">
-        <div className="divide-y divide-border-muted">
-          {rows.map(({ key, label }) => {
-            const val = config[key as keyof typeof config]
-            if (val == null) return null
-            return (
-              <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                <span className="text-text-muted">{label}</span>
-                <span className="text-text-primary font-mono">{String(val)}</span>
-              </div>
-            )
-          })}
-          {dynamicKeys.map((key) => (
-            <div key={key} className="flex items-start justify-between px-4 py-2.5 text-sm gap-4">
-              <span className="text-text-muted shrink-0">{key}</span>
-              <span className="text-text-primary font-mono text-right break-all text-xs">
-                {String(config[key as keyof typeof config])}
-              </span>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader><CardTitle>CPU &amp; Memory</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          <div className="divide-y divide-border-muted">
+            {editableRows.map(({ key, label, numeric }) => {
+              const val = cfg[key]
+              if (val == null) return null
+              const isEditing = editingKey === key
+              return (
+                <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                  <span className="text-text-muted shrink-0">{label}</span>
+                  {isEditing ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        autoFocus
+                        type={numeric ? 'number' : 'text'}
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(key, numeric); if (e.key === 'Escape') cancelEdit() }}
+                        className="w-28 rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-sm text-text-primary outline-none focus:border-accent"
+                      />
+                      <button onClick={() => saveEdit(key, numeric)} disabled={updateConfig.isPending} className="text-status-running hover:opacity-80 disabled:opacity-50">
+                        <Check className="size-3.5" />
+                      </button>
+                      <button onClick={cancelEdit} className="text-text-muted hover:opacity-80">
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-text-primary font-mono">{String(val)}</span>
+                      <button onClick={() => startEdit(key)} className="text-text-muted hover:text-text-primary">
+                        <Pencil className="size-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>System</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          <div className="divide-y divide-border-muted">
+            {readonlyRows.map(({ key, label }) => {
+              const val = cfg[key]
+              if (val == null) return null
+              return (
+                <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                  <span className="text-text-muted">{label}</span>
+                  <span className="text-text-primary font-mono">{String(val)}</span>
+                </div>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {dynamicKeys.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle>Disks &amp; Network</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border-muted">
+              {dynamicKeys.map((key) => (
+                <div key={key} className="flex items-start justify-between px-4 py-2.5 text-sm gap-4">
+                  <span className="text-text-muted shrink-0 font-medium">{key}</span>
+                  <span className="text-text-primary font-mono text-right break-all text-xs">
+                    {String(cfg[key])}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   )
 }
 

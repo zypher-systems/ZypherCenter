@@ -65,3 +65,20 @@ export function useDeleteStorageContent(node: string, storageId: string) {
     onError: (err) => toast.error(`Delete failed — ${err.message}`),
   })
 }
+
+export function useUploadContent(node: string, storageId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ file, content }: { file: File; content: 'iso' | 'vztmpl' }) => {
+      const fd = new FormData()
+      fd.append('content', content)
+      fd.append('filename', file, file.name)
+      return api.upload<{ data: string }>(`nodes/${node}/storage/${storageId}/upload`, fd)
+    },
+    onSuccess: () => {
+      toast.success('Upload started — check Tasks for progress')
+      qc.invalidateQueries({ queryKey: storageKeys.content(node, storageId) })
+    },
+    onError: (err) => toast.error(`Upload failed — ${err.message}`),
+  })
+}

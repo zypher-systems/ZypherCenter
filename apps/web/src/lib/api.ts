@@ -26,7 +26,7 @@ async function request<T>(
     credentials: 'include',
     headers: {
       Accept: 'application/json',
-      ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options?.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
       ...options?.headers,
     },
   })
@@ -67,4 +67,8 @@ export const api = {
 
   del: <T>(path: string) =>
     request<T>(path, { method: 'DELETE' }),
+
+  /** Upload a file via multipart/form-data. The browser sets Content-Type with boundary automatically. */
+  upload: <T>(path: string, formData: FormData) =>
+    request<T>(path, { method: 'POST', body: formData }),
 }
