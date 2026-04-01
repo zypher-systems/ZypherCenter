@@ -10,7 +10,7 @@ import {
   Power,
   RefreshCw,
 } from 'lucide-react'
-import { useNodeStatus, useNodeRrdData, useNodePower } from '@/lib/queries/nodes'
+import { useNodeStatus, useNodeRrdData, useNodePower, useNodeSubscription } from '@/lib/queries/nodes'
 import { useVMs } from '@/lib/queries/vms'
 import { useLXCs } from '@/lib/queries/lxc'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -187,6 +187,7 @@ export function NodeSummaryPage() {
   const { data: vms } = useVMs(node!)
   const { data: lxcs } = useLXCs(node!)
   const nodePower = useNodePower(node!)
+  const { data: sub } = useNodeSubscription(node!)
 
   if (isLoading) {
     return (
@@ -357,6 +358,64 @@ export function NodeSummaryPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Subscription status */}
+      {sub && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium">Subscription</CardTitle>
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  sub.status === 'Active'
+                    ? 'bg-status-running/10 text-status-running border border-status-running/20'
+                    : sub.status === 'None'
+                    ? 'bg-border-muted/30 text-text-muted border border-border-muted'
+                    : 'bg-status-error/10 text-status-error border border-status-error/20'
+                }`}
+              >
+                {sub.status}
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-x-8 gap-y-1 text-xs sm:grid-cols-2 lg:grid-cols-4">
+              {sub.productname && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-text-muted">Product</span>
+                  <span className="text-text-secondary font-medium">{sub.productname}</span>
+                </div>
+              )}
+              {sub.level && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-text-muted">Level</span>
+                  <span className="text-text-secondary font-mono uppercase">{sub.level}</span>
+                </div>
+              )}
+              {sub.nextduedate && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-text-muted">Next Due</span>
+                  <span className="text-text-secondary font-mono">{sub.nextduedate}</span>
+                </div>
+              )}
+              {sub.key && (
+                <div className="flex justify-between gap-2 min-w-0">
+                  <span className="text-text-muted shrink-0">Key</span>
+                  <span className="text-text-secondary font-mono truncate">{sub.key}</span>
+                </div>
+              )}
+              {sub.status === 'None' && !sub.key && (
+                <div className="col-span-full text-text-muted">
+                  No subscription key registered for this node.
+                </div>
+              )}
+              {sub.message && sub.status !== 'Active' && (
+                <div className="col-span-full text-status-error">{sub.message}</div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Performance history */}
       <NodePerfSection node={node!} />

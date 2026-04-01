@@ -411,3 +411,24 @@ export function useUpdateNodeConfig(node: string) {
     onError: (err) => toast.error(`Update failed — ${err.message}`),
   })
 }
+
+export interface NodeSubscription {
+  status: 'Active' | 'Expired' | 'Invalid' | 'None' | string
+  level?: string
+  productname?: string
+  key?: string
+  nextduedate?: string
+  validdirectory?: string
+  message?: string
+  serverid?: string
+  [key: string]: unknown
+}
+
+export function useNodeSubscription(node: string) {
+  return useQuery({
+    queryKey: [...nodeKeys.all(node), 'subscription'],
+    queryFn: () => api.get<NodeSubscription>(`nodes/${node}/subscription`),
+    enabled: !!node,
+    staleTime: 5 * 60_000,
+  })
+}
