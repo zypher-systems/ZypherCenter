@@ -349,3 +349,65 @@ export function useVzdump(node: string) {
     onError: (err) => toast.error(`Backup failed — ${err.message}`),
   })
 }
+
+// ── ACME / Certificates ───────────────────────────────────────────────────────
+
+export function useNodeCertificates(node: string) {
+  return useQuery({
+    queryKey: [...nodeKeys.all(node), 'certificates'],
+    queryFn: () => api.get<Record<string, unknown>[]>(`nodes/${node}/certificates/info`),
+    enabled: !!node,
+  })
+}
+
+export function useNodeACMEAccounts() {
+  return useQuery({
+    queryKey: ['acme', 'accounts'],
+    queryFn: () => api.get<string[]>('cluster/acme/account'),
+  })
+}
+
+export function useOrderNodeCertificate(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (force: boolean) =>
+      api.post<string>(`nodes/${node}/certificates/acme/certificate`, { force: force ? 1 : 0 }),
+    onSuccess: () => {
+      toast.success('Certificate order/renewal task started')
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'certificates'] })
+    },
+    onError: (err) => toast.error(`Certificate order failed — ${err.message}`),
+  })
+}
+
+export function useRevokeNodeCertificate(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.del(`nodes/${node}/certificates/acme/certificate`),
+    onSuccess: () => {
+      toast.success('Certificate revoked')
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'certificates'] })
+    },
+    onError: (err) => toast.error(`Revoke failed — ${err.message}`),
+  })
+}
+
+export function useNodeACMEDomains(node: string) {
+  return useQuery({
+    queryKey: [...nodeKeys.all(node), 'acme', 'domains'],
+    queryFn: () => api.get<Record<string, unknown>>(`nodes/${node}/config`),
+    enabled: !!node,
+  })
+}
+
+export function useUpdateNodeConfig(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) => api.put(`nodes/${node}/config`, params),
+    onSuccess: () => {
+      toast.success('Node configuration updated')
+      qc.invalidateQueries({ queryKey: nodeKeys.all(node) })
+    },
+    onError: (err) => toast.error(`Update failed — ${err.message}`),
+  })
+}

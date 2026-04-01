@@ -22,6 +22,7 @@ import { NodeDNSPage } from '@/routes/NodeDNSPage'
 import { NodeTimePage } from '@/routes/NodeTimePage'
 import { NodeServicesPage } from '@/routes/NodeServicesPage'
 import { NodeFirewallPage } from '@/routes/NodeFirewallPage'
+import { NodeCertificatesPage } from '@/routes/NodeCertificatesPage'
 
 // VM pages
 import { VMListPage } from '@/routes/VMListPage'
@@ -144,6 +145,7 @@ export const router = createBrowserRouter([
       { path: 'nodes/:node/time', element: <NodeTimePage /> },
       { path: 'nodes/:node/services', element: <NodeServicesPage /> },
       { path: 'nodes/:node/firewall', element: <NodeFirewallPage /> },
+      { path: 'nodes/:node/certificates', element: <NodeCertificatesPage /> },
 
       // VM routes (list per-node or global)
       { path: 'nodes/:node/vms', element: <VMListPage /> },

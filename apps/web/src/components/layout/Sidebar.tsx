@@ -160,6 +160,7 @@ function NodeTree({
             { label: 'Time', to: `/nodes/${nodeName}/time`, icon: <Timer /> },
             { label: 'Services', to: `/nodes/${nodeName}/services`, icon: <Cog /> },
             { label: 'Firewall', to: `/nodes/${nodeName}/firewall`, icon: <FlameKindling /> },
+            { label: 'Certificates', to: `/nodes/${nodeName}/certificates`, icon: <ShieldCheck /> },
             { label: 'Syslog', to: `/nodes/${nodeName}/syslog`, icon: <ScrollText /> },
             { label: 'Tasks', to: `/nodes/${nodeName}/tasks`, icon: <Clock /> },
           ].map((item) => (
