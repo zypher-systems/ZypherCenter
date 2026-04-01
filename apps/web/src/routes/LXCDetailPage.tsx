@@ -44,7 +44,7 @@ import {
   useLXCRrdData,
 } from '@/lib/queries/lxc'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
-import { useNodeTasksFiltered, useVzdump, useNodeNetwork } from '@/lib/queries/nodes'
+import { useNodeTasksFiltered, useVzdump, useNodeNetwork, useNodeHardwareUSB } from '@/lib/queries/nodes'
 import { useStorage } from '@/lib/queries/storage'
 import { useNextVMId } from '@/lib/queries/vms'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -802,6 +802,9 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
   const [editNetBridge, setEditNetBridge] = useState('')
   const [editNetTag, setEditNetTag] = useState('')
   const [editNetRate, setEditNetRate] = useState('')
+  const [showAddUSB, setShowAddUSB] = useState(false)
+  const [addUSBId, setAddUSBId] = useState('')
+  const { data: nodeUSBDevices } = useNodeHardwareUSB(node)
 
   if (isLoading) return <SkeletonCard />
   if (!config) return null
@@ -842,6 +845,17 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
   const readonlyFields = ['arch']
 
   const bridges = (nodeNetwork ?? []).filter((n) => n.type === 'bridge').map((n) => n.iface).filter(Boolean)
+
+  const usbKeys = Object.keys(cfgRecord).filter((k) => /^usb\d+$/.test(k)).sort()
+  const nextUsbKey = `usb${usbKeys.length}`
+
+  function addUSBDevice() {
+    if (!addUSBId.trim()) return
+    updateConfig.mutate(
+      { [nextUsbKey]: `host=${addUSBId.trim()}` },
+      { onSuccess: () => { setShowAddUSB(false); setAddUSBId('') } },
+    )
+  }
 
   function addNetInterface() {
     if (!addNetBridge) return
@@ -1102,6 +1116,73 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
           </CardContent>
         </Card>
       )}
+
+      {/* USB Passthrough */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>USB Passthrough</CardTitle>
+            <Button size="sm" variant="outline" onClick={() => setShowAddUSB((v) => !v)}>
+              <Plus className="size-3.5 mr-1" />{showAddUSB ? 'Cancel' : 'Add USB'}
+            </Button>
+          </div>
+        </CardHeader>
+        {showAddUSB && (
+          <div className="border-t border-border-muted bg-bg-elevated px-4 py-3 space-y-3">
+            <div>
+              <label className="block text-xs text-text-muted mb-1">USB Device (vendid:prodid)</label>
+              {nodeUSBDevices && nodeUSBDevices.length > 0 ? (
+                <select
+                  value={addUSBId}
+                  onChange={(e) => setAddUSBId(e.target.value)}
+                  className="w-full rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+                >
+                  <option value="">— select device —</option>
+                  {nodeUSBDevices.map((u) => (
+                    <option key={`${u.vendid}:${u.prodid}`} value={`${u.vendid}:${u.prodid}`}>
+                      {u.vendid}:{u.prodid}{u.product ? ` — ${u.product}` : ''}{u.manufacturer ? ` / ${u.manufacturer}` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={addUSBId}
+                  onChange={(e) => setAddUSBId(e.target.value)}
+                  placeholder="vendid:prodid (e.g. 046d:c52b)"
+                  className="w-full rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent font-mono"
+                />
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={addUSBDevice} disabled={updateConfig.isPending || !addUSBId.trim()}>
+                {updateConfig.isPending ? 'Adding…' : 'Add'}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => { setShowAddUSB(false); setAddUSBId('') }}>Cancel</Button>
+            </div>
+          </div>
+        )}
+        <CardContent className="p-0">
+          {usbKeys.length === 0 ? (
+            <p className="p-4 text-sm text-text-muted">No USB devices attached</p>
+          ) : (
+            <div className="divide-y divide-border-muted">
+              {usbKeys.map((k) => (
+                <div key={k} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                  <span className="text-text-muted shrink-0 font-medium">{k}</span>
+                  <span className="text-text-primary font-mono text-xs flex-1 break-all">{String(cfgRecord[k])}</span>
+                  <button
+                    onClick={() => { if (confirm(`Detach USB device ${k}?`)) updateConfig.mutate({ delete: k }) }}
+                    className="shrink-0 text-text-muted hover:text-status-error"
+                    title="Remove USB device"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {mpKeys.length > 0 && (
         <Card>
