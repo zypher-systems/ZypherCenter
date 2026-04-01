@@ -40,8 +40,8 @@ import {
   useDeleteVM,
 } from '@/lib/queries/vms'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
-import { useNodeTasksFiltered, useVzdump } from '@/lib/queries/nodes'
-import { useStorage } from '@/lib/queries/storage'
+import { useNodeTasksFiltered, useNodeStorage, useVzdump } from '@/lib/queries/nodes'
+import { useStorage, useStorageContent } from '@/lib/queries/storage'
 import { useNextVMId } from '@/lib/queries/vms'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -183,9 +183,92 @@ function SummaryTab({ node, vmid }: { node: string; vmid: number }) {
 
 // ── Hardware tab ─────────────────────────────────────────────────────────────
 
+// ── CD-ROM ISO picker row ────────────────────────────────────────────────────
+
+function ISOPickerRow({
+  diskKey, rawValue, node, isoStorages, onMount, onEject, isPending,
+}: {
+  diskKey: string
+  rawValue: string
+  node: string
+  isoStorages: { storage: string }[]
+  onMount: (key: string, volid: string) => void
+  onEject: (key: string) => void
+  isPending: boolean
+}) {
+  const [picking, setPicking] = useState(false)
+  const [pickerStorage, setPickerStorage] = useState('')
+  const [pickerISO, setPickerISO] = useState('')
+  const { data: isoContent } = useStorageContent(node, pickerStorage, 'iso')
+
+  const currentVolid = rawValue.split(',')[0] === 'none' ? null : rawValue.split(',')[0]
+  const isoName = currentVolid ? (currentVolid.split('/').pop() ?? currentVolid) : null
+
+  function openPicker() {
+    setPickerStorage(''); setPickerISO(''); setPicking(true)
+  }
+
+  return (
+    <div className="px-4 py-2.5 text-sm border-b border-border-muted last:border-0 space-y-2">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="text-text-muted shrink-0 font-medium w-12">{diskKey}</span>
+          <span className="text-text-secondary text-xs">{isoName ?? <span className="text-text-disabled italic">Empty</span>}</span>
+        </div>
+        <div className="flex gap-1.5">
+          {currentVolid && (
+            <Button size="sm" variant="outline" disabled={isPending} onClick={() => onEject(diskKey)}>
+              Eject
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={() => picking ? setPicking(false) : openPicker()}>
+            {picking ? 'Cancel' : 'Mount ISO'}
+          </Button>
+        </div>
+      </div>
+      {picking && (
+        <div className="grid grid-cols-2 gap-2 pl-15">
+          <select
+            value={pickerStorage}
+            onChange={(e) => { setPickerStorage(e.target.value); setPickerISO('') }}
+            className="rounded border border-border bg-bg-card text-text-primary text-xs px-2 py-1 [color-scheme:dark]"
+          >
+            <option value="">— storage —</option>
+            {isoStorages.map((s) => (
+              <option key={s.storage} value={s.storage}>{s.storage}</option>
+            ))}
+          </select>
+          <select
+            value={pickerISO}
+            onChange={(e) => setPickerISO(e.target.value)}
+            disabled={!pickerStorage}
+            className="rounded border border-border bg-bg-card text-text-primary text-xs px-2 py-1 [color-scheme:dark] disabled:opacity-50"
+          >
+            <option value="">— iso file —</option>
+            {(isoContent ?? []).map((item) => (
+              <option key={item.volid} value={item.volid}>
+                {item.volid.split('/').pop() ?? item.volid}
+              </option>
+            ))}
+          </select>
+          <div className="col-span-2 flex justify-end">
+            <Button size="sm" disabled={!pickerISO || isPending}
+              onClick={() => { onMount(diskKey, pickerISO); setPicking(false) }}>
+              Mount
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Hardware tab ─────────────────────────────────────────────────────────────
+
 function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: config } = useVMConfig(node, vmid)
   const updateConfig = useUpdateVMConfig(node, vmid)
+  const { data: nodeStorages } = useNodeStorage(node)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
 
@@ -202,6 +285,17 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
     const value = asNumber ? Number(editValue) : editValue
     updateConfig.mutate({ [key]: value }, { onSuccess: cancelEdit })
   }
+
+  function mountISO(key: string, volid: string) {
+    updateConfig.mutate({ [key]: `${volid},media=cdrom` })
+  }
+  function ejectISO(key: string) {
+    updateConfig.mutate({ [key]: 'none,media=cdrom' })
+  }
+
+  const isoStorages = (nodeStorages ?? []).filter((s) =>
+    s.content?.split(',').map((c) => c.trim()).includes('iso')
+  )
 
   const editableRows: { key: string; label: string; numeric?: boolean }[] = [
     { key: 'cores',   label: 'CPU Cores',       numeric: true },
@@ -220,10 +314,12 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
     { key: 'agent',   label: 'QEMU Agent' },
   ]
 
-  // Dynamic disk/network keys
-  const dynamicKeys = Object.keys(cfg).filter(
+  // Dynamic disk/network keys, split into cdrom vs regular
+  const allDriveNetKeys = Object.keys(cfg).filter(
     (k) => /^(scsi|ide|sata|virtio|net)\d+$/.test(k),
   )
+  const cdromKeys = allDriveNetKeys.filter((k) => String(cfg[k]).includes('media=cdrom'))
+  const diskNetKeys = allDriveNetKeys.filter((k) => !String(cfg[k]).includes('media=cdrom'))
 
   return (
     <div className="space-y-4">
@@ -288,12 +384,32 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
         </CardContent>
       </Card>
 
-      {dynamicKeys.length > 0 && (
+      {cdromKeys.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle>CD-ROM / ISO</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            {cdromKeys.map((key) => (
+              <ISOPickerRow
+                key={key}
+                diskKey={key}
+                rawValue={String(cfg[key])}
+                node={node}
+                isoStorages={isoStorages}
+                onMount={mountISO}
+                onEject={ejectISO}
+                isPending={updateConfig.isPending}
+              />
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {diskNetKeys.length > 0 && (
         <Card>
           <CardHeader><CardTitle>Disks &amp; Network</CardTitle></CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border-muted">
-              {dynamicKeys.map((key) => (
+              {diskNetKeys.map((key) => (
                 <div key={key} className="flex items-start justify-between px-4 py-2.5 text-sm gap-4">
                   <span className="text-text-muted shrink-0 font-medium">{key}</span>
                   <span className="text-text-primary font-mono text-right break-all text-xs">
