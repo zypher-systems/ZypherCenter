@@ -789,6 +789,10 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
   const [addNetIp, setAddNetIp] = useState('dhcp')
   const [addNetIp6, setAddNetIp6] = useState('auto')
   const [addNetTag, setAddNetTag] = useState('')
+  const [editingNetKey, setEditingNetKey] = useState<string | null>(null)
+  const [editNetBridge, setEditNetBridge] = useState('')
+  const [editNetTag, setEditNetTag] = useState('')
+  const [editNetRate, setEditNetRate] = useState('')
 
   if (isLoading) return <SkeletonCard />
   if (!config) return null
@@ -841,6 +845,27 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
     updateConfig.mutate(
       { [key]: val },
       { onSuccess: () => { setShowAddNet(false); setAddNetBridge(''); setAddNetTag('') } }
+    )
+  }
+
+  function startNetEdit(key: string, parsed: Record<string, string>) {
+    setEditingNetKey(key)
+    setEditNetBridge(parsed.bridge ?? '')
+    setEditNetTag(parsed.tag ?? '')
+    setEditNetRate(parsed.rate ?? '')
+  }
+
+  function saveNetEdit(key: string, rawVal: string) {
+    const parts = rawVal.split(',')
+    const existing = Object.fromEntries(parts.map((s) => { const i = s.indexOf('='); return i === -1 ? [s, ''] : [s.slice(0, i), s.slice(i + 1)] }))
+    const updated: Record<string, string> = { ...existing }
+    if (editNetBridge) updated['bridge'] = editNetBridge; else delete updated['bridge']
+    if (editNetTag) updated['tag'] = editNetTag; else delete updated['tag']
+    if (editNetRate) updated['rate'] = editNetRate; else delete updated['rate']
+    const newVal = Object.entries(updated).map(([k, v]) => v ? `${k}=${v}` : k).join(',')
+    updateConfig.mutate(
+      { [key]: newVal },
+      { onSuccess: () => setEditingNetKey(null) }
     )
   }
 
@@ -992,61 +1017,73 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
             )}
             <div className="divide-y divide-border-muted">
               {netKeys.map((k) => {
-                const isEditing = editingKey === k
+                const rawVal = String(cfgRecord[k])
+                const parsed = parseNetConfig(rawVal)
+                const labels: [string, string][] = [
+                  ['name', 'Interface'],
+                  ['bridge', 'Bridge'],
+                  ['hwaddr', 'MAC'],
+                  ['ip', 'IPv4'],
+                  ['ip6', 'IPv6'],
+                  ['tag', 'VLAN'],
+                  ['rate', 'Rate'],
+                ]
                 return (
-                  <div key={k} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
-                    <span className="text-text-muted shrink-0 font-medium">{k}</span>
-                    {isEditing ? (
-                      <div className="flex items-center gap-1.5 flex-1 justify-end">
-                        <input
-                          autoFocus
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(k); if (e.key === 'Escape') cancelEdit() }}
-                          className="w-full rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-xs font-mono text-text-primary outline-none focus:border-accent"
-                        />
-                        <button onClick={() => saveEdit(k)} disabled={updateConfig.isPending} className="text-status-running hover:opacity-80 disabled:opacity-50">
-                          <Check className="size-3.5" />
-                        </button>
-                        <button onClick={cancelEdit} className="text-text-muted hover:opacity-80">
-                          <X className="size-3.5" />
-                        </button>
+                  <div key={k} className="flex flex-col px-4 py-2.5 text-sm gap-1">
+                    <div className="flex items-center gap-4">
+                      <span className="text-text-muted shrink-0 font-medium">{k}</span>
+                      <div className="flex flex-col gap-1 flex-1 min-w-0">
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 items-center">
+                          {labels.filter(([key]) => parsed[key]).map(([key, label]) => (
+                            <span key={key} className="text-xs">
+                              <span className="text-text-muted">{label}: </span>
+                              <span className="text-text-primary font-medium">{parsed[key]}</span>
+                            </span>
+                          ))}
+                          {parsed.firewall === '1' && (
+                            <span className="text-xs text-status-running">Firewall</span>
+                          )}
+                          <button
+                            onClick={() => editingNetKey === k ? setEditingNetKey(null) : startNetEdit(k, parsed)}
+                            className="shrink-0 text-xs text-text-muted hover:text-accent border border-border-subtle rounded px-1.5 py-0.5 ml-1"
+                          >
+                            {editingNetKey === k ? 'Cancel' : 'Edit'}
+                          </button>
+                        </div>
+                        <span className="text-text-muted font-mono text-xs truncate opacity-50">{rawVal}</span>
                       </div>
-                    ) : (
-                      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                        {(() => {
-                          const parsed = parseNetConfig(String(cfgRecord[k]))
-                          const labels: [string, string][] = [
-                            ['name', 'Interface'],
-                            ['bridge', 'Bridge'],
-                            ['hwaddr', 'MAC'],
-                            ['ip', 'IPv4'],
-                            ['ip6', 'IPv6'],
-                            ['tag', 'VLAN'],
-                            ['rate', 'Rate'],
-                          ]
-                          return (
-                            <>
-                              <div className="flex flex-wrap gap-x-4 gap-y-1">
-                                {labels.filter(([key]) => parsed[key]).map(([key, label]) => (
-                                  <span key={key} className="text-xs">
-                                    <span className="text-text-muted">{label}: </span>
-                                    <span className="text-text-primary font-medium">{parsed[key]}</span>
-                                  </span>
-                                ))}
-                                {parsed.firewall === '1' && (
-                                  <span className="text-xs text-status-running">Firewall</span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-text-muted font-mono text-xs truncate opacity-50">{String(cfgRecord[k])}</span>
-                                <button onClick={() => startEdit(k)} className="text-text-muted hover:text-text-primary shrink-0">
-                                  <Pencil className="size-3" />
-                                </button>
-                              </div>
-                            </>
-                          )
-                        })()}
+                    </div>
+                    {editingNetKey === k && (
+                      <div className="flex items-end gap-3 pl-16 flex-wrap py-1">
+                        <div>
+                          <label className="block text-xs text-text-muted mb-0.5">Bridge</label>
+                          {bridges.length > 0 ? (
+                            <select value={editNetBridge} onChange={(e) => setEditNetBridge(e.target.value)}
+                              className="rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent [color-scheme:dark]">
+                              <option value="">— select —</option>
+                              {bridges.map((b) => <option key={b} value={b!}>{b}</option>)}
+                            </select>
+                          ) : (
+                            <input value={editNetBridge} onChange={(e) => setEditNetBridge(e.target.value)}
+                              className="w-24 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-xs text-text-muted mb-0.5">VLAN Tag</label>
+                          <input value={editNetTag} onChange={(e) => setEditNetTag(e.target.value)} placeholder="None"
+                            className="w-20 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-text-muted mb-0.5">Rate (MB/s)</label>
+                          <input value={editNetRate} onChange={(e) => setEditNetRate(e.target.value)} placeholder="Unlimited"
+                            className="w-24 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" disabled={updateConfig.isPending} onClick={() => saveNetEdit(k, rawVal)}>
+                            {updateConfig.isPending ? '…' : 'Apply'}
+                          </Button>
+                          <button onClick={() => setEditingNetKey(null)} className="text-text-muted hover:text-text-primary text-xs">Cancel</button>
+                        </div>
                       </div>
                     )}
                   </div>
