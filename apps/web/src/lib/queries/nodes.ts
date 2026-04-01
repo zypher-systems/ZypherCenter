@@ -281,3 +281,60 @@ export function useNodeServiceAction(node: string) {
     onError: (err) => toast.error(`Service action failed — ${err.message}`),
   })
 }
+
+// ── Node Firewall ─────────────────────────────────────────────────────────────
+
+export function useNodeFirewallRules(node: string) {
+  return useQuery({
+    queryKey: [...nodeKeys.all(node), 'firewall', 'rules'],
+    queryFn: () => api.get<import('@zyphercenter/proxmox-types').FirewallRule[]>(`nodes/${node}/firewall/rules`),
+    enabled: !!node,
+  })
+}
+
+export function useNodeFirewallOptions(node: string) {
+  return useQuery({
+    queryKey: [...nodeKeys.all(node), 'firewall', 'options'],
+    queryFn: () => api.get<import('@zyphercenter/proxmox-types').FirewallOptions>(`nodes/${node}/firewall/options`),
+    enabled: !!node,
+  })
+}
+
+export function useUpdateNodeFirewallOptions(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Partial<import('@zyphercenter/proxmox-types').FirewallOptions>) =>
+      api.put(`nodes/${node}/firewall/options`, params),
+    onSuccess: () => {
+      toast.success('Firewall options updated')
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'firewall', 'options'] })
+    },
+    onError: (err) => toast.error(`Failed to update firewall — ${err.message}`),
+  })
+}
+
+export function useCreateNodeFirewallRule(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { action: string; type: string; enable?: number; comment?: string; source?: string; dest?: string; proto?: string; dport?: string; sport?: string; macro?: string }) =>
+      api.post(`nodes/${node}/firewall/rules`, params),
+    onSuccess: () => {
+      toast.success('Firewall rule created')
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'firewall', 'rules'] })
+    },
+    onError: (err) => toast.error(`Failed to create rule — ${err.message}`),
+  })
+}
+
+export function useDeleteNodeFirewallRule(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (pos: number) =>
+      api.del(`nodes/${node}/firewall/rules/${pos}`),
+    onSuccess: () => {
+      toast.success('Firewall rule deleted')
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'firewall', 'rules'] })
+    },
+    onError: (err) => toast.error(`Failed to delete rule — ${err.message}`),
+  })
+}

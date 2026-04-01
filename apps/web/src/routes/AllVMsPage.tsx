@@ -42,6 +42,13 @@ function VMRow({ vm }: { vm: ClusterResource }) {
         >
           {vm.name ?? `VM ${vmid}`}
         </Link>
+        {vm.tags && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {vm.tags.split(/[;,]/).map((t) => t.trim()).filter(Boolean).map((tag) => (
+              <span key={tag} className="inline-flex items-center rounded-full bg-accent/10 px-1.5 py-px text-[10px] font-medium text-accent border border-accent/20">{tag}</span>
+            ))}
+          </div>
+        )}
       </TableCell>
       <TableCell>
         <Link to={`/nodes/${node}`} className="text-text-secondary hover:text-accent text-sm">

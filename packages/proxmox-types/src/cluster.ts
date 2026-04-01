@@ -116,3 +116,25 @@ export const ReplicationJobSchema = z.object({
 })
 
 export type ReplicationJob = z.infer<typeof ReplicationJobSchema>
+
+// ─── Pool ────────────────────────────────────────────────────────────────────
+
+export const PoolMemberSchema = z.object({
+  type: z.enum(['qemu', 'lxc', 'storage']),
+  id: z.string(),
+  vmid: z.number().int().optional(),
+  storage: z.string().optional(),
+  nodeid: z.string().optional(),
+  node: z.string().optional(),
+  name: z.string().optional(),
+  status: z.string().optional(),
+})
+
+export const PoolSchema = z.object({
+  poolid: z.string(),
+  comment: z.string().optional(),
+  members: z.array(PoolMemberSchema).optional(),
+})
+
+export type PoolMember = z.infer<typeof PoolMemberSchema>
+export type Pool = z.infer<typeof PoolSchema>

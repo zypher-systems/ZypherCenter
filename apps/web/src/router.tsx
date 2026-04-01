@@ -21,6 +21,7 @@ import { NodeTasksPage } from '@/routes/NodeTasksPage'
 import { NodeDNSPage } from '@/routes/NodeDNSPage'
 import { NodeTimePage } from '@/routes/NodeTimePage'
 import { NodeServicesPage } from '@/routes/NodeServicesPage'
+import { NodeFirewallPage } from '@/routes/NodeFirewallPage'
 
 // VM pages
 import { VMListPage } from '@/routes/VMListPage'
@@ -46,6 +47,7 @@ import { SDNPage } from '@/routes/SDNPage'
 import { ClusterFirewallPage } from '@/routes/ClusterFirewallPage'
 import { ClusterOptionsPage } from '@/routes/ClusterOptionsPage'
 import { CephPage } from '@/routes/CephPage'
+import { PoolsPage } from '@/routes/PoolsPage'
 
 // Access
 import { AccessUsersPage } from '@/routes/AccessUsersPage'
@@ -118,6 +120,7 @@ export const router = createBrowserRouter([
       { path: 'cluster/firewall', element: <ClusterFirewallPage /> },
       { path: 'cluster/options', element: <ClusterOptionsPage /> },
       { path: 'cluster/ceph', element: <CephPage /> },
+      { path: 'cluster/pools', element: <PoolsPage /> },
 
       // Access management
       { path: 'access/users', element: <AccessUsersPage /> },
@@ -140,6 +143,7 @@ export const router = createBrowserRouter([
       { path: 'nodes/:node/dns', element: <NodeDNSPage /> },
       { path: 'nodes/:node/time', element: <NodeTimePage /> },
       { path: 'nodes/:node/services', element: <NodeServicesPage /> },
+      { path: 'nodes/:node/firewall', element: <NodeFirewallPage /> },
 
       // VM routes (list per-node or global)
       { path: 'nodes/:node/vms', element: <VMListPage /> },

@@ -31,6 +31,8 @@ import {
   Globe,
   Timer,
   Cog,
+  FlameKindling,
+  Columns3,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/stores/ui'
@@ -157,6 +159,7 @@ function NodeTree({
             { label: 'DNS', to: `/nodes/${nodeName}/dns`, icon: <Globe /> },
             { label: 'Time', to: `/nodes/${nodeName}/time`, icon: <Timer /> },
             { label: 'Services', to: `/nodes/${nodeName}/services`, icon: <Cog /> },
+            { label: 'Firewall', to: `/nodes/${nodeName}/firewall`, icon: <FlameKindling /> },
             { label: 'Syslog', to: `/nodes/${nodeName}/syslog`, icon: <ScrollText /> },
             { label: 'Tasks', to: `/nodes/${nodeName}/tasks`, icon: <Clock /> },
           ].map((item) => (
@@ -233,6 +236,7 @@ export function Sidebar() {
     { label: 'Containers', to: '/lxc', icon: <Box /> },
     { label: 'Storage',     to: '/storage',              icon: <Database /> },
     { label: 'Ceph',        to: '/cluster/ceph',         icon: <CircleDot /> },
+    { label: 'Pools',       to: '/cluster/pools',        icon: <Columns3 /> },
     { label: 'Backup Jobs', to: '/cluster/backup',       icon: <HardDrive /> },
     { label: 'Replication', to: '/cluster/replication', icon: <GitFork /> },
     { label: 'HA', to: '/cluster/ha', icon: <ShieldCheck /> },

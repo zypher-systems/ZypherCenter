@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type {
   ClusterStatusItem, ClusterResource, ClusterOptions, BackupJob, ReplicationJob,
   FirewallRule, FirewallGroup, IPSet, IPSetEntry, FirewallAlias, FirewallOptions,
+  Pool,
 } from '@zyphercenter/proxmox-types'
 
 export const clusterKeys = {
@@ -365,5 +366,68 @@ export function useApplySDN() {
       qc.invalidateQueries({ queryKey: ['sdn'] })
     },
     onError: (err) => toast.error(`Failed to apply SDN — ${err.message}`),
+  })
+}
+
+// ── Pools ─────────────────────────────────────────────────────────────────────
+
+export const poolKeys = {
+  all:    ['pools'] as const,
+  list:   () => [...poolKeys.all, 'list'] as const,
+  detail: (id: string) => [...poolKeys.all, id] as const,
+}
+
+export function usePools() {
+  return useQuery({
+    queryKey: poolKeys.list(),
+    queryFn: () => api.get<Pool[]>('pools'),
+  })
+}
+
+export function usePool(poolid: string) {
+  return useQuery({
+    queryKey: poolKeys.detail(poolid),
+    queryFn: () => api.get<Pool>(`pools/${encodeURIComponent(poolid)}`),
+    enabled: !!poolid,
+  })
+}
+
+export function useCreatePool() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { poolid: string; comment?: string }) =>
+      api.post('pools', params),
+    onSuccess: (_, vars) => {
+      toast.success(`Pool "${vars.poolid}" created`)
+      qc.invalidateQueries({ queryKey: poolKeys.list() })
+    },
+    onError: (err) => toast.error(`Failed to create pool — ${err.message}`),
+  })
+}
+
+export function useUpdatePool() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ poolid, ...params }: { poolid: string; comment?: string }) =>
+      api.put(`pools/${encodeURIComponent(poolid)}`, params),
+    onSuccess: (_, vars) => {
+      toast.success(`Pool "${vars.poolid}" updated`)
+      qc.invalidateQueries({ queryKey: poolKeys.list() })
+      qc.invalidateQueries({ queryKey: poolKeys.detail(vars.poolid) })
+    },
+    onError: (err) => toast.error(`Failed to update pool — ${err.message}`),
+  })
+}
+
+export function useDeletePool() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (poolid: string) =>
+      api.del(`pools/${encodeURIComponent(poolid)}`),
+    onSuccess: (_, poolid) => {
+      toast.success(`Pool "${poolid}" deleted`)
+      qc.invalidateQueries({ queryKey: poolKeys.list() })
+    },
+    onError: (err) => toast.error(`Failed to delete pool — ${err.message}`),
   })
 }
