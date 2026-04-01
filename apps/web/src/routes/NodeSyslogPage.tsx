@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams } from 'react-router'
-import { RefreshCw, Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { RefreshCw, Search, ChevronLeft, ChevronRight, Radio } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -22,6 +22,8 @@ export function NodeSyslogPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [start, setStart] = useState(0)
   const [hasMore, setHasMore] = useState(false)
+  const [autoRefresh, setAutoRefresh] = useState(false)
+  const [refreshInterval, setRefreshInterval] = useState(10)
   const listRef = useRef<HTMLDivElement>(null)
 
   const fetchLogs = useCallback(
@@ -49,6 +51,12 @@ export function NodeSyslogPage() {
     fetchLogs(0)
   }, [fetchLogs])
 
+  useEffect(() => {
+    if (!autoRefresh) return
+    const id = setInterval(() => fetchLogs(start), refreshInterval * 1000)
+    return () => clearInterval(id)
+  }, [autoRefresh, refreshInterval, fetchLogs, start])
+
   const filtered = search
     ? lines.filter((l) => l.m.toLowerCase().includes(search.toLowerCase()))
     : lines
@@ -70,6 +78,24 @@ export function NodeSyslogPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <select
+            value={refreshInterval}
+            onChange={(e) => setRefreshInterval(Number(e.target.value))}
+            className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+          >
+            <option value={5}>5s</option>
+            <option value={10}>10s</option>
+            <option value={30}>30s</option>
+            <option value={60}>60s</option>
+          </select>
+          <Button
+            variant={autoRefresh ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setAutoRefresh((v) => !v)}
+          >
+            <Radio className={`size-4 mr-1.5 ${autoRefresh ? 'animate-pulse' : ''}`} />
+            {autoRefresh ? 'Live' : 'Auto'}
+          </Button>
           <Button
             variant="outline"
             size="sm"
