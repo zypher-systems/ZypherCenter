@@ -70,6 +70,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 // ── LXC performance history ─────────────────────────────────────────────────────────────
 

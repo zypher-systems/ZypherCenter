@@ -80,6 +80,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 // ── VM performance history ─────────────────────────────────────────────────────────────
 
@@ -278,7 +280,10 @@ function NotesCard({ node, vmid }: { node: string; vmid: number }) {
             autoFocus
           />
         ) : notes ? (
-          <pre className="text-sm text-text-secondary whitespace-pre-wrap font-sans leading-relaxed">{notes}</pre>
+          <div
+            className="prose prose-sm prose-invert max-w-none text-text-secondary [&_a]:text-accent [&_a]:underline [&_pre]:bg-bg-elevated [&_code]:bg-bg-elevated [&_code]:px-1 [&_code]:rounded [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_li]:my-0.5 [&_ul]:my-1 [&_ol]:my-1"
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(marked.parse(notes) as string) }}
+          />
         ) : (
           <p className="text-sm text-text-disabled italic">No notes — click Edit to add</p>
         )}
