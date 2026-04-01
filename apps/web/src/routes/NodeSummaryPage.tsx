@@ -10,7 +10,7 @@ import {
   Power,
   RefreshCw,
 } from 'lucide-react'
-import { useNodeStatus, useNodeRrdData, useNodePower, useNodeSubscription, useNodeHardwarePCI, useNodeZFSPools, useNodeDisks } from '@/lib/queries/nodes'
+import { useNodeStatus, useNodeRrdData, useNodePower, useNodeSubscription, useNodeHardwarePCI, useNodeZFSPools, useNodeDisks, useNodeStorage } from '@/lib/queries/nodes'
 import { useVMs } from '@/lib/queries/vms'
 import { useLXCs } from '@/lib/queries/lxc'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -191,6 +191,7 @@ export function NodeSummaryPage() {
   const { data: pciDevices } = useNodeHardwarePCI(node!)
   const { data: zfsPools } = useNodeZFSPools(node!)
   const { data: nodeDisks } = useNodeDisks(node!)
+  const { data: nodeStorage } = useNodeStorage(node!)
 
   if (isLoading) {
     return (
@@ -442,6 +443,46 @@ export function NodeSummaryPage() {
                   <span className="text-xs text-text-muted font-mono shrink-0">{dev.class}</span>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Node Storage */}
+      {nodeStorage && nodeStorage.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Storage ({nodeStorage.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border-muted">
+              {nodeStorage.map((s) => {
+                const pct = s.used_fraction != null ? s.used_fraction : (s.total && s.used != null ? s.used / s.total : null)
+                const barColor = pct == null ? 'bg-accent' : pct > 0.9 ? 'bg-status-error' : pct > 0.7 ? 'bg-status-warning' : 'bg-accent'
+                const isActive = s.active === 1 && s.enabled !== 0
+                return (
+                  <div key={s.storage} className="px-4 py-2.5 space-y-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`size-1.5 rounded-full shrink-0 ${isActive ? 'bg-status-running' : 'bg-text-disabled'}`} />
+                        <span className="text-sm font-medium text-text-primary truncate">{s.storage}</span>
+                        <span className="text-xs text-text-muted bg-bg-elevated border border-border-muted rounded px-1.5 py-0.5 shrink-0">{s.type}</span>
+                      </div>
+                      <span className="text-xs text-text-muted shrink-0">
+                        {s.total != null ? `${formatBytes(s.used ?? 0)} / ${formatBytes(s.total)}` : '—'}
+                      </span>
+                    </div>
+                    {pct != null && (
+                      <div className="w-full h-1.5 rounded-full bg-bg-elevated overflow-hidden">
+                        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(100, pct * 100).toFixed(1)}%` }} />
+                      </div>
+                    )}
+                    {s.content && (
+                      <p className="text-xs text-text-muted truncate">{s.content.split(',').map((c) => c.trim()).join(' · ')}</p>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </CardContent>
         </Card>
