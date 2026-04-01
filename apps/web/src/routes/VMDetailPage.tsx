@@ -538,23 +538,43 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
               {diskNetKeys.map((key) => {
                 const isDisk = /^(scsi|ide|sata|virtio)\d+$/.test(key)
                 const isResizing = resizingKey === key
+                const rawVal = String(cfg[key])
+                // Parse network interface properties
+                const parsedNet = !isDisk ? Object.fromEntries(
+                  rawVal.split(',').map((seg) => { const i = seg.indexOf('='); return i === -1 ? [seg, ''] : [seg.slice(0, i), seg.slice(i + 1)] })
+                ) : null
+                const netModel = !isDisk ? rawVal.split(',')[0]?.split('=')[0] : null
+                const netMac = !isDisk ? rawVal.split(',')[0]?.split('=')[1] : null
                 return (
                   <div key={key} className="space-y-2 px-4 py-2.5 text-sm">
                     <div className="flex items-start justify-between gap-4">
                       <span className="text-text-muted shrink-0 font-medium">{key}</span>
-                      <div className="flex items-start gap-2 flex-1 min-w-0">
-                        <span className="text-text-primary font-mono text-right break-all text-xs flex-1">
-                          {String(cfg[key])}
-                        </span>
-                        {isDisk && (
+                      {isDisk ? (
+                        <div className="flex items-start gap-2 flex-1 min-w-0">
+                          <span className="text-text-primary font-mono text-right break-all text-xs flex-1">
+                            {rawVal}
+                          </span>
                           <button
                             onClick={() => { setResizingKey(isResizing ? null : key); setResizeAmount('+10G') }}
                             className="shrink-0 text-xs text-text-muted hover:text-accent border border-border-subtle rounded px-1.5 py-0.5"
                           >
                             Resize
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-1 flex-1 min-w-0">
+                          <div className="flex flex-wrap gap-x-4 gap-y-1">
+                            {netModel && <span className="text-xs"><span className="text-text-muted">Model: </span><span className="text-text-primary font-medium">{netModel}</span></span>}
+                            {netMac && <span className="text-xs"><span className="text-text-muted">MAC: </span><span className="text-text-primary font-mono">{netMac}</span></span>}
+                            {parsedNet?.bridge && <span className="text-xs"><span className="text-text-muted">Bridge: </span><span className="text-text-primary font-medium">{parsedNet.bridge}</span></span>}
+                            {parsedNet?.tag && <span className="text-xs"><span className="text-text-muted">VLAN: </span><span className="text-text-primary font-medium">{parsedNet.tag}</span></span>}
+                            {parsedNet?.rate && <span className="text-xs"><span className="text-text-muted">Rate: </span><span className="text-text-primary font-medium">{parsedNet.rate}</span></span>}
+                            {parsedNet?.firewall === '1' && <span className="text-xs text-status-running">Firewall</span>}
+                            {parsedNet?.link_down === '1' && <span className="text-xs text-status-error">Disconnected</span>}
+                          </div>
+                          <span className="text-text-muted font-mono text-xs opacity-50 truncate">{rawVal}</span>
+                        </div>
+                      )}
                     </div>
                     {isDisk && isResizing && (
                       <div className="flex items-center gap-2 pl-16">
