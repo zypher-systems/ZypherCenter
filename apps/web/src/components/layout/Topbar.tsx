@@ -1,5 +1,5 @@
 import { useLocation, Link } from 'react-router'
-import { LogOut, User, ChevronRight, Activity } from 'lucide-react'
+import { LogOut, User, ChevronRight, Activity, Search } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { useClusterTasks } from '@/lib/queries/tasks'
 import {
@@ -114,6 +114,16 @@ export function Topbar() {
       {/* Right side */}
       <div className="flex items-center gap-2 shrink-0">
         <ActiveTasksIndicator />
+
+        {/* Search button */}
+        <button
+          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }))}
+          className="hidden sm:flex items-center gap-2 rounded-md border border-border-subtle bg-bg-muted px-2.5 py-1.5 text-xs text-text-muted hover:text-text-secondary hover:border-border transition-colors"
+        >
+          <Search className="size-3.5" />
+          <span>Search</span>
+          <kbd className="ml-1 font-mono opacity-60">⌘K</kbd>
+        </button>
 
         {/* User menu */}
         <DropdownMenu>

@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { useUIStore } from '@/stores/ui'
 import { cn } from '@/lib/utils'
+import { CommandPalette } from '@/components/features/CommandPalette'
 
 /**
  * Root authenticated layout: fixed sidebar on the left, topbar across the top,
@@ -28,6 +29,7 @@ export function Shell() {
           <Outlet />
         </main>
       </div>
+      <CommandPalette />
     </div>
   )
 }
