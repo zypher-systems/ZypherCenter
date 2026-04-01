@@ -291,3 +291,12 @@ export function useTemplateLXC(node: string, vmid: number) {
     onError: (err) => toast.error(`Failed — ${err.message}`),
   })
 }
+
+export function useLXCInterfaces(node: string, vmid: number, enabled = false) {
+  return useQuery({
+    queryKey: [...lxcKeys.detail(node, vmid), 'interfaces'] as const,
+    queryFn: () => api.get<{ name: string; 'inet': string; 'inet6'?: string }[]>(`nodes/${node}/lxc/${vmid}/interfaces`),
+    enabled: !!node && !!vmid && enabled,
+    refetchInterval: enabled ? 30_000 : false,
+  })
+}

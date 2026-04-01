@@ -39,6 +39,7 @@ import {
   useDeleteLXC,
   useResizeLXCDisk,
   useTemplateLXC,
+  useLXCInterfaces,
 } from '@/lib/queries/lxc'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered, useVzdump, useNodeNetwork } from '@/lib/queries/nodes'
@@ -484,9 +485,21 @@ function SummaryTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: status } = useLXCStatus(node, vmid)
   const { data: config } = useLXCConfig(node, vmid)
   const updateConfig = useUpdateLXCConfig(node, vmid)
+  const isRunning = status?.status === 'running'
+  const { data: ifaces } = useLXCInterfaces(node, vmid, isRunning)
   const [addingTag, setAddingTag] = useState(false)
   const [newTag, setNewTag] = useState('')
   if (!status) return null
+
+  // Extract non-loopback IPs from running container
+  const guestIPs = (ifaces ?? [])
+    .filter((iface) => iface.name !== 'lo')
+    .flatMap((iface) => {
+      const ips: { iface: string; addr: string }[] = []
+      if (iface.inet && iface.inet !== '0.0.0.0/0') ips.push({ iface: iface.name, addr: iface.inet })
+      if (iface.inet6 && !iface.inet6.startsWith('fe80')) ips.push({ iface: iface.name, addr: iface.inet6 })
+      return ips
+    })
 
   const tags = (config?.tags as string | undefined)?.split(/[;,]/).map((t) => t.trim()).filter(Boolean) ?? []
 
@@ -560,6 +573,17 @@ function SummaryTab({ node, vmid }: { node: string; vmid: number }) {
             )}
             {status.disk != null && status.maxdisk != null && (
               <ResourceGauge label="Disk" used={status.disk} total={status.maxdisk} />
+            )}
+            {guestIPs.length > 0 && (
+              <div className="pt-1 border-t border-border-muted text-xs space-y-1">
+                <p className="text-text-muted">IP Addresses</p>
+                {guestIPs.map((ip) => (
+                  <div key={`${ip.iface}-${ip.addr}`} className="flex items-center justify-between">
+                    <span className="text-text-muted opacity-70">{ip.iface}</span>
+                    <span className="text-text-secondary font-mono">{ip.addr}</span>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -1036,8 +1060,9 @@ function LXCOptionsTab({ node, vmid }: { node: string; vmid: number }) {
   }
 
   return (
-    <Card>
-      <CardHeader><CardTitle>Container Options</CardTitle></CardHeader>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader><CardTitle>Container Options</CardTitle></CardHeader>
       <CardContent className="p-0">
         <div className="divide-y divide-border-muted">
           {boolOpts.map(({ key, label }) => {
@@ -1101,6 +1126,38 @@ function LXCOptionsTab({ node, vmid }: { node: string; vmid: number }) {
         </div>
       </CardContent>
     </Card>
+
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle>Container Features</CardTitle>
+          <p className="text-xs text-text-muted mt-0.5">Enable kernel features inside the container</p>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="divide-y divide-border-muted">
+          {FEATURES.map(({ key, label, desc }) => {
+            const isOn = !!featuresMap[key]
+            return (
+              <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                <div>
+                  <p className="text-text-secondary">{label}</p>
+                  <p className="text-xs text-text-muted">{desc}</p>
+                </div>
+                <button
+                  onClick={() => toggleFeature(key)}
+                  disabled={updateConfig.isPending}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${isOn ? 'bg-accent' : 'bg-border-muted'}`}
+                >
+                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isOn ? 'translate-x-4' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
+    </div>
   )
 }
 
