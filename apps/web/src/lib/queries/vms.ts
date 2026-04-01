@@ -266,3 +266,16 @@ export function useDeleteVMFirewallRule(node: string, vmid: number) {
     onError: (err) => toast.error(`Failed to delete rule — ${err.message}`),
   })
 }
+
+export function useRestoreVM(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { archive: string; vmid: number; storage: string; unique?: number; start?: number }) =>
+      api.post<string>(`nodes/${node}/qemu`, { ...params, restore: 1 }),
+    onSuccess: () => {
+      toast.success('VM restore task started — check Tasks for progress')
+      qc.invalidateQueries({ queryKey: ['vms'] })
+    },
+    onError: (err) => toast.error(`Restore failed — ${err.message}`),
+  })
+}

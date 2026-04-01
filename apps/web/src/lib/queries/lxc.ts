@@ -253,3 +253,16 @@ export function useUpdateLXCConfig(node: string, vmid: number) {
     onError: (err) => toast.error(`Update failed — ${err.message}`),
   })
 }
+
+export function useRestoreLXC(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { archive: string; vmid: number; storage: string; unique?: number; start?: number }) =>
+      api.post<string>(`nodes/${node}/lxc`, { ...params, restore: 1 }),
+    onSuccess: () => {
+      toast.success('Container restore task started — check Tasks for progress')
+      qc.invalidateQueries({ queryKey: ['lxc'] })
+    },
+    onError: (err) => toast.error(`Restore failed — ${err.message}`),
+  })
+}

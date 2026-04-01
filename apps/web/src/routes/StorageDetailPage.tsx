@@ -1,8 +1,10 @@
 import { useState, useRef } from 'react'
 import { useParams } from 'react-router'
-import { HardDrive, Package, Server, Trash2, Upload } from 'lucide-react'
+import { HardDrive, Package, Server, Trash2, Upload, RotateCcw } from 'lucide-react'
 import { useStorage, useStorageContent, useDeleteStorageContent, useUploadContent } from '@/lib/queries/storage'
 import { useNodeStorage } from '@/lib/queries/nodes'
+import { useRestoreVM } from '@/lib/queries/vms'
+import { useRestoreLXC } from '@/lib/queries/lxc'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import {
   Table,
@@ -16,6 +18,7 @@ import { Button } from '@/components/ui/Button'
 import { ResourceGauge } from '@/components/ui/ResourceGauge'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import { formatBytes, formatPercent, formatTimestamp } from '@/lib/utils'
+import type { StorageContentItem } from '@zyphercenter/proxmox-types'
 
 const CONTENT_TYPES = [
   { value: '', label: 'All' },
@@ -32,6 +35,115 @@ function contentIcon(type?: string) {
   return <Server className="size-3.5 text-text-muted" />
 }
 
+function detectBackupType(volid: string): 'qemu' | 'lxc' | null {
+  const filename = volid.split('/').pop() ?? ''
+  if (filename.includes('vzdump-qemu-')) return 'qemu'
+  if (filename.includes('vzdump-lxc-') || filename.includes('vzdump-openvz-')) return 'lxc'
+  return null
+}
+
+function RestoreDialog({
+  item,
+  node,
+  onClose,
+}: {
+  item: StorageContentItem
+  node: string
+  onClose: () => void
+}) {
+  const { data: storages } = useStorage()
+  const restoreVM = useRestoreVM(node)
+  const restoreLXC = useRestoreLXC(node)
+
+  const backupType = detectBackupType(item.volid)
+  const [vmid, setVmid] = useState(String(item.vmid ?? ''))
+  const [storage, setStorage] = useState('local')
+  const [unique, setUnique] = useState(true)
+  const [startAfter, setStartAfter] = useState(false)
+
+  const eligibleStorages = storages?.filter((s) => {
+    const c = s.content ?? ''
+    return backupType === 'lxc'
+      ? c.includes('rootdir') || c.includes('images')
+      : c.includes('images')
+  }) ?? []
+
+  const isPending = restoreVM.isPending || restoreLXC.isPending
+
+  function handleRestore() {
+    const vid = parseInt(vmid)
+    if (!vid || vid < 100) return
+    const params = { archive: item.volid, vmid: vid, storage, unique: unique ? 1 : 0, start: startAfter ? 1 : 0 }
+    if (backupType === 'qemu') {
+      restoreVM.mutate(params, { onSuccess: onClose })
+    } else {
+      restoreLXC.mutate(params, { onSuccess: onClose })
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <RotateCcw className="size-4 text-text-muted" />
+            Restore Backup
+          </CardTitle>
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary">✕</button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs font-mono text-text-muted truncate">{item.volid.split(':').pop()}</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs text-text-muted">Type</label>
+            <p className="text-sm text-text-primary font-medium capitalize">{backupType ?? 'Unknown'}</p>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-text-muted">Target VMID</label>
+            <input
+              type="number"
+              min={100}
+              max={999999999}
+              value={vmid}
+              onChange={(e) => setVmid(e.target.value)}
+              className="w-full rounded border border-border-subtle bg-bg-input px-2 py-1 text-sm text-text-primary outline-none focus:border-accent"
+            />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-text-muted">Target Storage</label>
+          <select
+            value={storage}
+            onChange={(e) => setStorage(e.target.value)}
+            className="w-full rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+          >
+            {eligibleStorages.length > 0
+              ? eligibleStorages.map((s) => <option key={s.storage} value={s.storage}>{s.storage}</option>)
+              : storages?.map((s) => <option key={s.storage} value={s.storage}>{s.storage}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input type="checkbox" checked={unique} onChange={(e) => setUnique(e.target.checked)} className="accent-accent" />
+            <span className="text-text-secondary">Unique MACs/IDs</span>
+          </label>
+          <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input type="checkbox" checked={startAfter} onChange={(e) => setStartAfter(e.target.checked)} className="accent-accent" />
+            <span className="text-text-secondary">Start after restore</span>
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button size="sm" variant="ghost" onClick={onClose} disabled={isPending}>Cancel</Button>
+          <Button size="sm" onClick={handleRestore} disabled={isPending || !vmid || backupType === null}>
+            {isPending ? 'Starting…' : 'Restore'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function StorageDetailPage() {
   const { storageid } = useParams<{ storageid: string }>()
   const [activeNode, setActiveNode] = useState<string>('')
@@ -39,6 +151,7 @@ export function StorageDetailPage() {
   const [showUpload, setShowUpload] = useState(false)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadType, setUploadType] = useState<'iso' | 'vztmpl'>('iso')
+  const [restoreItem, setRestoreItem] = useState<StorageContentItem | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: storages } = useStorage()
@@ -204,6 +317,15 @@ export function StorageDetailPage() {
         </Card>
       )}
 
+      {/* Restore dialog */}
+      {restoreItem && (
+        <RestoreDialog
+          item={restoreItem}
+          node={targetNode}
+          onClose={() => setRestoreItem(null)}
+        />
+      )}
+
       {/* Content type filter */}
       <div className="flex items-center gap-1 flex-wrap">
         {CONTENT_TYPES.map((ct) => (
@@ -265,18 +387,29 @@ export function StorageDetailPage() {
                         {item.vmid ?? '—'}
                       </TableCell>
                       <TableCell className="text-right">
-                        <button
-                          onClick={() => {
-                            if (confirm(`Delete "${item.volid.split(':').pop()}"?`)) {
-                              deleteContent.mutate(item.volid)
-                            }
-                          }}
-                          disabled={deleteContent.isPending}
-                          className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
-                        >
-                          <Trash2 className="size-3" />
-                          Delete
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {item.content === 'backup' && (
+                            <button
+                              onClick={() => setRestoreItem(item)}
+                              className="inline-flex items-center gap-1 rounded border border-accent/40 px-2 py-0.5 text-xs text-accent hover:bg-accent/10 disabled:opacity-50"
+                            >
+                              <RotateCcw className="size-3" />
+                              Restore
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete "${item.volid.split(':').pop()}"?`)) {
+                                deleteContent.mutate(item.volid)
+                              }
+                            }}
+                            disabled={deleteContent.isPending}
+                            className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                          >
+                            <Trash2 className="size-3" />
+                            Delete
+                          </button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
