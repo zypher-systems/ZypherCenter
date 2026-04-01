@@ -41,7 +41,7 @@ import {
   useTemplateLXC,
 } from '@/lib/queries/lxc'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
-import { useNodeTasksFiltered, useVzdump } from '@/lib/queries/nodes'
+import { useNodeTasksFiltered, useVzdump, useNodeNetwork } from '@/lib/queries/nodes'
 import { useStorage } from '@/lib/queries/storage'
 import { useNextVMId } from '@/lib/queries/vms'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -592,6 +592,7 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
   const updateConfig = useUpdateLXCConfig(node, vmid)
   const resizeDisk = useResizeLXCDisk(node, vmid)
   const { data: allStorages } = useStorage()
+  const { data: nodeNetwork } = useNodeNetwork(node)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [resizingKey, setResizingKey] = useState<string | null>(null)
@@ -600,6 +601,11 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
   const [addMpStorage, setAddMpStorage] = useState('')
   const [addMpSize, setAddMpSize] = useState('8')
   const [addMpPath, setAddMpPath] = useState('')
+  const [showAddNet, setShowAddNet] = useState(false)
+  const [addNetBridge, setAddNetBridge] = useState('')
+  const [addNetIp, setAddNetIp] = useState('dhcp')
+  const [addNetIp6, setAddNetIp6] = useState('auto')
+  const [addNetTag, setAddNetTag] = useState('')
 
   if (isLoading) return <SkeletonCard />
   if (!config) return null
@@ -638,6 +644,22 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
 
   // Read-only fields (rootfs gets its own resize UI)
   const readonlyFields = ['arch']
+
+  const bridges = (nodeNetwork ?? []).filter((n) => n.type === 'bridge').map((n) => n.iface).filter(Boolean)
+
+  function addNetInterface() {
+    if (!addNetBridge) return
+    const existingNets = Object.keys(cfgRecord).filter((k) => /^net\d+$/.test(k)).map((k) => parseInt(k.slice(3), 10))
+    const nextIdx = existingNets.length ? Math.max(...existingNets) + 1 : 0
+    const key = `net${nextIdx}`
+    const name = `eth${nextIdx}`
+    let val = `name=${name},bridge=${addNetBridge},ip=${addNetIp},ip6=${addNetIp6}`
+    if (addNetTag) val += `,tag=${addNetTag}`
+    updateConfig.mutate(
+      { [key]: val },
+      { onSuccess: () => { setShowAddNet(false); setAddNetBridge(''); setAddNetTag('') } }
+    )
+  }
 
   // Network and mount keys
   const netKeys = Object.keys(cfgRecord).filter((k) => /^net\d+$/.test(k))
@@ -707,10 +729,84 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
         </CardContent>
       </Card>
 
-      {netKeys.length > 0 && (
+      {(netKeys.length > 0 || true) && (
         <Card>
-          <CardHeader><CardTitle>Network</CardTitle></CardHeader>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Network</CardTitle>
+              <button
+                onClick={() => setShowAddNet((v) => !v)}
+                className="flex items-center gap-1 text-xs text-text-muted hover:text-accent border border-border-subtle rounded px-2 py-1"
+              >
+                <Plus className="size-3" /> {showAddNet ? 'Cancel' : 'Add Interface'}
+              </button>
+            </div>
+          </CardHeader>
           <CardContent className="p-0">
+            {showAddNet && (
+              <div className="flex flex-wrap items-end gap-2 px-4 py-3 border-b border-border-muted bg-bg-elevated">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-text-muted">Bridge</label>
+                  {bridges.length > 0 ? (
+                    <select
+                      value={addNetBridge}
+                      onChange={(e) => setAddNetBridge(e.target.value)}
+                      className="rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none [color-scheme:dark]"
+                    >
+                      <option value="">Select…</option>
+                      {bridges.map((b) => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={addNetBridge}
+                      onChange={(e) => setAddNetBridge(e.target.value)}
+                      placeholder="vmbr0"
+                      className="w-24 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent"
+                    />
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-text-muted">IPv4</label>
+                  <select
+                    value={addNetIp}
+                    onChange={(e) => setAddNetIp(e.target.value)}
+                    className="rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none [color-scheme:dark]"
+                  >
+                    <option value="dhcp">dhcp</option>
+                    <option value="manual">manual</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-text-muted">IPv6</label>
+                  <select
+                    value={addNetIp6}
+                    onChange={(e) => setAddNetIp6(e.target.value)}
+                    className="rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none [color-scheme:dark]"
+                  >
+                    <option value="auto">auto</option>
+                    <option value="dhcp">dhcp</option>
+                    <option value="manual">manual</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-text-muted">VLAN Tag</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={4094}
+                    value={addNetTag}
+                    onChange={(e) => setAddNetTag(e.target.value)}
+                    placeholder="none"
+                    className="w-20 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+                  />
+                </div>
+                <Button size="sm" disabled={updateConfig.isPending || !addNetBridge} onClick={addNetInterface}>
+                  {updateConfig.isPending ? '…' : 'Add'}
+                </Button>
+                <button onClick={() => setShowAddNet(false)} className="text-text-muted hover:text-text-primary text-xs">Cancel</button>
+              </div>
+            )}
             <div className="divide-y divide-border-muted">
               {netKeys.map((k) => {
                 const isEditing = editingKey === k
