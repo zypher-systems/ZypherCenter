@@ -572,6 +572,12 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
                           >
                             Move
                           </button>
+                          <button
+                            onClick={() => { if (confirm(`Detach disk ${key}? The volume will remain in storage.`)) updateConfig.mutate({ delete: key }) }}
+                            className="shrink-0 text-xs text-text-muted hover:text-status-error border border-border-subtle rounded px-1.5 py-0.5"
+                          >
+                            Detach
+                          </button>
                         </div>
                       ) : (
                         <div className="flex flex-col gap-1 flex-1 min-w-0">
