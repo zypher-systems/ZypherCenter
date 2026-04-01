@@ -241,6 +241,16 @@ export function useDeleteLXCFirewallRule(node: string, vmid: number) {
   })
 }
 
+export function useUpdateLXCFirewallRule(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ pos, params }: { pos: number; params: Record<string, unknown> }) =>
+      api.put(`nodes/${node}/lxc/${vmid}/firewall/rules/${pos}`, params),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [...lxcKeys.detail(node, vmid), 'firewall', 'rules'] }),
+    onError: (err) => toast.error(`Failed to update rule — ${err.message}`),
+  })
+}
+
 export function useUpdateLXCConfig(node: string, vmid: number) {
   const qc = useQueryClient()
   return useMutation({

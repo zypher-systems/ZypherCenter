@@ -37,6 +37,7 @@ import {
   useVMFirewallOptions,
   useCreateVMFirewallRule,
   useDeleteVMFirewallRule,
+  useUpdateVMFirewallRule,
   useCreateVMSnapshot,
   useDeleteVMSnapshot,
   useRollbackVMSnapshot,
@@ -1854,6 +1855,7 @@ function VMFirewallTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: options } = useVMFirewallOptions(node, vmid)
   const createRule = useCreateVMFirewallRule(node, vmid)
   const deleteRule = useDeleteVMFirewallRule(node, vmid)
+  const updateRule = useUpdateVMFirewallRule(node, vmid)
   const [showAdd, setShowAdd] = useState(false)
   const [dir, setDir] = useState('in')
   const [action, setAction] = useState('ACCEPT')
@@ -2017,7 +2019,14 @@ function VMFirewallTab({ node, vmid }: { node: string; vmid: number }) {
                     <TableCell className="font-mono text-xs text-text-secondary">{rule.dport ?? rule.sport ?? '—'}</TableCell>
                     <TableCell className="text-text-muted text-xs max-w-[180px] truncate">{rule.comment ?? ''}</TableCell>
                     <TableCell>
-                      <span className={`inline-block size-2 rounded-full ${rule.enable !== 0 ? 'bg-status-running' : 'bg-border'}`} />
+                      <button
+                        onClick={() => updateRule.mutate({ pos: rule.pos, params: { enable: rule.enable === 0 ? 1 : 0 } })}
+                        disabled={updateRule.isPending}
+                        className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors disabled:opacity-50 ${rule.enable !== 0 ? 'bg-accent' : 'bg-border-muted'}`}
+                        title={rule.enable !== 0 ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+                      >
+                        <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${rule.enable !== 0 ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                      </button>
                     </TableCell>
                     <TableCell className="text-right">
                       <button

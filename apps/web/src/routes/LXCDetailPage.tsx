@@ -30,6 +30,7 @@ import {
   useLXCFirewallOptions,
   useCreateLXCFirewallRule,
   useDeleteLXCFirewallRule,
+  useUpdateLXCFirewallRule,
   useCreateLXCSnapshot,
   useDeleteLXCSnapshot,
   useRollbackLXCSnapshot,

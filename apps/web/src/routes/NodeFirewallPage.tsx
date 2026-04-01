@@ -7,6 +7,7 @@ import {
   useUpdateNodeFirewallOptions,
   useCreateNodeFirewallRule,
   useDeleteNodeFirewallRule,
+  useUpdateNodeFirewallRule,
 } from '@/lib/queries/nodes'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'

@@ -352,6 +352,16 @@ export function useDeleteNodeFirewallRule(node: string) {
   })
 }
 
+export function useUpdateNodeFirewallRule(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ pos, params }: { pos: number; params: Record<string, unknown> }) =>
+      api.put(`nodes/${node}/firewall/rules/${pos}`, params),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'firewall', 'rules'] }),
+    onError: (err) => toast.error(`Failed to update rule — ${err.message}`),
+  })
+}
+
 export function useVzdump(node: string) {
   return useMutation({
     mutationFn: (params: { vmid: number; storage: string; mode?: string; compress?: string }) =>

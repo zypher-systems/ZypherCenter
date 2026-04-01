@@ -9,6 +9,7 @@ import {
   useClusterFirewallAliases,
   useCreateClusterFirewallRule,
   useDeleteClusterFirewallRule,
+  useUpdateClusterFirewallRule,
   useCreateClusterFirewallGroup,
   useDeleteClusterFirewallGroup,
   useCreateClusterFirewallIPSet,
@@ -243,6 +244,7 @@ function RulesTab() {
   const { data: rules, isLoading } = useClusterFirewallRules()
   const { data: options } = useClusterFirewallOptions()
   const deleteRule = useDeleteClusterFirewallRule()
+  const updateRule = useUpdateClusterFirewallRule()
   const enabled = options?.enable === 1
   const [showCreate, setShowCreate] = useState(false)
 
@@ -327,7 +329,14 @@ function RulesTab() {
                     <TableCell className="font-mono text-xs text-text-secondary">{rule.dport ?? rule.sport ?? '—'}</TableCell>
                     <TableCell className="text-text-muted text-xs max-w-[180px] truncate">{rule.comment ?? ''}</TableCell>
                     <TableCell>
-                      <span className={`inline-block size-2 rounded-full ${rule.enable !== 0 ? 'bg-status-running' : 'bg-border'}`} />
+                      <button
+                        onClick={() => updateRule.mutate({ pos: rule.pos, params: { enable: rule.enable === 0 ? 1 : 0 } })}
+                        disabled={updateRule.isPending}
+                        className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors disabled:opacity-50 ${rule.enable !== 0 ? 'bg-accent' : 'bg-border-muted'}`}
+                        title={rule.enable !== 0 ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+                      >
+                        <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${rule.enable !== 0 ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                      </button>
                     </TableCell>
                     <TableCell className="text-right">
                       <button

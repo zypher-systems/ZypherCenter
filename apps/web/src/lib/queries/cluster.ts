@@ -204,6 +204,16 @@ export function useDeleteClusterFirewallRule() {
   })
 }
 
+export function useUpdateClusterFirewallRule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ pos, params }: { pos: number; params: Record<string, unknown> }) =>
+      api.put(`cluster/firewall/rules/${pos}`, params),
+    onSuccess: () => qc.invalidateQueries({ queryKey: fwk.rules() }),
+    onError: (err) => toast.error(`Failed to update rule — ${err.message}`),
+  })
+}
+
 export function useCreateClusterFirewallGroup() {
   const qc = useQueryClient()
   return useMutation({
