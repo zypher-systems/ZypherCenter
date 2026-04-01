@@ -1007,6 +1007,58 @@ function VMOptionsTab({ node, vmid }: { node: string; vmid: number }) {
               </div>
             )
           })}
+
+          {/* Boot order */}
+          {(() => {
+            const bootVal = config['boot' as keyof typeof config] as string | undefined
+            const bootStr = bootVal ?? ''
+            const bootDevices = bootStr.replace(/^order=/, '').split(';').filter(Boolean)
+            const isEditing = editingKey === 'boot'
+            return (
+              <div className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                <span className="text-text-muted shrink-0">Boot Order</span>
+                {isEditing ? (
+                  <div className="flex items-center gap-1.5 flex-1 justify-end">
+                    <input
+                      autoFocus
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      placeholder="order=scsi0;net0;ide2"
+                      onKeyDown={(e) => { if (e.key === 'Enter') saveEdit('boot'); if (e.key === 'Escape') cancelEdit() }}
+                      className="w-full max-w-xs rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-sm font-mono text-text-primary outline-none focus:border-accent"
+                    />
+                    <button onClick={() => saveEdit('boot')} disabled={updateConfig.isPending} className="text-status-running hover:opacity-80 disabled:opacity-50">
+                      <Check className="size-3.5" />
+                    </button>
+                    <button onClick={cancelEdit} className="text-text-muted hover:opacity-80">
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    {bootDevices.length > 0 ? (
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {bootDevices.map((dev, i) => (
+                          <span key={dev} className="inline-flex items-center gap-1 text-xs">
+                            {i > 0 && <span className="text-text-muted">→</span>}
+                            <span className="rounded bg-bg-elevated border border-border-muted px-1.5 py-0.5 font-mono text-text-primary">{dev}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-text-muted">—</span>
+                    )}
+                    <button
+                      onClick={() => { setEditingKey('boot'); setEditValue(bootStr || 'order=') }}
+                      className="text-text-muted hover:text-text-primary"
+                    >
+                      <Pencil className="size-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
       </CardContent>
     </Card>
