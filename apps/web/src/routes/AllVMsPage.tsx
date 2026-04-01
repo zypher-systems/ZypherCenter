@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { Play, Square, RotateCcw, Power, Terminal, Search, Trash2 } from 'lucide-react'
+import { Play, Square, RotateCcw, Power, Terminal, Search, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useClusterResources } from '@/lib/queries/cluster'
 import { clusterKeys } from '@/lib/queries/cluster'
@@ -125,11 +125,23 @@ export function AllVMsPage() {
   const [search, setSearch] = useState('')
   const [nodeFilter, setNodeFilter] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [sortKey, setSortKey] = useState<string>('vmid')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  function handleSort(key: string) {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  function SortIcon({ col }: { col: string }) {
+    if (sortKey !== col) return <ChevronUp className="size-3 opacity-20 ml-0.5" />
+    return sortDir === 'asc' ? <ChevronUp className="size-3 ml-0.5" /> : <ChevronDown className="size-3 ml-0.5" />
+  }
 
   const allVms = (resources ?? []).filter((r) => r.type === 'qemu' && r.template !== 1)
   const nodeList = [...new Set(allVms.map((v) => v.node ?? '').filter(Boolean))].sort()
 
-  const vms = allVms
+  const filteredVms = allVms
     .filter((r) => !nodeFilter || r.node === nodeFilter)
     .filter(
       (r) =>
@@ -138,6 +150,20 @@ export function AllVMsPage() {
         (r.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
         (r.node ?? '').toLowerCase().includes(search.toLowerCase()),
     )
+
+  const vms = [...filteredVms].sort((a, b) => {
+    let av: unknown, bv: unknown
+    if (sortKey === 'vmid')   { av = a.vmid ?? 0;          bv = b.vmid ?? 0 }
+    else if (sortKey === 'name')   { av = a.name ?? '';         bv = b.name ?? '' }
+    else if (sortKey === 'node')   { av = a.node ?? '';         bv = b.node ?? '' }
+    else if (sortKey === 'status') { av = a.status ?? '';       bv = b.status ?? '' }
+    else if (sortKey === 'cpu')    { av = a.cpu ?? 0;           bv = b.cpu ?? 0 }
+    else if (sortKey === 'mem')    { av = a.mem ?? 0;           bv = b.mem ?? 0 }
+    else if (sortKey === 'uptime') { av = a.uptime ?? 0;        bv = b.uptime ?? 0 }
+    else                           { av = a.vmid ?? 0;          bv = b.vmid ?? 0 }
+    const cmp = typeof av === 'string' ? av.localeCompare(bv as string) : (av as number) - (bv as number)
+    return sortDir === 'asc' ? cmp : -cmp
+  })
 
   const running = vms.filter((v) => v.status === 'running').length
 
@@ -240,13 +266,22 @@ export function AllVMsPage() {
                       onChange={toggleSelectAll}
                       className="accent-accent cursor-pointer" />
                   </TableHead>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Node</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>CPU</TableHead>
-                  <TableHead>Memory</TableHead>
-                  <TableHead>Uptime</TableHead>
+                  {[
+                    { col: 'vmid',   label: 'ID' },
+                    { col: 'name',   label: 'Name' },
+                    { col: 'node',   label: 'Node' },
+                    { col: 'status', label: 'Status' },
+                    { col: 'cpu',    label: 'CPU' },
+                    { col: 'mem',    label: 'Memory' },
+                    { col: 'uptime', label: 'Uptime' },
+                  ].map(({ col, label }) => (
+                    <TableHead key={col}
+                      className="cursor-pointer select-none hover:text-text-primary"
+                      onClick={() => handleSort(col)}
+                    >
+                      <span className="inline-flex items-center gap-0.5">{label}<SortIcon col={col} /></span>
+                    </TableHead>
+                  ))}
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
