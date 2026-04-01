@@ -49,6 +49,7 @@ import {
   useVMAgentOsInfo,
   useVMAgentNetworkInterfaces,
   useMoveVMDisk,
+  useRegenerateCloudInit,
 } from '@/lib/queries/vms'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered, useNodeStorage, useNodeNetwork, useVzdump } from '@/lib/queries/nodes'
@@ -1265,6 +1266,7 @@ function VMOptionsTab({ node, vmid }: { node: string; vmid: number }) {
 function CloudInitTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: config } = useVMConfig(node, vmid)
   const updateConfig = useUpdateVMConfig(node, vmid)
+  const regenCI = useRegenerateCloudInit(node, vmid)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
 
@@ -1310,6 +1312,18 @@ function CloudInitTab({ node, vmid }: { node: string; vmid: number }) {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium text-text-secondary">Cloud-Init Configuration</h2>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={regenCI.isPending}
+          onClick={() => regenCI.mutate()}
+        >
+          <RotateCcw className="size-3.5 mr-1.5" />
+          {regenCI.isPending ? 'Regenerating…' : 'Regenerate'}
+        </Button>
+      </div>
       <Card>
         <CardHeader><CardTitle>User &amp; Credentials</CardTitle></CardHeader>
         <CardContent className="p-0">

@@ -340,3 +340,15 @@ export function useMoveVMDisk(node: string, vmid: number) {
     onError: (err) => toast.error(`Move failed — ${err.message}`),
   })
 }
+
+export function useRegenerateCloudInit(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.put(`nodes/${node}/qemu/${vmid}/cloudinit`, {}),
+    onSuccess: () => {
+      toast.success('Cloud-Init config regenerated')
+      qc.invalidateQueries({ queryKey: vmKeys.config(node, vmid) })
+    },
+    onError: (err) => toast.error(`Failed — ${err.message}`),
+  })
+}
