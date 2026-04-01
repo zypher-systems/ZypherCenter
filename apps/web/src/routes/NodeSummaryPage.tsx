@@ -10,7 +10,7 @@ import {
   Power,
   RefreshCw,
 } from 'lucide-react'
-import { useNodeStatus, useNodeRrdData, useNodePower, useNodeSubscription, useNodeHardwarePCI, useNodeZFSPools, useNodeDisks, useNodeStorage } from '@/lib/queries/nodes'
+import { useNodeStatus, useNodeRrdData, useNodePower, useNodeSubscription, useNodeHardwarePCI, useNodeZFSPools, useNodeDisks, useNodeStorage, useNodeTasks } from '@/lib/queries/nodes'
 import { useVMs } from '@/lib/queries/vms'
 import { useLXCs } from '@/lib/queries/lxc'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -192,6 +192,7 @@ export function NodeSummaryPage() {
   const { data: zfsPools } = useNodeZFSPools(node!)
   const { data: nodeDisks } = useNodeDisks(node!)
   const { data: nodeStorage } = useNodeStorage(node!)
+  const { data: tasks } = useNodeTasks(node!)
 
   if (isLoading) {
     return (
@@ -580,6 +581,75 @@ export function NodeSummaryPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Recent Tasks */}
+      {tasks && tasks.length > 0 && (() => {
+        const taskList = tasks as Record<string, unknown>[]
+        const recent = taskList.slice(0, 6)
+        const runningCount = taskList.filter((t) => !t['exitstatus']).length
+        return (
+          <Card>
+            <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Clock className="size-3.5 text-text-muted" />
+                Recent Tasks
+                {runningCount > 0 && (
+                  <span className="inline-flex items-center gap-1 text-xs text-status-migrating bg-status-migrating/10 rounded px-1.5 py-0.5">
+                    <span className="inline-block size-1.5 rounded-full bg-status-migrating animate-pulse" />
+                    {runningCount} running
+                  </span>
+                )}
+              </CardTitle>
+              <Link
+                to={`/nodes/${node}/tasks`}
+                className="text-xs text-accent hover:underline"
+              >
+                View all →
+              </Link>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-border-muted">
+                {recent.map((t) => {
+                  const upid = t['upid'] as string
+                  const type = t['type'] as string
+                  const exitstatus = t['exitstatus'] as string | undefined
+                  const starttime = t['starttime'] as number | undefined
+                  const user = t['user'] as string | undefined
+                  const statusColor = !exitstatus
+                    ? 'text-status-migrating'
+                    : exitstatus === 'OK'
+                    ? 'text-status-running'
+                    : 'text-status-error'
+                  const statusDot = !exitstatus
+                    ? 'bg-status-migrating animate-pulse'
+                    : exitstatus === 'OK'
+                    ? 'bg-status-running'
+                    : 'bg-status-error'
+                  return (
+                    <div key={upid} className="flex items-center gap-3 px-4 py-2.5">
+                      <span className={`inline-block size-1.5 rounded-full shrink-0 ${statusDot}`} />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-mono text-text-primary truncate block">{type}</span>
+                        {user && <span className="text-xs text-text-muted">{user}</span>}
+                      </div>
+                      <div className="text-right shrink-0">
+                        {starttime && (
+                          <p className="text-xs text-text-muted tabular-nums">
+                            {new Date(starttime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        )}
+                        <p className={`text-xs font-medium ${statusColor}`}>
+                          {exitstatus ?? 'running'}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })()}
 
       {/* Performance history */}
       <NodePerfSection node={node!} />
