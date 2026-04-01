@@ -641,6 +641,64 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
           </CardContent>
         </Card>
       )}
+
+      {/* PCI Passthrough */}
+      {(() => {
+        const pciKeys = Object.keys(cfg).filter((k) => /^hostpci\d+$/.test(k))
+        if (pciKeys.length === 0) return null
+        return (
+          <Card>
+            <CardHeader><CardTitle>PCI Devices</CardTitle></CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-border-muted">
+                {pciKeys.map((k) => (
+                  <div key={k} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                    <span className="text-text-muted shrink-0 font-medium">{k}</span>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className="text-text-primary font-mono text-xs break-all flex-1">{String(cfg[k])}</span>
+                      <button
+                        onClick={() => { if (confirm(`Detach ${k}?`)) updateConfig.mutate({ delete: k }) }}
+                        className="shrink-0 text-xs text-text-muted hover:text-status-error border border-border-subtle rounded px-1.5 py-0.5"
+                      >
+                        Detach
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })()}
+
+      {/* USB Passthrough */}
+      {(() => {
+        const usbKeys = Object.keys(cfg).filter((k) => /^usb\d+$/.test(k))
+        if (usbKeys.length === 0) return null
+        return (
+          <Card>
+            <CardHeader><CardTitle>USB Devices</CardTitle></CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-border-muted">
+                {usbKeys.map((k) => (
+                  <div key={k} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                    <span className="text-text-muted shrink-0 font-medium">{k}</span>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className="text-text-primary font-mono text-xs break-all flex-1">{String(cfg[k])}</span>
+                      <button
+                        onClick={() => { if (confirm(`Detach ${k}?`)) updateConfig.mutate({ delete: k }) }}
+                        className="shrink-0 text-xs text-text-muted hover:text-status-error border border-border-subtle rounded px-1.5 py-0.5"
+                      >
+                        Detach
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })()}
     </div>
   )
 }
