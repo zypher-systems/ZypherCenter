@@ -280,10 +280,34 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
   const [editValue, setEditValue] = useState('')
   const [resizingKey, setResizingKey] = useState<string | null>(null)
   const [resizeAmount, setResizeAmount] = useState('+10G')
+  const [showAddDisk, setShowAddDisk] = useState(false)
+  const [addDiskType, setAddDiskType] = useState('scsi')
+  const [addDiskStorage, setAddDiskStorage] = useState('')
+  const [addDiskSize, setAddDiskSize] = useState('32')
 
   if (!config) return null
 
   const cfg = config as Record<string, unknown>
+
+  const diskStorages = (nodeStorages ?? []).filter((s) =>
+    s.content?.split(',').map((c) => c.trim()).includes('images'),
+  )
+
+  function getNextDiskKey(type: string) {
+    const existing = Object.keys(cfg).filter((k) => k.startsWith(type) && /\d+$/.test(k))
+    const nums = existing.map((k) => parseInt(k.replace(type, ''), 10)).filter((n) => !isNaN(n))
+    const next = nums.length ? Math.max(...nums) + 1 : 0
+    return `${type}${next}`
+  }
+
+  function addDisk() {
+    if (!addDiskStorage) return
+    const key = getNextDiskKey(addDiskType)
+    updateConfig.mutate(
+      { [key]: `${addDiskStorage}:${addDiskSize},format=qcow2` },
+      { onSuccess: () => { setShowAddDisk(false); setAddDiskSize('32') } },
+    )
+  }
 
   function startEdit(key: string) {
     setEditingKey(key)
@@ -415,8 +439,57 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
 
       {diskNetKeys.length > 0 && (
         <Card>
-          <CardHeader><CardTitle>Disks &amp; Network</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle>Disks &amp; Network</CardTitle>
+            {diskStorages.length > 0 && (
+              <button
+                onClick={() => setShowAddDisk((v) => !v)}
+                className="flex items-center gap-1 text-xs text-text-muted hover:text-accent border border-border-subtle rounded px-2 py-1"
+              >
+                <Plus className="size-3" /> Add Disk
+              </button>
+            )}
+          </CardHeader>
           <CardContent className="p-0">
+            {showAddDisk && (
+              <div className="flex flex-wrap items-end gap-2 px-4 py-3 border-b border-border-muted bg-bg-elevated">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-text-muted">Bus</label>
+                  <select
+                    value={addDiskType}
+                    onChange={(e) => setAddDiskType(e.target.value)}
+                    className="rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none [color-scheme:dark]"
+                  >
+                    {['scsi', 'virtio', 'sata', 'ide'].map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-text-muted">Storage</label>
+                  <select
+                    value={addDiskStorage}
+                    onChange={(e) => setAddDiskStorage(e.target.value)}
+                    className="rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none [color-scheme:dark]"
+                  >
+                    <option value="">Select…</option>
+                    {diskStorages.map((s) => <option key={s.storage} value={s.storage}>{s.storage}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-text-muted">Size (GB)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={addDiskSize}
+                    onChange={(e) => setAddDiskSize(e.target.value)}
+                    className="w-20 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+                  />
+                </div>
+                <Button size="sm" disabled={updateConfig.isPending || !addDiskStorage} onClick={addDisk}>
+                  {updateConfig.isPending ? '…' : 'Add'}
+                </Button>
+                <button onClick={() => setShowAddDisk(false)} className="text-text-muted hover:text-text-primary text-xs">Cancel</button>
+              </div>
+            )}
             <div className="divide-y divide-border-muted">
               {diskNetKeys.map((key) => {
                 const isDisk = /^(scsi|ide|sata|virtio)\d+$/.test(key)
