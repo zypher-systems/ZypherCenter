@@ -37,6 +37,7 @@ import {
   useCloneLXC,
   useUpdateLXCConfig,
   useDeleteLXC,
+  useResizeLXCDisk,
 } from '@/lib/queries/lxc'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered, useVzdump } from '@/lib/queries/nodes'
@@ -548,8 +549,11 @@ function SummaryTab({ node, vmid }: { node: string; vmid: number }) {
 function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: config, isLoading } = useLXCConfig(node, vmid)
   const updateConfig = useUpdateLXCConfig(node, vmid)
+  const resizeDisk = useResizeLXCDisk(node, vmid)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [resizingKey, setResizingKey] = useState<string | null>(null)
+  const [resizeAmount, setResizeAmount] = useState('+10G')
 
   if (isLoading) return <SkeletonCard />
   if (!config) return null
@@ -566,12 +570,12 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
     { key: 'ostype',      label: 'OS Type' },
   ]
 
-  // Read-only fields
-  const readonlyFields = ['arch', 'rootfs']
+  // Read-only fields (rootfs gets its own resize UI)
+  const readonlyFields = ['arch']
 
   // Network and mount keys
   const netKeys = Object.keys(cfgRecord).filter((k) => /^net\d+$/.test(k))
-  const mpKeys = Object.keys(cfgRecord).filter((k) => /^mp\d+$/.test(k))
+  const mpKeys = Object.keys(cfgRecord).filter((k) => /^(mp\d+|rootfs)$/.test(k))
 
   function startEdit(key: string) {
     setEditingKey(key)
@@ -675,15 +679,48 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
 
       {mpKeys.length > 0 && (
         <Card>
-          <CardHeader><CardTitle>Mount Points</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Disks &amp; Mount Points</CardTitle></CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border-muted">
-              {mpKeys.map((k) => (
-                <div key={k} className="flex items-start justify-between px-4 py-2.5 text-sm gap-4">
-                  <span className="text-text-muted shrink-0 font-medium">{k}</span>
-                  <span className="text-text-primary font-mono text-xs break-all">{String(cfgRecord[k])}</span>
-                </div>
-              ))}
+              {mpKeys.map((k) => {
+                const isResizing = resizingKey === k
+                return (
+                  <div key={k} className="space-y-2 px-4 py-2.5 text-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="text-text-muted shrink-0 font-medium">{k}</span>
+                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                        <span className="text-text-primary font-mono text-xs break-all flex-1">{String(cfgRecord[k])}</span>
+                        <button
+                          onClick={() => { setResizingKey(isResizing ? null : k); setResizeAmount('+10G') }}
+                          className="shrink-0 text-xs text-text-muted hover:text-accent border border-border-subtle rounded px-1.5 py-0.5"
+                        >
+                          Resize
+                        </button>
+                      </div>
+                    </div>
+                    {isResizing && (
+                      <div className="flex items-center gap-2 pl-16">
+                        <input
+                          autoFocus
+                          value={resizeAmount}
+                          onChange={(e) => setResizeAmount(e.target.value)}
+                          placeholder="+10G"
+                          className="w-24 rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-xs text-text-primary outline-none focus:border-accent"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') resizeDisk.mutate({ disk: k, size: resizeAmount }, { onSuccess: () => setResizingKey(null) })
+                            if (e.key === 'Escape') setResizingKey(null)
+                          }}
+                        />
+                        <Button size="sm" disabled={resizeDisk.isPending}
+                          onClick={() => resizeDisk.mutate({ disk: k, size: resizeAmount }, { onSuccess: () => setResizingKey(null) })}>
+                          {resizeDisk.isPending ? '…' : 'Apply'}
+                        </Button>
+                        <button onClick={() => setResizingKey(null)} className="text-text-muted hover:text-text-primary text-xs">Cancel</button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </CardContent>
         </Card>

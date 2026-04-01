@@ -266,3 +266,16 @@ export function useRestoreLXC(node: string) {
     onError: (err) => toast.error(`Restore failed — ${err.message}`),
   })
 }
+
+export function useResizeLXCDisk(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ disk, size }: { disk: string; size: string }) =>
+      api.put(`nodes/${node}/lxc/${vmid}/resize`, { disk, size }),
+    onSuccess: () => {
+      toast.success('Disk resize submitted')
+      qc.invalidateQueries({ queryKey: lxcKeys.config(node, vmid) })
+    },
+    onError: (err) => toast.error(`Resize failed — ${err.message}`),
+  })
+}
