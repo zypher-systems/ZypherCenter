@@ -523,6 +523,10 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
   const [addNetModel, setAddNetModel] = useState('virtio')
   const [addNetBridge, setAddNetBridge] = useState('')
   const [addNetTag, setAddNetTag] = useState('')
+  const [editingNetKey, setEditingNetKey] = useState<string | null>(null)
+  const [editNetBridge, setEditNetBridge] = useState('')
+  const [editNetTag, setEditNetTag] = useState('')
+  const [editNetRate, setEditNetRate] = useState('')
 
   if (!config) return null
 
@@ -559,6 +563,29 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
     updateConfig.mutate(
       { [key]: val },
       { onSuccess: () => { setShowAddNet(false); setAddNetTag('') } }
+    )
+  }
+
+  function startNetEdit(key: string, parsed: Record<string, string>) {
+    setEditingNetKey(key)
+    setEditNetBridge(parsed.bridge ?? '')
+    setEditNetTag(parsed.tag ?? '')
+    setEditNetRate(parsed.rate ?? '')
+  }
+
+  function saveNetEdit(key: string, rawVal: string) {
+    // Rebuild the net string: preserve model=mac prefix, update bridge/tag/rate
+    const parts = rawVal.split(',')
+    const prefix = parts[0] // e.g. "virtio=AA:BB:..."
+    const existing = Object.fromEntries(parts.slice(1).map((s) => { const i = s.indexOf('='); return i === -1 ? [s, ''] : [s.slice(0, i), s.slice(i + 1)] }))
+    const updated: Record<string, string> = { ...existing }
+    if (editNetBridge) updated['bridge'] = editNetBridge; else delete updated['bridge']
+    if (editNetTag) updated['tag'] = editNetTag; else delete updated['tag']
+    if (editNetRate) updated['rate'] = editNetRate; else delete updated['rate']
+    const newVal = [prefix, ...Object.entries(updated).map(([k, v]) => v ? `${k}=${v}` : k)].join(',')
+    updateConfig.mutate(
+      { [key]: newVal },
+      { onSuccess: () => setEditingNetKey(null) }
     )
   }
 
@@ -881,7 +908,7 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
                         </div>
                       ) : (
                         <div className="flex flex-col gap-1 flex-1 min-w-0">
-                          <div className="flex flex-wrap gap-x-4 gap-y-1">
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 items-center">
                             {netModel && <span className="text-xs"><span className="text-text-muted">Model: </span><span className="text-text-primary font-medium">{netModel}</span></span>}
                             {netMac && <span className="text-xs"><span className="text-text-muted">MAC: </span><span className="text-text-primary font-mono">{netMac}</span></span>}
                             {parsedNet?.bridge && <span className="text-xs"><span className="text-text-muted">Bridge: </span><span className="text-text-primary font-medium">{parsedNet.bridge}</span></span>}
@@ -889,11 +916,50 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
                             {parsedNet?.rate && <span className="text-xs"><span className="text-text-muted">Rate: </span><span className="text-text-primary font-medium">{parsedNet.rate}</span></span>}
                             {parsedNet?.firewall === '1' && <span className="text-xs text-status-running">Firewall</span>}
                             {parsedNet?.link_down === '1' && <span className="text-xs text-status-error">Disconnected</span>}
+                            <button
+                              onClick={() => editingNetKey === key ? setEditingNetKey(null) : startNetEdit(key, parsedNet ?? {})}
+                              className="shrink-0 text-xs text-text-muted hover:text-accent border border-border-subtle rounded px-1.5 py-0.5 ml-1"
+                            >
+                              {editingNetKey === key ? 'Cancel' : 'Edit'}
+                            </button>
                           </div>
                           <span className="text-text-muted font-mono text-xs opacity-50 truncate">{rawVal}</span>
                         </div>
                       )}
                     </div>
+                    {!isDisk && editingNetKey === key && (
+                      <div className="flex items-end gap-3 pl-16 flex-wrap py-1">
+                        <div>
+                          <label className="block text-xs text-text-muted mb-0.5">Bridge</label>
+                          {bridges.length > 0 ? (
+                            <select value={editNetBridge} onChange={(e) => setEditNetBridge(e.target.value)}
+                              className="rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent [color-scheme:dark]">
+                              <option value="">— select —</option>
+                              {bridges.map((b) => <option key={b} value={b!}>{b}</option>)}
+                            </select>
+                          ) : (
+                            <input value={editNetBridge} onChange={(e) => setEditNetBridge(e.target.value)}
+                              className="w-24 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-xs text-text-muted mb-0.5">VLAN Tag</label>
+                          <input value={editNetTag} onChange={(e) => setEditNetTag(e.target.value)} placeholder="None"
+                            className="w-20 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-text-muted mb-0.5">Rate (MB/s)</label>
+                          <input value={editNetRate} onChange={(e) => setEditNetRate(e.target.value)} placeholder="Unlimited"
+                            className="w-24 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" disabled={updateConfig.isPending} onClick={() => saveNetEdit(key, rawVal)}>
+                            {updateConfig.isPending ? '…' : 'Apply'}
+                          </Button>
+                          <button onClick={() => setEditingNetKey(null)} className="text-text-muted hover:text-text-primary text-xs">Cancel</button>
+                        </div>
+                      </div>
+                    )}
                     {isDisk && isResizing && (
                       <div className="flex items-center gap-2 pl-16">
                         <input
