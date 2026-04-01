@@ -483,9 +483,26 @@ function LXCNotesCard({ node, vmid }: { node: string; vmid: number }) {
 function SummaryTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: status } = useLXCStatus(node, vmid)
   const { data: config } = useLXCConfig(node, vmid)
+  const updateConfig = useUpdateLXCConfig(node, vmid)
+  const [addingTag, setAddingTag] = useState(false)
+  const [newTag, setNewTag] = useState('')
   if (!status) return null
 
   const tags = (config?.tags as string | undefined)?.split(/[;,]/).map((t) => t.trim()).filter(Boolean) ?? []
+
+  function removeTag(tag: string) {
+    const next = tags.filter((t) => t !== tag).join(';')
+    updateConfig.mutate({ tags: next })
+  }
+
+  function commitTag() {
+    const t = newTag.trim()
+    if (t && !tags.includes(t)) {
+      updateConfig.mutate({ tags: [...tags, t].join(';') })
+    }
+    setNewTag('')
+    setAddingTag(false)
+  }
 
   const stats: { label: string; value: string }[] = [
     { label: 'Status', value: status.status },
@@ -497,15 +514,38 @@ function SummaryTab({ node, vmid }: { node: string; vmid: number }) {
 
   return (
     <div className="space-y-4">
-      {tags.length > 0 && (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {tags.map((tag) => (
-            <span key={tag} className="inline-flex items-center rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent border border-accent/20">
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {tags.map((tag) => (
+          <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent border border-accent/20">
+            {tag}
+            <button onClick={() => removeTag(tag)} disabled={updateConfig.isPending} className="opacity-60 hover:opacity-100 disabled:opacity-30">
+              <X className="size-3" />
+            </button>
+          </span>
+        ))}
+        {addingTag ? (
+          <span className="inline-flex items-center gap-1">
+            <input
+              autoFocus
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitTag(); if (e.key === 'Escape') { setAddingTag(false); setNewTag('') } }}
+              className="rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-xs text-text-primary outline-none focus:border-accent w-24"
+              placeholder="tag name"
+            />
+            <button onClick={commitTag} disabled={updateConfig.isPending} className="text-xs text-accent hover:opacity-80 disabled:opacity-30">
+              <Check className="size-3" />
+            </button>
+            <button onClick={() => { setAddingTag(false); setNewTag('') }} className="text-xs text-text-muted hover:opacity-80">
+              <X className="size-3" />
+            </button>
+          </span>
+        ) : (
+          <button onClick={() => setAddingTag(true)} className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-border-subtle px-2 py-0.5 text-xs text-text-muted hover:border-accent hover:text-accent">
+            <Plus className="size-3" /> tag
+          </button>
+        )}
+      </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
