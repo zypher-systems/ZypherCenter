@@ -125,6 +125,7 @@ export function AllVMsPage() {
   const [search, setSearch] = useState('')
   const [nodeFilter, setNodeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [tagFilter, setTagFilter] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [sortKey, setSortKey] = useState<string>('vmid')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
@@ -141,10 +142,12 @@ export function AllVMsPage() {
 
   const allVms = (resources ?? []).filter((r) => r.type === 'qemu' && r.template !== 1)
   const nodeList = [...new Set(allVms.map((v) => v.node ?? '').filter(Boolean))].sort()
+  const allTags = [...new Set(allVms.flatMap((v) => (v.tags ?? '').split(/[;,]/).map((t) => t.trim()).filter(Boolean)))].sort()
 
   const filteredVms = allVms
     .filter((r) => !nodeFilter || r.node === nodeFilter)
     .filter((r) => !statusFilter || r.status === statusFilter)
+    .filter((r) => !tagFilter || (r.tags ?? '').split(/[;,]/).map((t) => t.trim()).includes(tagFilter))
     .filter(
       (r) =>
         search === '' ||
@@ -213,6 +216,16 @@ export function AllVMsPage() {
         </div>
         <div className="flex items-center gap-2">
           <CreateVMDialog />
+          {allTags.length > 0 && (
+            <select
+              value={tagFilter}
+              onChange={(e) => setTagFilter(e.target.value)}
+              className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+            >
+              <option value="">All tags</option>
+              {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
