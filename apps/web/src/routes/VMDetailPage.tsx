@@ -48,6 +48,7 @@ import {
   useTemplateVM,
   useVMAgentOsInfo,
   useVMAgentNetworkInterfaces,
+  useMoveVMDisk,
 } from '@/lib/queries/vms'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered, useNodeStorage, useVzdump } from '@/lib/queries/nodes'
@@ -319,11 +320,15 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: config } = useVMConfig(node, vmid)
   const updateConfig = useUpdateVMConfig(node, vmid)
   const resizeDisk = useResizeVMDisk(node, vmid)
+  const moveDisk = useMoveVMDisk(node, vmid)
   const { data: nodeStorages } = useNodeStorage(node)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [resizingKey, setResizingKey] = useState<string | null>(null)
   const [resizeAmount, setResizeAmount] = useState('+10G')
+  const [movingKey, setMovingKey] = useState<string | null>(null)
+  const [moveTargetStorage, setMoveTargetStorage] = useState('')
+  const [moveDeleteOld, setMoveDeleteOld] = useState(true)
   const [showAddDisk, setShowAddDisk] = useState(false)
   const [addDiskType, setAddDiskType] = useState('scsi')
   const [addDiskStorage, setAddDiskStorage] = useState('')
@@ -545,6 +550,7 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
                 ) : null
                 const netModel = !isDisk ? rawVal.split(',')[0]?.split('=')[0] : null
                 const netMac = !isDisk ? rawVal.split(',')[0]?.split('=')[1] : null
+                const isMoving = movingKey === key
                 return (
                   <div key={key} className="space-y-2 px-4 py-2.5 text-sm">
                     <div className="flex items-start justify-between gap-4">
@@ -555,10 +561,16 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
                             {rawVal}
                           </span>
                           <button
-                            onClick={() => { setResizingKey(isResizing ? null : key); setResizeAmount('+10G') }}
+                            onClick={() => { setResizingKey(isResizing ? null : key); setMovingKey(null); setResizeAmount('+10G') }}
                             className="shrink-0 text-xs text-text-muted hover:text-accent border border-border-subtle rounded px-1.5 py-0.5"
                           >
                             Resize
+                          </button>
+                          <button
+                            onClick={() => { setMovingKey(isMoving ? null : key); setResizingKey(null); setMoveTargetStorage('') }}
+                            className="shrink-0 text-xs text-text-muted hover:text-accent border border-border-subtle rounded px-1.5 py-0.5"
+                          >
+                            Move
                           </button>
                         </div>
                       ) : (
@@ -596,6 +608,24 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
                           {resizeDisk.isPending ? '…' : 'Apply'}
                         </Button>
                         <button onClick={() => setResizingKey(null)} className="text-text-muted hover:text-text-primary text-xs">Cancel</button>
+                      </div>
+                    )}
+                    {isDisk && isMoving && (
+                      <div className="flex items-center gap-3 pl-16 flex-wrap">
+                        <select value={moveTargetStorage} onChange={(e) => setMoveTargetStorage(e.target.value)}
+                          className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent [color-scheme:dark]">
+                          <option value="">Target storage…</option>
+                          {diskStorages.map((s) => <option key={s.storage} value={s.storage}>{s.storage}</option>)}
+                        </select>
+                        <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer">
+                          <input type="checkbox" checked={moveDeleteOld} onChange={(e) => setMoveDeleteOld(e.target.checked)} />
+                          Delete source
+                        </label>
+                        <Button size="sm" disabled={moveDisk.isPending || !moveTargetStorage}
+                          onClick={() => moveDisk.mutate({ disk: key, storage: moveTargetStorage, deleteOld: moveDeleteOld }, { onSuccess: () => setMovingKey(null) })}>
+                          {moveDisk.isPending ? '…' : 'Move'}
+                        </Button>
+                        <button onClick={() => setMovingKey(null)} className="text-text-muted hover:text-text-primary text-xs">Cancel</button>
                       </div>
                     )}
                   </div>

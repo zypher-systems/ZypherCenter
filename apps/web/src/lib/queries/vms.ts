@@ -327,3 +327,16 @@ export function useVMAgentNetworkInterfaces(node: string, vmid: number, enabled 
     retry: false,
   })
 }
+
+export function useMoveVMDisk(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ disk, storage, deleteOld }: { disk: string; storage: string; deleteOld?: boolean }) =>
+      api.post(`nodes/${node}/qemu/${vmid}/move_disk`, { disk, storage, delete: deleteOld ? 1 : 0 }),
+    onSuccess: (_, { disk }) => {
+      toast.success(`Disk ${disk} moved`)
+      qc.invalidateQueries({ queryKey: vmKeys.config(node, vmid) })
+    },
+    onError: (err) => toast.error(`Move failed — ${err.message}`),
+  })
+}
