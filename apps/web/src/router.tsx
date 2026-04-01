@@ -56,6 +56,7 @@ import { AccessGroupsPage } from '@/routes/AccessGroupsPage'
 import { AccessRolesPage } from '@/routes/AccessRolesPage'
 import { ACLPage } from '@/routes/ACLPage'
 import { RealmsPage } from '@/routes/RealmsPage'
+import { AccessTokensPage } from '@/routes/AccessTokensPage'
 
 // Tasks
 import { GlobalTasksPage } from '@/routes/GlobalTasksPage'
@@ -129,6 +130,7 @@ export const router = createBrowserRouter([
       { path: 'access/roles', element: <AccessRolesPage /> },
       { path: 'access/acl', element: <ACLPage /> },
       { path: 'access/realms', element: <RealmsPage /> },
+      { path: 'access/tokens', element: <AccessTokensPage /> },
 
       // Global tasks
       { path: 'tasks', element: <GlobalTasksPage /> },

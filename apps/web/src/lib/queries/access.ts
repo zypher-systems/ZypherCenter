@@ -9,6 +9,7 @@ export const accessKeys = {
   roles: ['access', 'roles'] as const,
   acl: ['access', 'acl'] as const,
   realms: ['access', 'realms'] as const,
+  tokens: (userid: string) => ['access', 'users', userid, 'token'] as const,
 }
 
 export function useUsers() {
@@ -147,6 +148,48 @@ export function useChangeUserPassword() {
     mutationFn: ({ userid, password }: { userid: string; password: string }) =>
       api.put('access/password', { userid, password }),
     onSuccess: () => toast.success('Password changed'),
+    onError: (err) => toast.error(`Failed — ${err.message}`),
+  })
+}
+
+export interface APIToken {
+  tokenid: string
+  userid: string
+  comment?: string
+  expire?: number
+  privsep?: number
+}
+
+export function useUserTokens(userid: string) {
+  return useQuery({
+    queryKey: accessKeys.tokens(userid),
+    queryFn: () => api.get<APIToken[]>(`access/users/${encodeURIComponent(userid)}/token`),
+    enabled: !!userid,
+  })
+}
+
+export function useCreateUserToken() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userid, tokenid, params }: { userid: string; tokenid: string; params?: Record<string, unknown> }) =>
+      api.post<{ value: string; info: APIToken }>(`access/users/${encodeURIComponent(userid)}/token/${encodeURIComponent(tokenid)}`, params ?? {}),
+    onSuccess: (_, { userid }) => {
+      qc.invalidateQueries({ queryKey: accessKeys.tokens(userid) })
+      toast.success('API token created')
+    },
+    onError: (err) => toast.error(`Failed — ${err.message}`),
+  })
+}
+
+export function useDeleteUserToken() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userid, tokenid }: { userid: string; tokenid: string }) =>
+      api.del(`access/users/${encodeURIComponent(userid)}/token/${encodeURIComponent(tokenid)}`),
+    onSuccess: (_, { userid }) => {
+      qc.invalidateQueries({ queryKey: accessKeys.tokens(userid) })
+      toast.success('API token deleted')
+    },
     onError: (err) => toast.error(`Failed — ${err.message}`),
   })
 }

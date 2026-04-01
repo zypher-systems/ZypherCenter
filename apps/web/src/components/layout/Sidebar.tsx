@@ -33,6 +33,7 @@ import {
   Cog,
   FlameKindling,
   Columns3,
+  KeyRound,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/stores/ui'
@@ -252,6 +253,7 @@ export function Sidebar() {
     { label: 'Roles', to: '/access/roles', icon: <ShieldCheck /> },
     { label: 'Permissions', to: '/access/acl', icon: <Shield /> },
     { label: 'Realms', to: '/access/realms', icon: <BellRing /> },
+    { label: 'API Tokens', to: '/access/tokens', icon: <KeyRound /> },
   ]
 
   return (
