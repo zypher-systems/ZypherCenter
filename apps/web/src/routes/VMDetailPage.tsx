@@ -1491,10 +1491,25 @@ function VMOptionsTab({ node, vmid }: { node: string; vmid: number }) {
   const readOpts: { key: string; label: string; fmt?: (v: unknown) => string }[] = [
     { key: 'kvm',      label: 'KVM',          fmt: (v) => v != null ? (v ? 'Enabled' : 'Disabled') : 'Default' },
     { key: 'agent',    label: 'QEMU Agent',   fmt: (v) => String(v ?? '—') },
-    { key: 'hotplug',  label: 'Hotplug',      fmt: (v) => String(v ?? '—') },
     { key: 'balloon',  label: 'Balloon',      fmt: (v) => String(v ?? '0') },
     { key: 'startdate', label: 'Start date',  fmt: (v) => String(v ?? '—') },
   ]
+
+  const HOTPLUG_FEATURES = ['network', 'disk', 'cpu', 'memory', 'usb'] as const
+  const hotplugRaw = config['hotplug' as keyof typeof config] as string | number | undefined
+  const hotplugEnabled: string[] = (() => {
+    if (hotplugRaw == null) return ['network', 'disk']
+    if (hotplugRaw === 1 || hotplugRaw === '1') return [...HOTPLUG_FEATURES]
+    if (hotplugRaw === 0 || hotplugRaw === '0') return []
+    return String(hotplugRaw).split(',').map((s) => s.trim()).filter(Boolean)
+  })()
+
+  function toggleHotplug(feature: string) {
+    const newSet = hotplugEnabled.includes(feature)
+      ? hotplugEnabled.filter((f) => f !== feature)
+      : [...hotplugEnabled, feature]
+    updateConfig.mutate({ hotplug: newSet.join(',') || '0' })
+  }
 
   function startEdit(key: string) {
     setEditingKey(key)
@@ -1593,6 +1608,30 @@ function VMOptionsTab({ node, vmid }: { node: string; vmid: number }) {
               </div>
             )
           })}
+
+          {/* Hotplug multi-select */}
+          <div className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+            <span className="text-text-muted shrink-0">Hotplug</span>
+            <div className="flex items-center gap-1.5 flex-wrap justify-end">
+              {HOTPLUG_FEATURES.map((feature) => {
+                const active = hotplugEnabled.includes(feature)
+                return (
+                  <button
+                    key={feature}
+                    onClick={() => toggleHotplug(feature)}
+                    disabled={updateConfig.isPending}
+                    className={`rounded border px-2 py-0.5 text-xs transition-colors disabled:opacity-50 ${
+                      active
+                        ? 'border-accent bg-accent/20 text-text-primary'
+                        : 'border-border-subtle text-text-muted hover:border-accent/50'
+                    }`}
+                  >
+                    {feature}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
 
           {/* Boot order */}
           {(() => {
