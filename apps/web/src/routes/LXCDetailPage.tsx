@@ -42,6 +42,7 @@ import {
   useTemplateLXC,
   useLXCInterfaces,
   useLXCRrdData,
+  useUpdateLXCFirewallOptions,
 } from '@/lib/queries/lxc'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered, useVzdump, useNodeNetwork, useNodeHardwareUSB } from '@/lib/queries/nodes'
@@ -235,7 +236,9 @@ function LXCFirewallTab({ node, vmid }: { node: string; vmid: number }) {
   const createRule = useCreateLXCFirewallRule(node, vmid)
   const deleteRule = useDeleteLXCFirewallRule(node, vmid)
   const updateRule = useUpdateLXCFirewallRule(node, vmid)
+  const updateOptions = useUpdateLXCFirewallOptions(node, vmid)
   const [showAdd, setShowAdd] = useState(false)
+  const [editingPolicy, setEditingPolicy] = useState<'policy_in' | 'policy_out' | null>(null)
   const [dir, setDir] = useState('in')
   const [action, setAction] = useState('ACCEPT')
   const [macro, setMacro] = useState('')
@@ -319,20 +322,41 @@ function LXCFirewallTab({ node, vmid }: { node: string; vmid: number }) {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium">Firewall Status</CardTitle>
-              <span className={`text-xs font-medium px-2 py-0.5 rounded ${enabled ? 'bg-status-running/10 text-status-running' : 'bg-bg-elevated text-text-muted'}`}>
-                {enabled ? 'Enabled' : 'Disabled'}
-              </span>
+              <button
+                onClick={() => updateOptions.mutate({ enable: enabled ? 0 : 1 })}
+                disabled={updateOptions.isPending}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${enabled ? 'bg-accent' : 'bg-border-muted'}`}
+                title={enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+              >
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-4' : 'translate-x-1'}`} />
+              </button>
             </div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border-muted">
               {(['policy_in', 'policy_out'] as const).map((key) => {
                 const val = options[key]
-                if (!val) return null
+                const isEditing = editingPolicy === key
                 return (
-                  <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                  <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
                     <span className="text-text-muted">{key === 'policy_in' ? 'Default policy (in)' : 'Default policy (out)'}</span>
-                    <FWActionBadge action={val} />
+                    {isEditing ? (
+                      <select
+                        autoFocus
+                        defaultValue={val ?? 'ACCEPT'}
+                        onChange={(e) => {
+                          updateOptions.mutate({ [key]: e.target.value }, { onSuccess: () => setEditingPolicy(null) })
+                        }}
+                        onBlur={() => setEditingPolicy(null)}
+                        className="rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+                      >
+                        {['ACCEPT', 'DROP', 'REJECT'].map((p) => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    ) : (
+                      <button onClick={() => setEditingPolicy(key)} className="flex items-center gap-1.5 hover:opacity-80" title="Click to change policy">
+                        <FWActionBadge action={val ?? 'ACCEPT'} />
+                      </button>
+                    )}
                   </div>
                 )
               })}

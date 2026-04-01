@@ -323,6 +323,18 @@ export interface LXCRrdPoint {
   [key: string]: number | undefined
 }
 
+export function useUpdateLXCFirewallOptions(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) => api.put(`nodes/${node}/lxc/${vmid}/firewall/options`, params),
+    onSuccess: () => {
+      toast.success('Firewall options updated')
+      qc.invalidateQueries({ queryKey: [...lxcKeys.detail(node, vmid), 'firewall', 'options'] })
+    },
+    onError: (err) => toast.error(`Update failed — ${err.message}`),
+  })
+}
+
 export function useLXCRrdData(node: string, vmid: number, timeframe: 'hour' | 'day' = 'hour') {
   return useQuery({
     queryKey: [...lxcKeys.detail(node, vmid), 'rrddata', timeframe],

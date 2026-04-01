@@ -385,6 +385,18 @@ export interface VMRrdPoint {
   [key: string]: number | undefined
 }
 
+export function useUpdateVMFirewallOptions(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) => api.put(`nodes/${node}/qemu/${vmid}/firewall/options`, params),
+    onSuccess: () => {
+      toast.success('Firewall options updated')
+      qc.invalidateQueries({ queryKey: [...vmKeys.detail(node, vmid), 'firewall', 'options'] })
+    },
+    onError: (err) => toast.error(`Update failed — ${err.message}`),
+  })
+}
+
 export function useVMRrdData(node: string, vmid: number, timeframe: 'hour' | 'day' = 'hour') {
   return useQuery({
     queryKey: [...vmKeys.detail(node, vmid), 'rrddata', timeframe],
