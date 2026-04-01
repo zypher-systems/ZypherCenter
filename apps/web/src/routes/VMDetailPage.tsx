@@ -51,7 +51,7 @@ import {
   useMoveVMDisk,
 } from '@/lib/queries/vms'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
-import { useNodeTasksFiltered, useNodeStorage, useVzdump } from '@/lib/queries/nodes'
+import { useNodeTasksFiltered, useNodeStorage, useNodeNetwork, useVzdump } from '@/lib/queries/nodes'
 import { useStorage, useStorageContent } from '@/lib/queries/storage'
 import { useNextVMId } from '@/lib/queries/vms'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -322,6 +322,7 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
   const resizeDisk = useResizeVMDisk(node, vmid)
   const moveDisk = useMoveVMDisk(node, vmid)
   const { data: nodeStorages } = useNodeStorage(node)
+  const { data: nodeNetwork } = useNodeNetwork(node)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [resizingKey, setResizingKey] = useState<string | null>(null)
@@ -333,6 +334,10 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
   const [addDiskType, setAddDiskType] = useState('scsi')
   const [addDiskStorage, setAddDiskStorage] = useState('')
   const [addDiskSize, setAddDiskSize] = useState('32')
+  const [showAddNet, setShowAddNet] = useState(false)
+  const [addNetModel, setAddNetModel] = useState('virtio')
+  const [addNetBridge, setAddNetBridge] = useState('')
+  const [addNetTag, setAddNetTag] = useState('')
 
   if (!config) return null
 
@@ -341,6 +346,8 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
   const diskStorages = (nodeStorages ?? []).filter((s) =>
     s.content?.split(',').map((c) => c.trim()).includes('images'),
   )
+
+  const bridges = (nodeNetwork ?? []).filter((n) => n.type === 'bridge').map((n) => n.iface).filter(Boolean)
 
   function getNextDiskKey(type: string) {
     const existing = Object.keys(cfg).filter((k) => k.startsWith(type) && /\d+$/.test(k))
@@ -355,6 +362,18 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
     updateConfig.mutate(
       { [key]: `${addDiskStorage}:${addDiskSize},format=qcow2` },
       { onSuccess: () => { setShowAddDisk(false); setAddDiskSize('32') } },
+    )
+  }
+
+  function addNetInterface() {
+    if (!addNetBridge) return
+    const existingNets = Object.keys(cfg).filter((k) => /^net\d+$/.test(k)).map((k) => parseInt(k.slice(3), 10))
+    const nextIdx = existingNets.length ? Math.max(...existingNets) + 1 : 0
+    const key = `net${nextIdx}`
+    const val = addNetTag ? `${addNetModel}=,bridge=${addNetBridge},tag=${addNetTag}` : `${addNetModel}=,bridge=${addNetBridge}`
+    updateConfig.mutate(
+      { [key]: val },
+      { onSuccess: () => { setShowAddNet(false); setAddNetTag('') } }
     )
   }
 
@@ -490,16 +509,75 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle>Disks &amp; Network</CardTitle>
-            {diskStorages.length > 0 && (
+            <div className="flex items-center gap-2">
+              {diskStorages.length > 0 && (
+                <button
+                  onClick={() => { setShowAddDisk((v) => !v); setShowAddNet(false) }}
+                  className="flex items-center gap-1 text-xs text-text-muted hover:text-accent border border-border-subtle rounded px-2 py-1"
+                >
+                  <Plus className="size-3" /> Add Disk
+                </button>
+              )}
               <button
-                onClick={() => setShowAddDisk((v) => !v)}
+                onClick={() => { setShowAddNet((v) => !v); setShowAddDisk(false) }}
                 className="flex items-center gap-1 text-xs text-text-muted hover:text-accent border border-border-subtle rounded px-2 py-1"
               >
-                <Plus className="size-3" /> Add Disk
+                <Plus className="size-3" /> Add Interface
               </button>
-            )}
+            </div>
           </CardHeader>
           <CardContent className="p-0">
+            {showAddNet && (
+              <div className="flex flex-wrap items-end gap-2 px-4 py-3 border-b border-border-muted bg-bg-elevated">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-text-muted">Model</label>
+                  <select
+                    value={addNetModel}
+                    onChange={(e) => setAddNetModel(e.target.value)}
+                    className="rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none [color-scheme:dark]"
+                  >
+                    {['virtio', 'e1000', 'e1000e', 'rtl8139', 'vmxnet3'].map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-text-muted">Bridge</label>
+                  {bridges.length > 0 ? (
+                    <select
+                      value={addNetBridge}
+                      onChange={(e) => setAddNetBridge(e.target.value)}
+                      className="rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none [color-scheme:dark]"
+                    >
+                      <option value="">Select…</option>
+                      {bridges.map((b) => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={addNetBridge}
+                      onChange={(e) => setAddNetBridge(e.target.value)}
+                      placeholder="vmbr0"
+                      className="w-24 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent"
+                    />
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-text-muted">VLAN Tag</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={4094}
+                    value={addNetTag}
+                    onChange={(e) => setAddNetTag(e.target.value)}
+                    placeholder="none"
+                    className="w-20 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+                  />
+                </div>
+                <Button size="sm" disabled={updateConfig.isPending || !addNetBridge} onClick={addNetInterface}>
+                  {updateConfig.isPending ? '…' : 'Add'}
+                </Button>
+                <button onClick={() => setShowAddNet(false)} className="text-text-muted hover:text-text-primary text-xs">Cancel</button>
+              </div>
+            )}
             {showAddDisk && (
               <div className="flex flex-wrap items-end gap-2 px-4 py-3 border-b border-border-muted bg-bg-elevated">
                 <div className="flex flex-col gap-1">
