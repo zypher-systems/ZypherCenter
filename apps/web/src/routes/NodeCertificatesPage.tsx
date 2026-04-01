@@ -1,9 +1,13 @@
+import { useState } from 'react'
 import { useParams } from 'react-router'
-import { ShieldCheck, RefreshCw, Trash2 } from 'lucide-react'
+import { ShieldCheck, RefreshCw, Trash2, Plus, Globe } from 'lucide-react'
 import {
   useNodeCertificates,
   useOrderNodeCertificate,
   useRevokeNodeCertificate,
+  useNodeACMEDomains,
+  useUpdateNodeConfig,
+  useNodeACMEAccounts,
 } from '@/lib/queries/nodes'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -18,6 +22,113 @@ function certStatus(cert: Record<string, unknown>) {
   if (daysLeft < 0) return { label: 'Expired', color: 'text-status-error' }
   if (daysLeft < 14) return { label: `Expires in ${daysLeft}d`, color: 'text-status-paused' }
   return { label: `Valid · ${daysLeft}d left`, color: 'text-status-running' }
+}
+
+function ACMEDomainsCard({ node }: { node: string }) {
+  const { data: nodeConfig } = useNodeACMEDomains(node)
+  const { data: accounts } = useNodeACMEAccounts()
+  const updateConfig = useUpdateNodeConfig(node)
+  const [showAdd, setShowAdd] = useState(false)
+  const [newDomain, setNewDomain] = useState('')
+
+  const cfg = nodeConfig as Record<string, unknown> | undefined
+  if (!cfg) return null
+
+  // Parse ACME account config — acme field like "account=default"
+  const acmeField = cfg['acme'] as string | undefined
+  const acmeAccount = acmeField?.split(',').find((s) => s.startsWith('account='))?.slice(8) ?? ''
+
+  // Parse acmedomain0, acmedomain1, ... fields — each is just a domain string
+  const domainKeys = Object.keys(cfg).filter((k) => /^acmedomain\d+$/.test(k)).sort()
+  const domains = domainKeys.map((k) => ({ key: k, value: String(cfg[k]) }))
+
+  function removeDomain(key: string) {
+    if (!confirm(`Remove ACME domain "${cfg![key]}"?`)) return
+    updateConfig.mutate({ delete: key })
+  }
+
+  function addDomain() {
+    if (!newDomain.trim()) return
+    const nextIdx = domainKeys.length
+    const key = `acmedomain${nextIdx}`
+    updateConfig.mutate({ [key]: newDomain.trim() }, { onSuccess: () => { setShowAdd(false); setNewDomain('') } })
+  }
+
+  function setAccount(account: string) {
+    const existing = acmeField ?? ''
+    const parts = existing.split(',').filter((p) => !p.startsWith('account=') && p)
+    const newVal = [`account=${account}`, ...parts].join(',')
+    updateConfig.mutate({ acme: newVal })
+  }
+
+  const inp = 'rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]'
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-sm font-medium">
+            <Globe className="size-4 text-text-muted" />
+            ACME Configuration
+          </CardTitle>
+          <Button size="sm" variant="outline" onClick={() => setShowAdd(!showAdd)}>
+            <Plus className="size-3.5 mr-1" />{showAdd ? 'Cancel' : 'Add Domain'}
+          </Button>
+        </div>
+      </CardHeader>
+      {showAdd && (
+        <div className="border-t border-border-muted bg-bg-elevated px-4 py-3 space-y-2">
+          <label className="block text-xs text-text-muted mb-1">Domain name</label>
+          <div className="flex items-center gap-2">
+            <input
+              autoFocus
+              value={newDomain}
+              onChange={(e) => setNewDomain(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addDomain(); if (e.key === 'Escape') { setShowAdd(false); setNewDomain('') } }}
+              placeholder="e.g. pve.example.com"
+              className={`${inp} flex-1`}
+            />
+            <Button size="sm" onClick={addDomain} disabled={updateConfig.isPending || !newDomain.trim()}>Add</Button>
+          </div>
+        </div>
+      )}
+      <CardContent className="p-0">
+        {accounts && accounts.length > 0 && (
+          <div className="flex items-center justify-between px-4 py-2.5 text-sm border-b border-border-muted">
+            <span className="text-text-muted">Account</span>
+            <select
+              value={acmeAccount}
+              onChange={(e) => setAccount(e.target.value)}
+              className={`${inp} max-w-[200px]`}
+            >
+              <option value="">— none —</option>
+              {accounts.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+        )}
+        {domains.length === 0 ? (
+          <p className="px-4 py-3 text-sm text-text-muted">No ACME domains configured. Add a domain to enable automatic certificate issuance.</p>
+        ) : (
+          <div className="divide-y divide-border-muted">
+            {domains.map(({ key, value }) => (
+              <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                <span className="text-text-muted text-xs shrink-0">{key}</span>
+                <span className="text-text-primary font-mono text-sm flex-1">{value}</span>
+                <button
+                  onClick={() => removeDomain(key)}
+                  disabled={updateConfig.isPending}
+                  className="text-text-muted hover:text-status-error disabled:opacity-50 shrink-0"
+                  title="Remove domain"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
 }
 
 export function NodeCertificatesPage() {
@@ -59,6 +170,8 @@ export function NodeCertificatesPage() {
           </Button>
         </div>
       </div>
+
+      <ACMEDomainsCard node={node!} />
 
       {isLoading ? (
         <SkeletonCard />
