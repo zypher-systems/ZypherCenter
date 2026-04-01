@@ -830,6 +830,14 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
                         >
                           Resize
                         </button>
+                        {k !== 'rootfs' && (
+                          <button
+                            onClick={() => { if (confirm(`Detach ${k}? The volume will remain in storage.`)) updateConfig.mutate({ delete: k }) }}
+                            className="shrink-0 text-xs text-text-muted hover:text-status-error border border-border-subtle rounded px-1.5 py-0.5"
+                          >
+                            Detach
+                          </button>
+                        )}
                       </div>
                     </div>
                     {isResizing && (
