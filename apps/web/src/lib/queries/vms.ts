@@ -279,3 +279,28 @@ export function useRestoreVM(node: string) {
     onError: (err) => toast.error(`Restore failed — ${err.message}`),
   })
 }
+
+export function useResizeVMDisk(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ disk, size }: { disk: string; size: string }) =>
+      api.put(`nodes/${node}/qemu/${vmid}/resize`, { disk, size }),
+    onSuccess: () => {
+      toast.success('Disk resize submitted')
+      qc.invalidateQueries({ queryKey: vmKeys.config(node, vmid) })
+    },
+    onError: (err) => toast.error(`Resize failed — ${err.message}`),
+  })
+}
+
+export function useTemplateVM(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.post(`nodes/${node}/qemu/${vmid}/template`, {}),
+    onSuccess: () => {
+      toast.success('VM converted to template')
+      qc.invalidateQueries({ queryKey: vmKeys.status(node, vmid) })
+    },
+    onError: (err) => toast.error(`Failed — ${err.message}`),
+  })
+}

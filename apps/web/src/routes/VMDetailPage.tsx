@@ -38,6 +38,8 @@ import {
   useCloneVM,
   useUpdateVMConfig,
   useDeleteVM,
+  useResizeVMDisk,
+  useTemplateVM,
 } from '@/lib/queries/vms'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered, useNodeStorage, useVzdump } from '@/lib/queries/nodes'
@@ -268,9 +270,12 @@ function ISOPickerRow({
 function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: config } = useVMConfig(node, vmid)
   const updateConfig = useUpdateVMConfig(node, vmid)
+  const resizeDisk = useResizeVMDisk(node, vmid)
   const { data: nodeStorages } = useNodeStorage(node)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [resizingKey, setResizingKey] = useState<string | null>(null)
+  const [resizeAmount, setResizeAmount] = useState('+10G')
 
   if (!config) return null
 
@@ -409,14 +414,52 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
           <CardHeader><CardTitle>Disks &amp; Network</CardTitle></CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border-muted">
-              {diskNetKeys.map((key) => (
-                <div key={key} className="flex items-start justify-between px-4 py-2.5 text-sm gap-4">
-                  <span className="text-text-muted shrink-0 font-medium">{key}</span>
-                  <span className="text-text-primary font-mono text-right break-all text-xs">
-                    {String(cfg[key])}
-                  </span>
-                </div>
-              ))}
+              {diskNetKeys.map((key) => {
+                const isDisk = /^(scsi|ide|sata|virtio)\d+$/.test(key)
+                const isResizing = resizingKey === key
+                return (
+                  <div key={key} className="space-y-2 px-4 py-2.5 text-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="text-text-muted shrink-0 font-medium">{key}</span>
+                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                        <span className="text-text-primary font-mono text-right break-all text-xs flex-1">
+                          {String(cfg[key])}
+                        </span>
+                        {isDisk && (
+                          <button
+                            onClick={() => { setResizingKey(isResizing ? null : key); setResizeAmount('+10G') }}
+                            className="shrink-0 text-xs text-text-muted hover:text-accent border border-border-subtle rounded px-1.5 py-0.5"
+                          >
+                            Resize
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {isDisk && isResizing && (
+                      <div className="flex items-center gap-2 pl-16">
+                        <input
+                          autoFocus
+                          value={resizeAmount}
+                          onChange={(e) => setResizeAmount(e.target.value)}
+                          placeholder="+10G"
+                          className="w-24 rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-xs text-text-primary outline-none focus:border-accent"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              resizeDisk.mutate({ disk: key, size: resizeAmount }, { onSuccess: () => setResizingKey(null) })
+                            }
+                            if (e.key === 'Escape') setResizingKey(null)
+                          }}
+                        />
+                        <Button size="sm" disabled={resizeDisk.isPending}
+                          onClick={() => resizeDisk.mutate({ disk: key, size: resizeAmount }, { onSuccess: () => setResizingKey(null) })}>
+                          {resizeDisk.isPending ? '…' : 'Apply'}
+                        </Button>
+                        <button onClick={() => setResizingKey(null)} className="text-text-muted hover:text-text-primary text-xs">Cancel</button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </CardContent>
         </Card>
@@ -1379,12 +1422,14 @@ export function VMDetailPage() {
   const shutdown = useVMShutdown(node!, vmid)
   const reboot = useVMReboot(node!, vmid)
   const deleteVM = useDeleteVM(node!)
+  const convertToTemplate = useTemplateVM(node!, vmid)
   const navigate = useNavigate()
 
   if (isLoading) return <SkeletonCard />
 
   const isRunning = status?.status === 'running'
   const isStopped = status?.status === 'stopped'
+  const isTemplate = status?.template === 1
 
   return (
     <div className="space-y-5">
@@ -1426,6 +1471,20 @@ export function VMDetailPage() {
           <Button size="sm" variant="outline" onClick={() => setShowClone(true)}>
             Clone
           </Button>
+          {isStopped && !isTemplate && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={convertToTemplate.isPending}
+              onClick={() => {
+                if (confirm(`Convert VM ${vmid} to a template? This cannot be undone.`)) {
+                  convertToTemplate.mutate()
+                }
+              }}
+            >
+              <Cloud className="size-4" /> To Template
+            </Button>
+          )}
           <Button size="sm" variant="outline" asChild>
             <Link to={`/nodes/${node}/vms/${vmid}/console`}>
               <Terminal className="size-4" /> Console
