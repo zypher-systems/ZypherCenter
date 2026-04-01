@@ -405,14 +405,16 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
     { key: 'memory',  label: 'Memory (MiB)',      numeric: true },
     { key: 'balloon', label: 'Balloon Min (MiB)', numeric: true },
   ]
+  const selectRows: { key: string; label: string; options: string[] }[] = [
+    { key: 'bios',    label: 'BIOS',            options: ['seabios', 'ovmf'] },
+    { key: 'machine', label: 'Machine',          options: ['pc', 'q35', 'pc-i440fx-8.1', 'pc-q35-8.1'] },
+    { key: 'scsihw',  label: 'SCSI Controller', options: ['virtio-scsi-pci', 'virtio-scsi-single', 'lsi', 'lsi53c810', 'megasas', 'pvscsi'] },
+    { key: 'ostype',  label: 'OS Type',          options: ['l26', 'l24', 'other', 'win11', 'win10', 'win8', 'win7', 'w2k8', 'w2k3', 'w2k', 'wvista', 'wxp', 'solaris'] },
+  ]
   const readonlyRows: { key: string; label: string }[] = [
-    { key: 'bios',    label: 'BIOS' },
-    { key: 'machine', label: 'Machine' },
-    { key: 'scsihw',  label: 'SCSI Controller' },
-    { key: 'ostype',  label: 'OS Type' },
-    { key: 'boot',    label: 'Boot Order' },
     { key: 'vga',     label: 'VGA' },
     { key: 'agent',   label: 'QEMU Agent' },
+    { key: 'boot',    label: 'Boot Order' },
   ]
 
   // Dynamic disk/network keys, split into cdrom vs regular
@@ -471,6 +473,41 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
         <CardHeader><CardTitle>System</CardTitle></CardHeader>
         <CardContent className="p-0">
           <div className="divide-y divide-border-muted">
+            {selectRows.map(({ key, label, options }) => {
+              const val = cfg[key]
+              if (val == null) return null
+              const isEditing = editingKey === key
+              return (
+                <div key={key} className="flex items-center justify-between px-4 py-2.5 text-sm gap-4">
+                  <span className="text-text-muted shrink-0">{label}</span>
+                  {isEditing ? (
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        autoFocus
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+                      >
+                        {[...new Set([String(val), ...options])].map((o) => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                      <button onClick={() => saveEdit(key)} disabled={updateConfig.isPending} className="text-status-running hover:opacity-80 disabled:opacity-50">
+                        <Check className="size-3.5" />
+                      </button>
+                      <button onClick={cancelEdit} className="text-text-muted hover:opacity-80">
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-text-primary font-mono">{String(val)}</span>
+                      <button onClick={() => startEdit(key)} className="text-text-muted hover:text-text-primary">
+                        <Pencil className="size-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
             {readonlyRows.map(({ key, label }) => {
               const val = cfg[key]
               if (val == null) return null
