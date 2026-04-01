@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { Play, Square, RotateCcw, Power, Terminal, Search, Trash2 } from 'lucide-react'
-import { useClusterResources } from '@/lib/queries/cluster'
+import { useQueryClient } from '@tanstack/react-query'
+import { useClusterResources, clusterKeys } from '@/lib/queries/cluster'
 import { useLXCStart, useLXCStop, useLXCShutdown, useLXCReboot, useDeleteLXC } from '@/lib/queries/lxc'
+import { api } from '@/lib/api'
+import { toast } from 'sonner'
 import { CreateLXCDialog } from '@/components/features/CreateLXCDialog'
 import { Card, CardContent } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -33,7 +36,7 @@ function TagChips({ tags }: { tags?: string }) {
   )
 }
 
-function LXCRow({ ct }: { ct: ClusterResource }) {
+function LXCRow({ ct, isSelected, onToggle }: { ct: ClusterResource; isSelected?: boolean; onToggle?: () => void }) {
   const node = ct.node ?? ''
   const vmid = ct.vmid ?? 0
   const start = useLXCStart(node, vmid)
@@ -46,7 +49,13 @@ function LXCRow({ ct }: { ct: ClusterResource }) {
   const isStopped = ct.status === 'stopped'
 
   return (
-    <TableRow>
+    <TableRow className={isSelected ? 'bg-accent/5' : ''}>
+      {onToggle !== undefined && (
+        <TableCell className="w-8">
+          <input type="checkbox" checked={!!isSelected} onChange={onToggle}
+            className="accent-accent cursor-pointer" />
+        </TableCell>
+      )}
       <TableCell className="font-mono text-text-muted w-16">{vmid}</TableCell>
       <TableCell>
         <Link
@@ -118,8 +127,10 @@ function LXCRow({ ct }: { ct: ClusterResource }) {
 
 export function AllLXCPage() {
   const { data: resources, isLoading } = useClusterResources()
+  const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [nodeFilter, setNodeFilter] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const allContainers = (resources ?? []).filter((r) => r.type === 'lxc')
   const nodeList = [...new Set(allContainers.map((c) => c.node ?? '').filter(Boolean))].sort()
@@ -135,6 +146,39 @@ export function AllLXCPage() {
     )
 
   const running = containers.filter((c) => c.status === 'running').length
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === containers.length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(containers.map((c) => c.id ?? '').filter(Boolean)))
+    }
+  }
+
+  async function bulkAction(action: 'start' | 'stop' | 'shutdown') {
+    const targets = containers.filter((c) => selected.has(c.id ?? ''))
+    const eligible = targets.filter((c) =>
+      action === 'start' ? c.status === 'stopped' : c.status === 'running'
+    )
+    if (!eligible.length) { toast.info('No eligible containers for that action'); return }
+    await Promise.allSettled(
+      eligible.map((ct) => {
+        const suffix = action === 'start' ? 'start' : action === 'stop' ? 'stop' : 'shutdown'
+        return api.post(`nodes/${ct.node}/lxc/${ct.vmid}/status/${suffix}`, {})
+      })
+    )
+    toast.success(`${action.charAt(0).toUpperCase() + action.slice(1)} sent to ${eligible.length} container(s)`)
+    setSelected(new Set())
+    qc.invalidateQueries({ queryKey: clusterKeys.resources() })
+  }
 
   return (
     <div className="space-y-4">
@@ -169,6 +213,23 @@ export function AllLXCPage() {
         </div>
       </div>
 
+      {selected.size > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-4 py-2 text-sm">
+          <span className="text-text-secondary">{selected.size} selected</span>
+          <div className="flex items-center gap-1.5 ml-auto">
+            <Button size="sm" variant="outline" onClick={() => bulkAction('start')}>
+              <Play className="size-3.5 mr-1 text-status-running" />Start
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => bulkAction('shutdown')}>
+              <Power className="size-3.5 mr-1 text-status-paused" />Shutdown
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => bulkAction('stop')}>
+              <Square className="size-3.5 mr-1 text-status-error" />Force Stop
+            </Button>
+            <button onClick={() => setSelected(new Set())} className="ml-2 text-xs text-text-muted hover:text-text-primary">Clear</button>
+          </div>
+        </div>
+      )}
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
@@ -179,6 +240,12 @@ export function AllLXCPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8">
+                    <input type="checkbox"
+                      checked={containers.length > 0 && selected.size === containers.length}
+                      onChange={toggleSelectAll}
+                      className="accent-accent cursor-pointer" />
+                  </TableHead>
                   <TableHead>ID</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Node</TableHead>
@@ -192,12 +259,19 @@ export function AllLXCPage() {
               <TableBody>
                 {containers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-text-muted py-12">
+                    <TableCell colSpan={9} className="text-center text-text-muted py-12">
                       No containers found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  containers.map((ct) => <LXCRow key={ct.id} ct={ct} />)
+                  containers.map((ct) => (
+                    <LXCRow
+                      key={ct.id}
+                      ct={ct}
+                      isSelected={selected.has(ct.id ?? '')}
+                      onToggle={() => toggleSelect(ct.id ?? '')}
+                    />
+                  ))
                 )}
               </TableBody>
             </Table>

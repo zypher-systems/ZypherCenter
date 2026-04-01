@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { Play, Square, RotateCcw, Power, Terminal, Search, Trash2 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useClusterResources } from '@/lib/queries/cluster'
+import { clusterKeys } from '@/lib/queries/cluster'
 import { useVMStart, useVMStop, useVMShutdown, useVMReboot, useDeleteVM } from '@/lib/queries/vms'
+import { api } from '@/lib/api'
+import { toast } from 'sonner'
 import { CreateVMDialog } from '@/components/features/CreateVMDialog'
 import { Card, CardContent } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -20,7 +24,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { formatBytes, formatPercent, formatUptime } from '@/lib/utils'
 import type { ClusterResource } from '@zyphercenter/proxmox-types'
 
-function VMRow({ vm }: { vm: ClusterResource }) {
+function VMRow({ vm, isSelected, onToggle }: { vm: ClusterResource; isSelected?: boolean; onToggle?: () => void }) {
   const node = vm.node ?? ''
   const vmid = vm.vmid ?? 0
   const start = useVMStart(node, vmid)
@@ -33,7 +37,13 @@ function VMRow({ vm }: { vm: ClusterResource }) {
   const isStopped = vm.status === 'stopped'
 
   return (
-    <TableRow>
+    <TableRow className={isSelected ? 'bg-accent/5' : ''}>
+      {onToggle !== undefined && (
+        <TableCell className="w-8">
+          <input type="checkbox" checked={!!isSelected} onChange={onToggle}
+            className="accent-accent cursor-pointer" />
+        </TableCell>
+      )}
       <TableCell className="font-mono text-text-muted w-16">{vmid}</TableCell>
       <TableCell>
         <Link
@@ -111,8 +121,10 @@ function VMRow({ vm }: { vm: ClusterResource }) {
 
 export function AllVMsPage() {
   const { data: resources, isLoading } = useClusterResources()
+  const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [nodeFilter, setNodeFilter] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const allVms = (resources ?? []).filter((r) => r.type === 'qemu' && r.template !== 1)
   const nodeList = [...new Set(allVms.map((v) => v.node ?? '').filter(Boolean))].sort()
@@ -128,6 +140,39 @@ export function AllVMsPage() {
     )
 
   const running = vms.filter((v) => v.status === 'running').length
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === vms.length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(vms.map((v) => v.id ?? '').filter(Boolean)))
+    }
+  }
+
+  async function bulkAction(action: 'start' | 'stop' | 'shutdown') {
+    const targets = vms.filter((v) => selected.has(v.id ?? ''))
+    const eligible = targets.filter((v) =>
+      action === 'start' ? v.status === 'stopped' : v.status === 'running'
+    )
+    if (!eligible.length) { toast.info('No eligible VMs for that action'); return }
+    await Promise.allSettled(
+      eligible.map((vm) => {
+        const suffix = action === 'start' ? 'start' : action === 'stop' ? 'stop' : 'shutdown'
+        return api.post(`nodes/${vm.node}/qemu/${vm.vmid}/status/${suffix}`, {})
+      })
+    )
+    toast.success(`${action.charAt(0).toUpperCase() + action.slice(1)} sent to ${eligible.length} VM(s)`)
+    setSelected(new Set())
+    qc.invalidateQueries({ queryKey: clusterKeys.resources() })
+  }
 
   return (
     <div className="space-y-4">
@@ -162,6 +207,23 @@ export function AllVMsPage() {
         </div>
       </div>
 
+      {selected.size > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-4 py-2 text-sm">
+          <span className="text-text-secondary">{selected.size} selected</span>
+          <div className="flex items-center gap-1.5 ml-auto">
+            <Button size="sm" variant="outline" onClick={() => bulkAction('start')}>
+              <Play className="size-3.5 mr-1 text-status-running" />Start
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => bulkAction('shutdown')}>
+              <Power className="size-3.5 mr-1 text-status-paused" />Shutdown
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => bulkAction('stop')}>
+              <Square className="size-3.5 mr-1 text-status-error" />Force Stop
+            </Button>
+            <button onClick={() => setSelected(new Set())} className="ml-2 text-xs text-text-muted hover:text-text-primary">Clear</button>
+          </div>
+        </div>
+      )}
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
@@ -172,6 +234,12 @@ export function AllVMsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8">
+                    <input type="checkbox"
+                      checked={vms.length > 0 && selected.size === vms.length}
+                      onChange={toggleSelectAll}
+                      className="accent-accent cursor-pointer" />
+                  </TableHead>
                   <TableHead>ID</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Node</TableHead>
@@ -185,12 +253,19 @@ export function AllVMsPage() {
               <TableBody>
                 {vms.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-text-muted py-12">
+                    <TableCell colSpan={9} className="text-center text-text-muted py-12">
                       No virtual machines found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  vms.map((vm) => <VMRow key={vm.id} vm={vm} />)
+                  vms.map((vm) => (
+                    <VMRow
+                      key={vm.id}
+                      vm={vm}
+                      isSelected={selected.has(vm.id ?? '')}
+                      onToggle={() => toggleSelect(vm.id ?? '')}
+                    />
+                  ))
                 )}
               </TableBody>
             </Table>
