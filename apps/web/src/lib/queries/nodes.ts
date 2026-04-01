@@ -524,3 +524,29 @@ export function useNodeZFSPools(node: string) {
     staleTime: 60_000,
   })
 }
+
+export function useCreateZFSPool(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { name: string; raidlevel: string; devices: string; add_storage?: number }) =>
+      api.post(`nodes/${node}/disks/zfs`, params),
+    onSuccess: () => {
+      toast.success('ZFS pool created')
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'disks', 'zfs'] })
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'disks'] })
+    },
+    onError: (err) => toast.error(`Failed to create ZFS pool — ${err.message}`),
+  })
+}
+
+export function useNodeZFSScrub(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => api.post(`nodes/${node}/disks/zfs/${encodeURIComponent(name)}`, {}),
+    onSuccess: () => {
+      toast.success('ZFS scrub started')
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'disks', 'zfs'] })
+    },
+    onError: (err) => toast.error(`Scrub failed — ${err.message}`),
+  })
+}
