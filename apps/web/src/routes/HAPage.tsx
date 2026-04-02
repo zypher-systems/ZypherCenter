@@ -22,7 +22,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
 import { Button } from '@/components/ui/Button'
-import { Shield, Layers, Plus, Trash2 } from 'lucide-react'
+import { Shield, Layers, Plus, Trash2, Pencil } from 'lucide-react'
 
 const HA_STATES = ['started', 'stopped', 'enabled', 'disabled', 'ignored']
 
@@ -139,6 +139,76 @@ function AddResourceDialog({
   )
 }
 
+function EditResourceDialog({
+  resource,
+  groups,
+  onClose,
+}: {
+  resource: { sid: string; group?: string; max_restart?: number; max_relocate?: number; comment?: string }
+  groups: { group: string }[]
+  onClose: () => void
+}) {
+  const [group,       setGroup]       = useState(resource.group ?? '')
+  const [maxRestart,  setMaxRestart]  = useState(String(resource.max_restart ?? 1))
+  const [maxRelocate, setMaxRelocate] = useState(String(resource.max_relocate ?? 1))
+  const [comment,     setComment]     = useState(resource.comment ?? '')
+  const update = useUpdateHAResource()
+  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]'
+
+  function submit() {
+    update.mutate(
+      {
+        sid: resource.sid,
+        params: {
+          group: group || undefined,
+          max_restart: Number(maxRestart),
+          max_relocate: Number(maxRelocate),
+          comment: comment.trim() || undefined,
+        },
+      },
+      { onSuccess: () => onClose() },
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold text-text-primary">Edit HA Resource</h2>
+        <p className="text-sm font-mono text-text-muted">{resource.sid}</p>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Group</label>
+            <select value={group} onChange={(e) => setGroup(e.target.value)} className={inp}>
+              <option value="">— None —</option>
+              {groups.map((g) => <option key={g.group} value={g.group}>{g.group}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Max Restart</label>
+              <input type="number" min="0" value={maxRestart} onChange={(e) => setMaxRestart(e.target.value)} className={inp} />
+            </div>
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Max Relocate</label>
+              <input type="number" min="0" value={maxRelocate} onChange={(e) => setMaxRelocate(e.target.value)} className={inp} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Comment</label>
+            <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Optional" className={inp} />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={submit} disabled={update.isPending}>
+            {update.isPending ? 'Saving…' : 'Save Changes'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AddGroupDialog({ onClose }: { onClose: () => void }) {
   const [group, setGroup] = useState('')
   const [nodes, setNodes] = useState('')
@@ -229,6 +299,7 @@ export function HAPage() {
   const updateResource = useUpdateHAResource()
   const [showAddResource, setShowAddResource] = useState(false)
   const [showAddGroup, setShowAddGroup] = useState(false)
+  const [editingResource, setEditingResource] = useState<typeof resources extends Array<infer T> | undefined ? T | null : null>(null)
 
   return (
     <div className="space-y-4">
@@ -237,6 +308,9 @@ export function HAPage() {
       )}
       {showAddGroup && (
         <AddGroupDialog onClose={() => setShowAddGroup(false)} />
+      )}
+      {editingResource && (
+        <EditResourceDialog resource={editingResource} groups={groups ?? []} onClose={() => setEditingResource(null)} />
       )}
 
       <div>
@@ -320,6 +394,12 @@ export function HAPage() {
                                   <option key={s} value={s}>{s}</option>
                                 ))}
                               </select>
+                              <button
+                                onClick={() => setEditingResource(r)}
+                                className="inline-flex items-center gap-1 rounded border border-border-subtle px-2 py-0.5 text-xs text-text-muted hover:text-text-primary hover:bg-bg-elevated"
+                              >
+                                <Pencil className="size-3" />
+                              </button>
                               <button
                                 onClick={() => {
                                   if (confirm(`Remove HA resource "${r.sid}"?`)) {
