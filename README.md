@@ -1,6 +1,6 @@
 # ZypherCenter — Project Build State
 
-> Last updated: April 2, 2026
+> Last updated: April 2, 2026 — commit `6233cec`
 
 ---
 
@@ -34,9 +34,9 @@ The build plan is to cover all major Proxmox functionality surface areas in orde
 12. ✅ **Cluster Backup** — Scheduled backup jobs (create/edit/delete/toggle)
 13. ✅ **Cluster Replication** — Replication jobs (create/edit/delete/toggle)
 14. ✅ **Cluster Firewall** — Rules, Security Groups, IP Sets, Aliases, Options
-15. 🔲 **Metrics / Influx integration** — Prometheus/InfluxDB metrics push configuration
-16. 🔲 **ACME / Certificate UI polish** — Full ACME plugin workflow in the UI
-17. 🔲 **Notification targets** — Manage PVE notification targets / matchers
+15. ✅ **Metrics / Influx integration** — InfluxDB and Graphite metrics server management (`/cluster/metrics`)
+16. ✅ **ACME / Certificate UI polish** — Full ACME plugin management page (`/cluster/acme`) with 120+ DNS providers
+17. ✅ **Notification targets** — PVE 8 notification system: SMTP/Gotify endpoints and matchers (`/cluster/notifications`)
 18. 🔲 **Custom columns / preferences** — User-side column visibility and density settings
 
 ---
@@ -78,7 +78,7 @@ The build plan is to cover all major Proxmox functionality surface areas in orde
 | Tab | Key Features |
 |-----|-------------|
 | **Summary** | Live status, CPU/mem/net/disk gauges, RRD performance charts (1h/24h), QEMU Guest Agent OS info, power actions (start/stop/shutdown/reboot/reset/suspend/resume), migrate, clone, convert to template |
-| **Hardware** | Full hardware config: CPU cores/sockets/type, memory, disk devices (add/resize/move/detach/delete), NICs (add/edit/delete), CD-ROM, display, machine/BIOS type, PCI passthrough, USB passthrough |
+| **Hardware** | Full hardware config: CPU cores/sockets/type, memory, disk devices (add/resize/move/detach/delete), NICs (add/edit/delete with bridge/VLAN/rate/link_down disconnect toggle), CD-ROM, display, machine/BIOS type, PCI passthrough, USB passthrough |
 | **Agent** | Guest Agent data when running: OS info, network interfaces with IPs, filesystem mount points and usage |
 | **Snapshots** | Snapshot list, create (name, description, include RAM), delete with confirm, rollback with confirm, inline description editing (pencil icon) |
 | **Options** | Boot options, USB tablet, QEMU agent toggle, protection, on poweroff/reboot/shutdown behavior |
@@ -101,7 +101,7 @@ The build plan is to cover all major Proxmox functionality surface areas in orde
 | Tab | Key Features |
 |-----|-------------|
 | **Summary** | Live status, resource gauges, RRD charts, power actions (start/stop/shutdown/reboot/suspend/resume), migrate, clone, convert to template |
-| **Config** | CPU cores, memory, swap, rootfs + mount points (add/resize/move/delete), NICs (add/edit/delete), DNS, hostname, unprivileged toggle |
+| **Config** | CPU cores, memory, swap, rootfs + mount points (add/resize/move/delete), NICs (add/edit/delete with bridge/VLAN/rate/link_down disconnect toggle), DNS, hostname, unprivileged toggle |
 | **Options** | Start on boot, protection, nesting, keyctl, fuse, mknod, console type, TTY count |
 | **Snapshots** | Create, delete, rollback, inline description editing (same UX as VM) |
 | **Firewall** | Per-CT rules (same structure as VM firewall), firewall enable/disable, options |
@@ -230,7 +230,27 @@ The build plan is to cover all major Proxmox functionality surface areas in orde
 - Inline enabled toggle
 - Create / Edit / Delete replication job
 
-#### Cluster Firewall (`/firewall`) — 5 tabs
+#### Cluster Metrics (`/cluster/metrics`)
+- InfluxDB v1/v2 and Graphite metric server management
+- Create / Edit / Delete metric servers
+- Type-aware form: InfluxDB (server, port, protocol https/http/udp, organization, bucket, token, API path prefix); Graphite (server, port, protocol tcp/udp, path)
+- Disable toggle per server; status badge in table
+
+#### Cluster Notifications (`/cluster/notifications`) — 2 tabs
+| Tab | Features |
+|-----|----------|
+| **Endpoints** | SMTP (server, port, STARTTLS/TLS/insecure, credentials, from/to address); Gotify (URL, token); Create/Edit/Delete; type icon badge |
+| **Matchers** | Matchers with mode any/all, severity filter, target endpoint routing, comment, disable; Create/Edit/Delete; graceful fallback for PVE < 8.0 |
+
+#### Cluster ACME Plugins (`/cluster/acme`)
+- Standalone (HTTP) and DNS challenge plugin management
+- 120+ DNS provider dropdown (Cloudflare, AWS Route53, DigitalOcean, Hetzner, OVH, Porkbun, Namecheap, Vercel, etc.)
+- Credentials textarea (KEY=value per line) per DNS provider
+- Nodes restriction field (blank = all nodes)
+- Disable toggle per plugin; active/disabled status badge
+- Info card explaining usage and how to link to node certificate management
+
+#### Cluster Firewall (`/cluster/firewall`) — 5 tabs
 | Tab | Features |
 |-----|---------|
 | **Rules** | Cluster-level firewall rules; Create/Edit/Delete; enable toggle |
@@ -259,12 +279,12 @@ The build plan is to cover all major Proxmox functionality surface areas in orde
 
 ---
 
-### Ceph Storage (`/ceph`) — 5 tabs
+### Ceph Storage (`/cluster/ceph`) — 5 tabs
 | Tab | Features |
-|-----|---------|
+|-----|----------|
 | **Status** | Cluster health (HEALTH_OK/WARN/ERR with checks), capacity gauge, IOPS and throughput sparkline charts, daemon counts (OSDs, Monitors, MDS, MGR) |
 | **OSDs** | OSD tree: per-OSD row (ID, host, status up/down/in/out with badges, device class, weight, capacity usage bar); Create OSD (device, WAL/DB device, node, encryption); Destroy OSD; Mark in/out |
-| **Pools** | Pool list (name, type, size, PGs, used%, available); Create pool (name, type, size, PGs, autoscale mode, application); Edit pool; Delete pool |
+| **Pools** | Pool list (name, type, size, PGs, used%, available); Create pool (name, type, size, PGs, autoscale mode, application); Edit pool; Delete pool. **Fixed:** correct endpoint `/ceph/pool` (singular), pool `type` now string enum |
 | **Monitors** | Monitor list (name, node, address, status, quorum rank); Create monitor (node selection); Destroy monitor |
 | **MDS** | MDS daemon list (name, node, state, rank); Create MDS (node, name); Destroy MDS |
 
@@ -285,35 +305,33 @@ The build plan is to cover all major Proxmox functionality surface areas in orde
 ## Not Yet Implemented
 
 ### High Priority
-- **Node Firewall — NIC-level link_down toggle** in the Hardware tab and per-NIC firewall toggle for VMs/LXC
-- **VM/LXC NIC link_down flag** — toggle link-down state per NIC in Hardware config
-- **Proxmox Metrics Server config** — configure InfluxDB or Graphite/Prometheus push targets from within the UI (`/nodes/:node/config/metrics` or `/options`)
-- **Notification targets / matchers** — PVE 8 notification system (SMTP, Gotify, etc.); manage target configs and match rules
-- **ACME plugins** — full ACME plugin management (DNS challenge plugins, Let's Encrypt staging/production); currently only order/revoke via existing accounts
+- **VM/LXC tags — inline create/delete** — the tag chips display but editing tags inline (add new tag, remove tag) is not wired up in the detail pages
+- **VM/LXC — PCI/USB device passthrough add/remove** — hardware tab shows existing devices but the add-new picker dialog is incomplete
+- **Cluster-wide resource usage graphs** — time-series graphs for the full cluster (not just per node) for capacity planning
+- **Ceph — Filesystem (CephFS) tab** — list, create, and manage CephFS filesystems and metadata server pools
+- **Ceph — RBD image browser** — browse and manage raw RBD images within pools
 
 ### Medium Priority
-- **Node Backup (local vzdump schedule editor)** — node-level education separate from cluster backup jobs
-- **VM/LXC — PCI/USB device passthrough add/remove** — while the hardware tab shows existing passthrough devices, adding new ones from a picker dialog is incomplete
-- **Cluster-wide resource usage graphs** — time-series graphs for the full cluster (not just per node), useful for capacity planning
+- **Node Backup (local vzdump schedule editor)** — node-level schedule editor separate from cluster backup jobs
 - **VM/LXC CPU/Disk I/O pinning** — NUMA config, CPU affinity, I/O thread count per disk controller in hardware tab
-- **LXC — device mappings** — adding `dev` and device-specific mounts is not yet surfaced in the Config tab
+- **LXC — device mappings** — adding `dev` and device-specific mounts not yet surfaced in Config tab
 - **CIFS/NFS storage mount options** — advanced storage creation options (version, cache mode, SMB min version) not fully exposed
-- **Storage — PBS proxmox-backup-server job summaries** — show PBS datastore backup job summary info (last run, next run, duration) in storage detail
-- **Ceph — Filesystem (CephFS) tab** — list, create, and manage CephFS filesystems and their metadata server pools
-- **Ceph — RBD image browser** — browse and manage raw RBD images within pools
+- **Storage — PBS job summaries** — show PBS datastore backup job summary (last run, next run, duration) in storage detail
 - **SDN — EVPN / BGP routing table** — view SDN routes and peer status for EVPN zone type
 - **HA — node fencing / watchdog config** — configure hardware watchdog and fencing agent settings
 - **Task log — download / export** — button to download a task's full log as a text file
+- **ACME — account management** — create/delete ACME accounts from the ACME plugins page (currently only via node certificates page)
+- **Notification endpoint — Sendmail** — Sendmail endpoint type is not yet exposed in the notifications UI (only SMTP and Gotify)
 
 ### Low Priority / Polish
 - **Dark/light theme toggle** — currently dark-only; add a theme switcher persisted to localStorage
 - **User preferences panel** — column visibility toggles, table density (compact/normal/comfortable), default page
 - **Keyboard shortcuts help modal** — `?` key showing all global shortcuts beyond `Ctrl+K`
-- **VM/LXC tags — inline create/delete** — the tag chips are displayed but editing tags inline (add new tag, remove tag) is not wired up in the detail pages
-- **Real-time event subscription** — replace polling with PVE's SSE event stream (`/api2/json/cluster/tasks`) to reduce latency
-- **Mobile-responsive layout** — current layout is designed for desktop; sidebar collapses but many tables need responsive treatment
-- **Breadcrumb navigation** — currently the sidebar shows active state but there's no breadcrumb component on detail pages
-- **Confirmation dialog component** — per-action confirmations currently use `window.confirm()`; replace with a proper modal component
+- **Real-time event subscription** — replace polling with PVE's SSE event stream to reduce latency
+- **Mobile-responsive layout** — sidebar collapses but many tables need responsive treatment for small screens
+- **Breadcrumb navigation** — no breadcrumb component on detail pages; sidebar shows active state only
+- **Confirmation dialog component** — per-action confirmations use `window.confirm()`; replace with a proper modal
 - **Bulk edit** — bulk-select VMs/CTs to update tags, move to a pool, or change options in one action
 - **Audit log / access log** — dedicated page showing who logged in and what actions were performed
-- **Help tooltips** — contextual `?` tooltips on form fields explaining Proxmox-specific options (e.g., what "balloon" memory does, SCSI vs VirtIO difference)
+- **Help tooltips** — contextual `?` tooltips on form fields explaining Proxmox-specific options
+- **Custom columns / preferences** — user-side column visibility and table density settings
