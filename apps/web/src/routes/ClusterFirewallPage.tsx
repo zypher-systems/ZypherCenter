@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Shield, List, Network, Tag, Plus, Trash2, ChevronRight } from 'lucide-react'
+import { Shield, List, Network, Tag, Plus, Trash2, ChevronRight, Pencil } from 'lucide-react'
 import {
   useClusterFirewallRules,
   useClusterFirewallOptions,
@@ -149,6 +149,94 @@ function CreateRuleDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
+function EditRuleDialog({ rule, onClose }: { rule: import('@zyphercenter/proxmox-types').FirewallRule; onClose: () => void }) {
+  const [type, setType] = useState<'in' | 'out'>(rule.type as 'in' | 'out')
+  const [action, setAction] = useState(rule.action)
+  const [macro, setMacro] = useState(rule.macro ?? '')
+  const [proto, setProto] = useState(rule.proto ?? '')
+  const [source, setSource] = useState(rule.source ?? '')
+  const [dest, setDest] = useState(rule.dest ?? '')
+  const [dport, setDport] = useState(rule.dport ?? rule.sport ?? '')
+  const [comment, setComment] = useState(rule.comment ?? '')
+  const updateRule = useUpdateClusterFirewallRule()
+
+  function submit() {
+    updateRule.mutate(
+      {
+        pos: rule.pos,
+        params: {
+          type,
+          action,
+          macro: macro || undefined,
+          proto: !macro && proto ? proto : undefined,
+          source: source || undefined,
+          dest: dest || undefined,
+          dport: dport || undefined,
+          comment: comment || undefined,
+        },
+      },
+      { onSuccess: () => onClose() },
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-lg p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold text-text-primary">Edit Firewall Rule #{rule.pos}</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Direction</label>
+            <select value={type} onChange={(e) => setType(e.target.value as 'in' | 'out')} className={inp()}>
+              <option value="in">in</option>
+              <option value="out">out</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Action</label>
+            <select value={action} onChange={(e) => setAction(e.target.value)} className={inp()}>
+              {FW_ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Macro</label>
+            <select value={macro} onChange={(e) => setMacro(e.target.value)} className={inp()}>
+              {FW_MACROS.map((m) => <option key={m} value={m}>{m || '— none —'}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Protocol</label>
+            <select value={proto} onChange={(e) => setProto(e.target.value)} disabled={!!macro} className={inp(macro ? 'opacity-40' : '')}>
+              {FW_PROTOS.map((p) => <option key={p} value={p}>{p || '— any —'}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Source</label>
+            <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="IP / CIDR / alias" className={inp()} />
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Destination</label>
+            <input value={dest} onChange={(e) => setDest(e.target.value)} placeholder="IP / CIDR / alias" className={inp()} />
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Dest Port</label>
+            <input value={dport} onChange={(e) => setDport(e.target.value)} placeholder="e.g. 80 or 80:443" className={inp()} />
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Comment</label>
+            <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="optional" className={inp()} />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={submit} disabled={updateRule.isPending}>
+            {updateRule.isPending ? 'Saving…' : 'Save Changes'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function CreateGroupDialog({ onClose }: { onClose: () => void }) {
   const [group, setGroup] = useState('')
   const [comment, setComment] = useState('')
@@ -249,6 +337,7 @@ function RulesTab() {
   const updateOptions = useUpdateClusterFirewallOptions()
   const enabled = options?.enable === 1
   const [showCreate, setShowCreate] = useState(false)
+  const [editingRule, setEditingRule] = useState<import('@zyphercenter/proxmox-types').FirewallRule | null>(null)
   const [editingPolicy, setEditingPolicy] = useState<'policy_in' | 'policy_out' | null>(null)
 
   if (isLoading) return <SkeletonCard />
@@ -256,6 +345,7 @@ function RulesTab() {
   return (
     <div className="space-y-4">
       {showCreate && <CreateRuleDialog onClose={() => setShowCreate(false)} />}
+      {editingRule && <EditRuleDialog rule={editingRule} onClose={() => setEditingRule(null)} />}
       {options && (
         <Card>
           <CardHeader className="pb-2">
@@ -367,13 +457,21 @@ function RulesTab() {
                       </button>
                     </TableCell>
                     <TableCell className="text-right">
-                      <button
-                        onClick={() => { if (confirm(`Delete rule #${rule.pos}?`)) deleteRule.mutate(rule.pos) }}
-                        disabled={deleteRule.isPending}
-                        className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
-                      >
-                        <Trash2 className="size-3" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setEditingRule(rule)}
+                          className="inline-flex items-center gap-1 rounded border border-border-subtle px-2 py-0.5 text-xs text-text-muted hover:text-text-primary hover:bg-bg-elevated"
+                        >
+                          <Pencil className="size-3" />
+                        </button>
+                        <button
+                          onClick={() => { if (confirm(`Delete rule #${rule.pos}?`)) deleteRule.mutate(rule.pos) }}
+                          disabled={deleteRule.isPending}
+                          className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                        >
+                          <Trash2 className="size-3" />
+                        </button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
