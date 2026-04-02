@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { HardDrive, Database, Plus, RefreshCw, ShieldHalf } from 'lucide-react'
-import { useNodeDisks, useWipeDisk, useInitDisk, useNodeZFSPools, useCreateZFSPool, useNodeZFSScrub } from '@/lib/queries/nodes'
+import { HardDrive, Database, Plus, RefreshCw, ShieldHalf, Info, Trash2 } from 'lucide-react'
+import { useNodeDisks, useWipeDisk, useInitDisk, useNodeZFSPools, useCreateZFSPool, useNodeZFSScrub, useNodeZFSDestroy, useNodeSmartData, type SmartData } from '@/lib/queries/nodes'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import {
   Table,
@@ -22,6 +22,71 @@ function DiskHealth({ health }: { health?: string }) {
     <span className={isHealthy ? 'text-status-running' : 'text-status-error'}>
       {health}
     </span>
+  )
+}
+
+function SmartModal({ node, disk, onClose }: { node: string; disk: string; onClose: () => void }) {
+  const { data, isLoading } = useNodeSmartData(node, disk)
+  const smart = data as SmartData | undefined
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-bg-surface border border-border-subtle rounded-lg w-[640px] max-w-[95vw] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
+          <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+            <Info className="size-4 text-text-muted" />
+            S.M.A.R.T. — {disk}
+          </h2>
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary text-lg leading-none">✕</button>
+        </div>
+        <div className="overflow-y-auto flex-1 p-4">
+          {isLoading ? (
+            <p className="text-center text-text-muted py-6 text-sm">Loading…</p>
+          ) : !smart ? (
+            <p className="text-center text-text-muted py-6 text-sm">No data available</p>
+          ) : (
+            <>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-xs text-text-muted">Health:</span>
+                <span className={smart.health === 'PASSED' || (smart.health ?? '').toLowerCase().includes('ok') ? 'text-status-running font-medium' : 'text-status-error font-medium'}>
+                  {smart.health ?? '—'}
+                </span>
+                {smart.type && <span className="text-xs text-text-muted uppercase tracking-wide">{smart.type}</span>}
+              </div>
+              {smart.attributes && smart.attributes.length > 0 ? (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border-subtle">
+                      <th className="py-1.5 text-left text-text-muted font-medium pr-3">ID</th>
+                      <th className="py-1.5 text-left text-text-muted font-medium pr-3">Attribute</th>
+                      <th className="py-1.5 text-right text-text-muted font-medium pr-3">Value</th>
+                      <th className="py-1.5 text-right text-text-muted font-medium pr-3">Worst</th>
+                      <th className="py-1.5 text-right text-text-muted font-medium pr-3">Threshold</th>
+                      <th className="py-1.5 text-left text-text-muted font-medium">Raw</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {smart.attributes.map((attr, i) => (
+                      <tr key={i} className="border-b border-border-subtle/40 hover:bg-bg-muted/10">
+                        <td className="py-1 pr-3 tabular-nums text-text-muted">{attr.id}</td>
+                        <td className="py-1 pr-3 text-text-primary">{attr.name ?? '—'}</td>
+                        <td className="py-1 pr-3 tabular-nums text-right text-text-secondary">{attr.value ?? '—'}</td>
+                        <td className="py-1 pr-3 tabular-nums text-right text-text-secondary">{attr.worst ?? '—'}</td>
+                        <td className="py-1 pr-3 tabular-nums text-right text-text-secondary">{attr.threshold ?? '—'}</td>
+                        <td className="py-1 text-text-muted font-mono">{String(attr.raw ?? '—')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : smart.text ? (
+                <pre className="text-xs text-text-secondary whitespace-pre-wrap font-mono">{smart.text}</pre>
+              ) : (
+                <p className="text-text-muted text-sm">No attribute data</p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -112,16 +177,19 @@ export function NodeDisksPage() {
   const { node } = useParams<{ node: string }>()
   const [tab, setTab] = useState<'disks' | 'zfs'>('disks')
   const [showCreate, setShowCreate] = useState(false)
+  const [smartDisk, setSmartDisk] = useState<string | null>(null)
   const { data: disks, isLoading } = useNodeDisks(node!)
   const wipe = useWipeDisk(node!)
   const init = useInitDisk(node!)
   const { data: zfsPools, isLoading: zfsLoading, refetch: refetchZFS } = useNodeZFSPools(node!)
   const scrub = useNodeZFSScrub(node!)
+  const destroyZFS = useNodeZFSDestroy(node!)
 
   const diskPaths = (disks ?? []).map((d) => d.devpath).filter(Boolean) as string[]
 
   return (
     <div className="space-y-4">
+      {smartDisk && <SmartModal node={node!} disk={smartDisk} onClose={() => setSmartDisk(null)} />}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-text-primary">Disks</h1>
@@ -218,6 +286,13 @@ export function NodeDisksPage() {
                         </TableCell>                      <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             <button
+                              onClick={() => setSmartDisk(disk.devpath)}
+                              className="inline-flex items-center gap-1 rounded border border-border-subtle px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-elevated"
+                            >
+                              <Info className="size-3" />
+                              S.M.A.R.T.
+                            </button>
+                            <button
                               onClick={() => {
                                 if (confirm(`Initialize (GPT) ${disk.devpath}? This will wipe all data!`)) {
                                   init.mutate({ disk: disk.devpath })
@@ -301,14 +376,28 @@ export function NodeDisksPage() {
                           {pool.scan ?? '—'}
                         </TableCell>
                         <TableCell className="text-right">
-                          <button
-                            onClick={() => scrub.mutate(pool.name)}
-                            disabled={scrub.isPending}
-                            className="inline-flex items-center gap-1 rounded border border-border-subtle px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-elevated disabled:opacity-50"
-                          >
-                            <ShieldHalf className="size-3" />
-                            Scrub
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => scrub.mutate(pool.name)}
+                              disabled={scrub.isPending}
+                              className="inline-flex items-center gap-1 rounded border border-border-subtle px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-elevated disabled:opacity-50"
+                            >
+                              <ShieldHalf className="size-3" />
+                              Scrub
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`Destroy ZFS pool "${pool.name}"? All data will be PERMANENTLY LOST!`)) {
+                                  destroyZFS.mutate(pool.name)
+                                }
+                              }}
+                              disabled={destroyZFS.isPending}
+                              className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                            >
+                              <Trash2 className="size-3" />
+                              Destroy
+                            </button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

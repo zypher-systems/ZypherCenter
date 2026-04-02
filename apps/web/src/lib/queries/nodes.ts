@@ -585,3 +585,54 @@ export function useDownloadNodeTemplate(node: string) {
     onError: (err) => toast.error(`Download failed — ${err.message}`),
   })
 }
+
+export interface SmartAttribute {
+  name?: string
+  id?: number
+  value?: number
+  worst?: number
+  threshold?: number
+  raw?: string | number
+  flags?: string
+  fail?: string
+}
+
+export interface SmartData {
+  health?: string
+  type?: string
+  attributes?: SmartAttribute[]
+  text?: string
+}
+
+export function useNodeSmartData(node: string, disk: string) {
+  return useQuery({
+    queryKey: [...nodeKeys.all(node), 'disks', 'smart', disk],
+    queryFn: () => api.get<SmartData>(`nodes/${node}/disks/smart?disk=${encodeURIComponent(disk)}`),
+    enabled: !!node && !!disk,
+    staleTime: 60_000,
+  })
+}
+
+export function useNodeZFSDestroy(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => api.del(`nodes/${node}/disks/zfs/${encodeURIComponent(name)}`),
+    onSuccess: () => {
+      toast.success('ZFS pool destroyed')
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'disks', 'zfs'] })
+    },
+    onError: (err) => toast.error(`Destroy failed — ${err.message}`),
+  })
+}
+
+export function useRevertNetworkConfig(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.del(`nodes/${node}/network`),
+    onSuccess: () => {
+      toast.success('Pending network changes reverted')
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'network'] })
+    },
+    onError: (err) => toast.error(`Revert failed — ${err.message}`),
+  })
+}

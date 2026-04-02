@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Network, Layers, Plus, Trash2, CheckCircle, Pencil } from 'lucide-react'
+import { Network, Layers, Plus, Trash2, CheckCircle, Pencil, Globe } from 'lucide-react'
 import {
   useSDNVNets,
   useSDNZones,
@@ -10,6 +10,9 @@ import {
   useApplySDN,
   useUpdateSDNVNet,
   useUpdateSDNZone,
+  useSDNSubnets,
+  useCreateSDNSubnet,
+  useDeleteSDNSubnet,
 } from '@/lib/queries/cluster'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
@@ -413,6 +416,129 @@ function ZonesTab() {
   )
 }
 
+function SubnetsTab() {
+  const { data: vnets = [] } = useSDNVNets()
+  const [selectedVNet, setSelectedVNet] = useState('')
+  const activeVNet = selectedVNet || ((vnets[0]?.['vnet'] as string) ?? '')
+  const { data: subnets = [], isLoading } = useSDNSubnets(activeVNet)
+  const createSubnet = useCreateSDNSubnet(activeVNet)
+  const deleteSubnet = useDeleteSDNSubnet(activeVNet)
+  const [showCreate, setShowCreate] = useState(false)
+  const [newCidr, setNewCidr] = useState('')
+  const [newGateway, setNewGateway] = useState('')
+  const [newSnat, setNewSnat] = useState(false)
+
+  const inp = 'rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent'
+
+  function submit() {
+    if (!newCidr.trim() || !activeVNet) return
+    createSubnet.mutate(
+      { subnet: newCidr.trim(), type: 'subnet', gateway: newGateway.trim() || undefined, snat: newSnat ? 1 : undefined },
+      {
+        onSuccess: () => {
+          setShowCreate(false)
+          setNewCidr('')
+          setNewGateway('')
+          setNewSnat(false)
+        },
+      },
+    )
+  }
+
+  return (
+    <>
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-sm text-text-muted">VNet:</span>
+        <select
+          value={activeVNet}
+          onChange={(e) => setSelectedVNet(e.target.value)}
+          className={`${inp} [color-scheme:dark]`}
+        >
+          {(vnets as Record<string, unknown>[]).map((v) => (
+            <option key={v['vnet'] as string} value={v['vnet'] as string}>{v['vnet'] as string}</option>
+          ))}
+        </select>
+        <Button size="sm" onClick={() => setShowCreate(!showCreate)}>
+          <Plus className="size-3.5 mr-1" />Add Subnet
+        </Button>
+      </div>
+
+      {showCreate && (
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <p className="text-sm font-medium text-text-primary">New Subnet in {activeVNet}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-text-muted mb-1">CIDR <span className="text-status-error">*</span></label>
+                <input value={newCidr} onChange={(e) => setNewCidr(e.target.value)} placeholder="e.g. 10.0.0.0/24" className={`w-full ${inp}`} />
+              </div>
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Gateway</label>
+                <input value={newGateway} onChange={(e) => setNewGateway(e.target.value)} placeholder="e.g. 10.0.0.1" className={`w-full ${inp}`} />
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+              <input type="checkbox" checked={newSnat} onChange={(e) => setNewSnat(e.target.checked)} className="accent-accent" />
+              SNAT (masquerade outbound traffic)
+            </label>
+            <div className="flex items-center gap-2 pt-1">
+              <Button size="sm" onClick={submit} disabled={!newCidr.trim() || createSubnet.isPending}>
+                {createSubnet.isPending ? 'Creating\u2026' : 'Create'}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Subnet (CIDR)</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Gateway</TableHead>
+                <TableHead>SNAT</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow><TableCell colSpan={5} className="text-center text-text-muted py-8 text-sm">Loading\u2026</TableCell></TableRow>
+              ) : (subnets as Record<string, unknown>[]).length === 0 ? (
+                <TableRow><TableCell colSpan={5} className="text-center text-text-muted py-8 text-sm">No subnets. Select a VNet or add one.</TableCell></TableRow>
+              ) : (
+                (subnets as Record<string, unknown>[]).map((s) => (
+                  <TableRow key={s['subnet'] as string}>
+                    <TableCell className="font-mono text-sm text-text-primary">{s['subnet'] as string}</TableCell>
+                    <TableCell className="text-text-secondary text-xs uppercase">{s['type'] as string ?? '\u2014'}</TableCell>
+                    <TableCell className="font-mono text-sm text-text-secondary">{s['gateway'] as string ?? '\u2014'}</TableCell>
+                    <TableCell className="text-text-secondary text-sm">{s['snat'] ? 'Yes' : 'No'}</TableCell>
+                    <TableCell className="text-right">
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete subnet ${s['subnet'] as string}?`)) {
+                            deleteSubnet.mutate(s['subnet'] as string)
+                          }
+                        }}
+                        disabled={deleteSubnet.isPending}
+                        className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                      >
+                        <Trash2 className="size-3" /> Delete
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </>
+  )
+}
+
 export function SDNPage() {
   const [tab, setTab] = useState('vnets')
   const applySDN = useApplySDN()
@@ -438,9 +564,11 @@ export function SDNPage() {
         <TabsList>
           <TabsTrigger value="vnets"><Network className="size-3.5 mr-1.5" />VNets</TabsTrigger>
           <TabsTrigger value="zones"><Layers className="size-3.5 mr-1.5" />Zones</TabsTrigger>
+          <TabsTrigger value="subnets"><Globe className="size-3.5 mr-1.5" />Subnets</TabsTrigger>
         </TabsList>
         <TabsContent value="vnets"><VNetsTab /></TabsContent>
         <TabsContent value="zones"><ZonesTab /></TabsContent>
+        <TabsContent value="subnets"><SubnetsTab /></TabsContent>
       </Tabs>
     </div>
   )

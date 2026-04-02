@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { Network, Activity, Plus, Trash2, Pencil } from 'lucide-react'
-import { useNodeNetwork, useNodeApplyNetwork, useCreateNodeNetworkInterface, useDeleteNodeNetworkInterface, useUpdateNodeNetworkInterface } from '@/lib/queries/nodes'
+import { Network, Activity, Plus, Trash2, Pencil, Undo2 } from 'lucide-react'
+import { useNodeNetwork, useNodeApplyNetwork, useCreateNodeNetworkInterface, useDeleteNodeNetworkInterface, useUpdateNodeNetworkInterface, useRevertNetworkConfig } from '@/lib/queries/nodes'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import {
   Table,
@@ -153,6 +153,7 @@ export function NodeNetworkPage() {
   const { node } = useParams<{ node: string }>()
   const { data: ifaces, isLoading } = useNodeNetwork(node!)
   const applyNetwork = useNodeApplyNetwork(node!)
+  const revertNetwork = useRevertNetworkConfig(node!)
   const deleteIface = useDeleteNodeNetworkInterface(node!)
   const updateIface = useUpdateNodeNetworkInterface(node!)
   const [showCreate, setShowCreate] = useState(false)
@@ -199,6 +200,19 @@ export function NodeNetworkPage() {
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={() => setShowCreate(true)}>
             <Plus className="size-3.5 mr-1" />Create
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (confirm('Revert all pending network changes? Unapplied edits will be discarded.')) {
+                revertNetwork.mutate()
+              }
+            }}
+            disabled={revertNetwork.isPending}
+          >
+            <Undo2 className="size-3.5 mr-1" />
+            {revertNetwork.isPending ? 'Reverting…' : 'Revert'}
           </Button>
           <Button
             variant="outline"

@@ -501,6 +501,40 @@ export function useApplySDN() {
   })
 }
 
+export function useSDNSubnets(vnet: string) {
+  return useQuery({
+    queryKey: ['sdn', 'vnets', vnet, 'subnets'],
+    queryFn: () => api.get<Record<string, unknown>[]>(`cluster/sdn/vnets/${encodeURIComponent(vnet)}/subnets`),
+    enabled: !!vnet,
+  })
+}
+
+export function useCreateSDNSubnet(vnet: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { subnet: string; type: string; gateway?: string; snat?: number }) =>
+      api.post(`cluster/sdn/vnets/${encodeURIComponent(vnet)}/subnets`, params),
+    onSuccess: (_, vars) => {
+      toast.success(`Subnet "${vars.subnet}" created`)
+      qc.invalidateQueries({ queryKey: ['sdn', 'vnets', vnet, 'subnets'] })
+    },
+    onError: (err) => toast.error(`Failed to create subnet — ${err.message}`),
+  })
+}
+
+export function useDeleteSDNSubnet(vnet: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (subnet: string) =>
+      api.del(`cluster/sdn/vnets/${encodeURIComponent(vnet)}/subnets/${encodeURIComponent(subnet)}`),
+    onSuccess: (_, subnet) => {
+      toast.success(`Subnet "${subnet}" deleted`)
+      qc.invalidateQueries({ queryKey: ['sdn', 'vnets', vnet, 'subnets'] })
+    },
+    onError: (err) => toast.error(`Failed to delete subnet — ${err.message}`),
+  })
+}
+
 // ── Pools ─────────────────────────────────────────────────────────────────────
 
 export const poolKeys = {
