@@ -22,6 +22,7 @@ import {
   Network,
   PauseCircle,
   PlayCircle,
+  ClipboardList,
 } from 'lucide-react'
 import {
   useVMStatus,
@@ -42,6 +43,7 @@ import {
   useCreateVMSnapshot,
   useDeleteVMSnapshot,
   useRollbackVMSnapshot,
+  useUpdateVMSnapshot,
   useMigrateVM,
   useCloneVM,
   useUpdateVMConfig,
@@ -1325,11 +1327,19 @@ function SnapshotsTab({ node, vmid }: { node: string; vmid: number }) {
   const createSnap = useCreateVMSnapshot(node, vmid)
   const deleteSnap = useDeleteVMSnapshot(node, vmid)
   const rollbackSnap = useRollbackVMSnapshot(node, vmid)
+  const updateSnap = useUpdateVMSnapshot(node, vmid)
 
   const [showForm, setShowForm] = useState(false)
   const [snapname, setSnapname] = useState('')
   const [description, setDescription] = useState('')
   const [vmstate, setVmstate] = useState(false)
+  const [editingSnap, setEditingSnap] = useState<string | null>(null)
+  const [editDesc, setEditDesc] = useState('')
+
+  function startEditDesc(snapName: string, currentDesc: string | undefined) {
+    setEditingSnap(snapName)
+    setEditDesc(currentDesc ?? '')
+  }
 
   function handleCreate() {
     if (!snapname.trim()) return
@@ -1421,18 +1431,40 @@ function SnapshotsTab({ node, vmid }: { node: string; vmid: number }) {
             ) : (
               listed.map((snap) => (
                 <div key={snap.name} className="flex items-center justify-between px-4 py-3 text-sm">
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <p className="font-medium text-text-primary">{snap.name}</p>
-                    {snap.description && (
-                      <p className="text-xs text-text-muted">{snap.description}</p>
+                    {editingSnap === snap.name ? (
+                      <div className="flex items-center gap-2 mt-1">
+                        <input
+                          value={editDesc}
+                          onChange={(e) => setEditDesc(e.target.value)}
+                          className="flex-1 rounded border border-border-muted bg-bg-input px-2 py-0.5 text-xs text-text-primary outline-none focus:border-accent"
+                          placeholder="Description"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => updateSnap.mutate({ snapname: snap.name, description: editDesc }, { onSuccess: () => setEditingSnap(null) })}
+                          disabled={updateSnap.isPending}
+                          className="text-xs text-accent hover:underline disabled:opacity-50"
+                        >Save</button>
+                        <button onClick={() => setEditingSnap(null)} className="text-xs text-text-muted hover:text-text-primary">Cancel</button>
+                      </div>
+                    ) : (
+                      snap.description && <p className="text-xs text-text-muted">{snap.description}</p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 ml-4">
                     {snap.snaptime && (
                       <span className="text-xs text-text-muted mr-2">
                         {new Date(snap.snaptime * 1000).toLocaleDateString()}
                       </span>
                     )}
+                    <button
+                      onClick={() => startEditDesc(snap.name, snap.description)}
+                      className="inline-flex items-center gap-1 rounded border border-border-muted px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-hover"
+                    >
+                      <Pencil className="size-3" />
+                    </button>
                     <button
                       onClick={() => rollbackSnap.mutate(snap.name)}
                       disabled={rollbackSnap.isPending}
@@ -1947,6 +1979,62 @@ function FirewallActionBadge({ action }: { action: string }) {
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${color}`}>
       {action}
     </span>
+  )
+}
+
+function VMTasksTab({ node, vmid }: { node: string; vmid: number }) {
+  const { data: tasks = [], isLoading } = useNodeTasksFiltered(node, { vmid, limit: 100 })
+  const taskList = tasks as Record<string, unknown>[]
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Start Time</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>User</TableHead>
+              <TableHead>Duration</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow><TableCell colSpan={5} className="text-center text-text-muted py-8 text-sm">Loading…</TableCell></TableRow>
+            ) : taskList.length === 0 ? (
+              <TableRow><TableCell colSpan={5} className="text-center text-text-muted py-8 text-sm">No tasks</TableCell></TableRow>
+            ) : taskList.map((task) => {
+              const upid = task['upid'] as string
+              const starttime = task['starttime'] as number
+              const endtime = task['endtime'] as number | undefined
+              const duration = endtime ? endtime - starttime : undefined
+              const exitstatus = task['exitstatus'] as string | undefined
+              const ok = exitstatus === 'OK'
+              return (
+                <TableRow key={upid}>
+                  <TableCell className="tabular-nums text-text-secondary text-sm">{starttime ? formatTimestamp(starttime) : '—'}</TableCell>
+                  <TableCell className="font-medium text-text-primary text-sm">{task['type'] as string}</TableCell>
+                  <TableCell className="text-text-secondary text-sm">{task['user'] as string}</TableCell>
+                  <TableCell className="tabular-nums text-text-secondary text-sm">{duration ? formatUptime(duration) : '—'}</TableCell>
+                  <TableCell>
+                    {!exitstatus ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-status-migrating">
+                        <span className="inline-block size-1.5 rounded-full bg-status-migrating animate-pulse" />Running
+                      </span>
+                    ) : (
+                      <span className={`inline-flex items-center gap-1.5 text-xs ${ok ? 'text-status-running' : 'text-status-error'}`}>
+                        <span className={`inline-block size-1.5 rounded-full ${ok ? 'bg-status-running' : 'bg-status-error'}`} />
+                        {exitstatus}
+                      </span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -2694,6 +2782,7 @@ export function VMDetailPage() {
           <TabsTrigger value="snapshots"><Camera className="size-3.5" /> Snapshots</TabsTrigger>
           <TabsTrigger value="backups"><Archive className="size-3.5" /> Backups</TabsTrigger>
           <TabsTrigger value="firewall"><Shield className="size-3.5" /> Firewall</TabsTrigger>
+          <TabsTrigger value="tasks"><ClipboardList className="size-3.5" /> Tasks</TabsTrigger>
         </TabsList>
         <TabsContent value="summary"><SummaryTab node={node!} vmid={vmid} /></TabsContent>
         <TabsContent value="perf"><ResourceCharts node={node!} vmid={vmid} type="qemu" /></TabsContent>
@@ -2704,6 +2793,7 @@ export function VMDetailPage() {
         <TabsContent value="snapshots"><SnapshotsTab node={node!} vmid={vmid} /></TabsContent>
         <TabsContent value="backups"><VMBackupsTab node={node!} vmid={vmid} /></TabsContent>
         <TabsContent value="firewall"><VMFirewallTab node={node!} vmid={vmid} /></TabsContent>
+        <TabsContent value="tasks"><VMTasksTab node={node!} vmid={vmid} /></TabsContent>
       </Tabs>
     </div>
   )

@@ -327,3 +327,17 @@ export function useDestroyCephMDS(node: string) {
     onError: (err) => toast.error(`Failed to remove MDS — ${err.message}`),
   })
 }
+
+export function useOSDInOut(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ osdid, action }: { osdid: number; action: 'in' | 'out' }) =>
+      api.post(`nodes/${node}/ceph/osd/${osdid}/${action}`, {}),
+    onSuccess: (_, { osdid, action }) => {
+      toast.success(`OSD ${osdid} marked ${action}`)
+      qc.invalidateQueries({ queryKey: cephKeys.osds(node) })
+      qc.invalidateQueries({ queryKey: cephKeys.status(node) })
+    },
+    onError: (err) => toast.error(`OSD action failed — ${err.message}`),
+  })
+}

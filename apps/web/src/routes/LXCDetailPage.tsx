@@ -17,6 +17,7 @@ import {
   Pencil,
   Check,
   X,
+  ClipboardList,
 } from 'lucide-react'
 import {
   useLXCStatus,
@@ -229,6 +230,62 @@ function FWActionBadge({ action }: { action: string }) {
     action === 'REJECT' ? 'text-status-stopped bg-status-stopped/10' :
                           'text-text-muted bg-bg-elevated'
   return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${color}`}>{action}</span>
+}
+
+function LXCTasksTab({ node, vmid }: { node: string; vmid: number }) {
+  const { data: tasks = [], isLoading } = useNodeTasksFiltered(node, { vmid, limit: 100 })
+  const taskList = tasks as Record<string, unknown>[]
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Start Time</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>User</TableHead>
+              <TableHead>Duration</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow><TableCell colSpan={5} className="text-center text-text-muted py-8 text-sm">Loading…</TableCell></TableRow>
+            ) : taskList.length === 0 ? (
+              <TableRow><TableCell colSpan={5} className="text-center text-text-muted py-8 text-sm">No tasks</TableCell></TableRow>
+            ) : taskList.map((task) => {
+              const upid = task['upid'] as string
+              const starttime = task['starttime'] as number
+              const endtime = task['endtime'] as number | undefined
+              const duration = endtime ? endtime - starttime : undefined
+              const exitstatus = task['exitstatus'] as string | undefined
+              const ok = exitstatus === 'OK'
+              return (
+                <TableRow key={upid}>
+                  <TableCell className="tabular-nums text-text-secondary text-sm">{starttime ? formatTimestamp(starttime) : '—'}</TableCell>
+                  <TableCell className="font-medium text-text-primary text-sm">{task['type'] as string}</TableCell>
+                  <TableCell className="text-text-secondary text-sm">{task['user'] as string}</TableCell>
+                  <TableCell className="tabular-nums text-text-secondary text-sm">{duration ? formatUptime(duration) : '—'}</TableCell>
+                  <TableCell>
+                    {!exitstatus ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-status-migrating">
+                        <span className="inline-block size-1.5 rounded-full bg-status-migrating animate-pulse" />Running
+                      </span>
+                    ) : (
+                      <span className={`inline-flex items-center gap-1.5 text-xs ${ok ? 'text-status-running' : 'text-status-error'}`}>
+                        <span className={`inline-block size-1.5 rounded-full ${ok ? 'bg-status-running' : 'bg-status-error'}`} />
+                        {exitstatus}
+                      </span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  )
 }
 
 function LXCFirewallTab({ node, vmid }: { node: string; vmid: number }) {
@@ -2023,6 +2080,10 @@ export function LXCDetailPage() {
             <Settings className="size-3.5 mr-1.5" />
             Firewall
           </TabsTrigger>
+          <TabsTrigger value="tasks">
+            <ClipboardList className="size-3.5 mr-1.5" />
+            Tasks
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="summary">
@@ -2045,6 +2106,9 @@ export function LXCDetailPage() {
         </TabsContent>
         <TabsContent value="firewall">
           <LXCFirewallTab node={node!} vmid={vmid} />
+        </TabsContent>
+        <TabsContent value="tasks">
+          <LXCTasksTab node={node!} vmid={vmid} />
         </TabsContent>
       </Tabs>
     </div>

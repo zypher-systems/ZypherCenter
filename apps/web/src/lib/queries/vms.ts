@@ -130,6 +130,19 @@ export function useRollbackVMSnapshot(node: string, vmid: number) {
   })
 }
 
+export function useUpdateVMSnapshot(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ snapname, description }: { snapname: string; description: string }) =>
+      api.put(`nodes/${node}/qemu/${vmid}/snapshot/${encodeURIComponent(snapname)}/config`, { description }),
+    onSuccess: () => {
+      toast.success('Snapshot description updated')
+      qc.invalidateQueries({ queryKey: vmKeys.snapshots(node, vmid) })
+    },
+    onError: (err) => toast.error(`Update failed — ${err.message}`),
+  })
+}
+
 export function useMigrateVM(node: string, vmid: number) {
   const qc = useQueryClient()
   return useMutation({

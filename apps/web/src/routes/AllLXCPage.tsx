@@ -194,7 +194,7 @@ export function AllLXCPage() {
     }
   }
 
-  async function bulkAction(action: 'start' | 'stop' | 'shutdown') {
+  async function bulkAction(action: 'start' | 'stop' | 'shutdown' | 'reboot') {
     const targets = containers.filter((c) => selected.has(c.id ?? ''))
     const eligible = targets.filter((c) =>
       action === 'start' ? c.status === 'stopped' : c.status === 'running'
@@ -202,11 +202,23 @@ export function AllLXCPage() {
     if (!eligible.length) { toast.info('No eligible containers for that action'); return }
     await Promise.allSettled(
       eligible.map((ct) => {
-        const suffix = action === 'start' ? 'start' : action === 'stop' ? 'stop' : 'shutdown'
+        const suffix = action === 'start' ? 'start' : action === 'stop' ? 'stop' : action === 'shutdown' ? 'shutdown' : 'reboot'
         return api.post(`nodes/${ct.node}/lxc/${ct.vmid}/status/${suffix}`, {})
       })
     )
     toast.success(`${action.charAt(0).toUpperCase() + action.slice(1)} sent to ${eligible.length} container(s)`)
+    setSelected(new Set())
+    qc.invalidateQueries({ queryKey: clusterKeys.resources() })
+  }
+
+  async function bulkDelete() {
+    const targets = containers.filter((c) => selected.has(c.id ?? ''))
+    if (!targets.length) return
+    if (!confirm(`Delete ${targets.length} container(s)? This cannot be undone.`)) return
+    await Promise.allSettled(
+      targets.map((ct) => api.del(`nodes/${ct.node}/lxc/${ct.vmid}?purge=1`))
+    )
+    toast.success(`Deleted ${targets.length} container(s)`)
     setSelected(new Set())
     qc.invalidateQueries({ queryKey: clusterKeys.resources() })
   }
@@ -271,11 +283,17 @@ export function AllLXCPage() {
             <Button size="sm" variant="outline" onClick={() => bulkAction('start')}>
               <Play className="size-3.5 mr-1 text-status-running" />Start
             </Button>
+            <Button size="sm" variant="outline" onClick={() => bulkAction('reboot')}>
+              <RotateCcw className="size-3.5 mr-1 text-status-paused" />Reboot
+            </Button>
             <Button size="sm" variant="outline" onClick={() => bulkAction('shutdown')}>
               <Power className="size-3.5 mr-1 text-status-paused" />Shutdown
             </Button>
             <Button size="sm" variant="outline" onClick={() => bulkAction('stop')}>
               <Square className="size-3.5 mr-1 text-status-error" />Force Stop
+            </Button>
+            <Button size="sm" variant="destructive" onClick={bulkDelete}>
+              <Trash2 className="size-3.5 mr-1" />Delete
             </Button>
             <button onClick={() => setSelected(new Set())} className="ml-2 text-xs text-text-muted hover:text-text-primary">Clear</button>
           </div>

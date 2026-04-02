@@ -25,6 +25,7 @@ import {
   useUpdateCephPool,
   useDestroyOSD,
   useCreateCephOSD,
+  useOSDInOut,
   useCreateCephMon,
   useDestroyCephMon,
   useCreateCephMDS,
@@ -457,6 +458,7 @@ function CreateOSDDialog({ node, onClose }: { node: string; onClose: () => void 
 function OSDsTab({ node }: { node: string }) {
   const { data: raw, isLoading } = useCephOSDs(node)
   const destroyOSD = useDestroyOSD(node)
+  const osdInOut = useOSDInOut(node)
   const [showCreate, setShowCreate] = useState(false)
 
   if (isLoading) return <SkeletonCard />
@@ -567,20 +569,30 @@ function OSDsTab({ node }: { node: string }) {
                         )}
                       </TableCell>
                       <TableCell>
-                        {!osd.up && (
+                        <div className="flex items-center gap-1">
                           <button
-                            title="Destroy OSD"
-                            disabled={destroyOSD.isPending}
-                            onClick={() => {
-                              if (confirm(`Destroy OSD ${osd.id} on ${osd.host}? This will permanently remove it.`)) {
-                                destroyOSD.mutate({ osdid: osd.id, cleanup: true })
-                              }
-                            }}
-                            className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                            title={osd.inCluster ? 'Mark out' : 'Mark in'}
+                            disabled={osdInOut.isPending}
+                            onClick={() => osdInOut.mutate({ osdid: osd.id, action: osd.inCluster ? 'out' : 'in' })}
+                            className="inline-flex items-center gap-1 rounded border border-border-subtle px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-elevated disabled:opacity-50"
                           >
-                            <Trash2 className="size-3" />
+                            {osd.inCluster ? 'Mark out' : 'Mark in'}
                           </button>
-                        )}
+                          {!osd.up && (
+                            <button
+                              title="Destroy OSD"
+                              disabled={destroyOSD.isPending}
+                              onClick={() => {
+                                if (confirm(`Destroy OSD ${osd.id} on ${osd.host}? This will permanently remove it.`)) {
+                                  destroyOSD.mutate({ osdid: osd.id, cleanup: true })
+                                }
+                              }}
+                              className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                            >
+                              <Trash2 className="size-3" />
+                            </button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
