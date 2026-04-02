@@ -218,6 +218,19 @@ export function useCreateCephPool(node: string) {
   })
 }
 
+export function useUpdateCephPool(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, params }: { name: string; params: { size?: number; min_size?: number; pg_num?: number; pg_autoscale_mode?: string; application?: string } }) =>
+      api.put(`nodes/${node}/ceph/pool/${encodeURIComponent(name)}`, params),
+    onSuccess: (_, { name }) => {
+      toast.success(`Pool "${name}" updated`)
+      qc.invalidateQueries({ queryKey: cephKeys.pools(node) })
+    },
+    onError: (err) => toast.error(`Failed to update pool — ${err.message}`),
+  })
+}
+
 export function useDeleteCephPool(node: string) {
   const qc = useQueryClient()
   return useMutation({

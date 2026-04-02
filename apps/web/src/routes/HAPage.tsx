@@ -7,6 +7,7 @@ import {
   useDeleteHAResource,
   useCreateHAGroup,
   useDeleteHAGroup,
+  useUpdateHAGroup,
   useUpdateHAResource,
 } from '@/lib/queries/ha'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -290,6 +291,75 @@ function AddGroupDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
+function EditGroupDialog({
+  group,
+  onClose,
+}: {
+  group: { group: string; nodes: string; comment?: string; restricted?: number; nofailback?: number }
+  onClose: () => void
+}) {
+  const [nodes,      setNodes]      = useState(group.nodes)
+  const [comment,    setComment]    = useState(group.comment ?? '')
+  const [restricted, setRestricted] = useState(!!group.restricted)
+  const [nofailback, setNofailback] = useState(!!group.nofailback)
+  const update = useUpdateHAGroup()
+  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent'
+
+  function submit() {
+    if (!nodes.trim()) return
+    update.mutate(
+      {
+        group: group.group,
+        params: {
+          nodes: nodes.trim(),
+          comment: comment.trim() || undefined,
+          restricted: restricted ? 1 : 0,
+          nofailback: nofailback ? 1 : 0,
+        },
+      },
+      { onSuccess: () => onClose() },
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold text-text-primary">Edit HA Group</h2>
+        <p className="text-sm font-mono text-text-muted">{group.group}</p>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">
+              Nodes <span className="text-status-error">*</span>
+              <span className="ml-1 text-xs text-text-muted">(e.g. pve1:2,pve2:1)</span>
+            </label>
+            <input value={nodes} onChange={(e) => setNodes(e.target.value)} placeholder="pve1:2,pve2:1" className={inp} />
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Comment</label>
+            <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Optional" className={inp} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+              <input type="checkbox" checked={restricted} onChange={(e) => setRestricted(e.target.checked)} className="accent-accent" />
+              Restricted (only run on listed nodes)
+            </label>
+            <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+              <input type="checkbox" checked={nofailback} onChange={(e) => setNofailback(e.target.checked)} className="accent-accent" />
+              No Failback
+            </label>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={submit} disabled={!nodes.trim() || update.isPending}>
+            {update.isPending ? 'Saving…' : 'Save Changes'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function HAPage() {
   const { data: resources, isLoading: resLoading } = useHAResources()
   const { data: groups, isLoading: grpLoading } = useHAGroups()
@@ -300,6 +370,7 @@ export function HAPage() {
   const [showAddResource, setShowAddResource] = useState(false)
   const [showAddGroup, setShowAddGroup] = useState(false)
   const [editingResource, setEditingResource] = useState<typeof resources extends Array<infer T> | undefined ? T | null : null>(null)
+  const [editingGroup, setEditingGroup] = useState<{ group: string; nodes: string; comment?: string; restricted?: number; nofailback?: number } | null>(null)
 
   return (
     <div className="space-y-4">
@@ -311,6 +382,9 @@ export function HAPage() {
       )}
       {editingResource && (
         <EditResourceDialog resource={editingResource} groups={groups ?? []} onClose={() => setEditingResource(null)} />
+      )}
+      {editingGroup && (
+        <EditGroupDialog group={editingGroup} onClose={() => setEditingGroup(null)} />
       )}
 
       <div>
@@ -474,17 +548,25 @@ export function HAPage() {
                           </TableCell>
                           <TableCell className="text-text-muted text-sm">{g.comment ?? '—'}</TableCell>
                           <TableCell className="text-right">
-                            <button
-                              onClick={() => {
-                                if (confirm(`Delete HA group "${g.group}"?`)) {
-                                  deleteGroup.mutate(g.group)
-                                }
-                              }}
-                              disabled={deleteGroup.isPending}
-                              className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
-                            >
-                              <Trash2 className="size-3" />Delete
-                            </button>
+                             <div className="flex items-center justify-end gap-1.5">
+                               <button
+                                 onClick={() => setEditingGroup(g)}
+                                 className="inline-flex items-center gap-1 rounded border border-border-subtle px-2 py-0.5 text-xs text-text-muted hover:text-text-primary hover:bg-bg-elevated"
+                               >
+                                 <Pencil className="size-3" />
+                               </button>
+                               <button
+                                 onClick={() => {
+                                   if (confirm(`Delete HA group "${g.group}"?`)) {
+                                     deleteGroup.mutate(g.group)
+                                   }
+                                 }}
+                                 disabled={deleteGroup.isPending}
+                                 className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                               >
+                                 <Trash2 className="size-3" />Delete
+                               </button>
+                             </div>
                           </TableCell>
                         </TableRow>
                       ))

@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Layers,
   Cpu,
+  Pencil,
 } from 'lucide-react'
 import {
   useCephStatus,
@@ -21,6 +22,7 @@ import {
   useCephMDS,
   useCreateCephPool,
   useDeleteCephPool,
+  useUpdateCephPool,
   useDestroyOSD,
   useCreateCephOSD,
   useCreateCephMon,
@@ -662,16 +664,81 @@ function CreatePoolDialog({ node, onClose }: { node: string; onClose: () => void
   )
 }
 
+function EditPoolDialog({ pool, node, onClose }: { pool: CephPool; node: string; onClose: () => void }) {
+  const [size,    setSize]    = useState(String(pool.size    ?? 3))
+  const [minSize, setMinSize] = useState(String(pool.min_size ?? 2))
+  const [pgNum,   setPgNum]   = useState(String(pool.pg_num  ?? 64))
+  const [autoscale, setAutoscale] = useState(pool.pg_autoscale_mode ?? 'on')
+  const update = useUpdateCephPool(node)
+  const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]'
+
+  function submit() {
+    update.mutate(
+      {
+        name: pool.pool_name,
+        params: {
+          size: Number(size),
+          min_size: Number(minSize),
+          pg_num: Number(pgNum),
+          pg_autoscale_mode: autoscale,
+        },
+      },
+      { onSuccess: () => onClose() },
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold text-text-primary">Edit Pool</h2>
+        <p className="text-sm font-mono text-text-muted">{pool.pool_name}</p>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Size (replicas)</label>
+              <input type="number" min="1" max="9" value={size} onChange={(e) => setSize(e.target.value)} className={inp} />
+            </div>
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Min Size</label>
+              <input type="number" min="1" max="9" value={minSize} onChange={(e) => setMinSize(e.target.value)} className={inp} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">PG Count</label>
+            <input type="number" min="1" value={pgNum} onChange={(e) => setPgNum(e.target.value)} className={inp} />
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">PG Autoscale Mode</label>
+            <select value={autoscale} onChange={(e) => setAutoscale(e.target.value)} className={inp}>
+              <option value="on">On</option>
+              <option value="warn">Warn</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <button onClick={onClose} className="rounded border border-border-subtle px-3 py-1.5 text-sm text-text-muted hover:bg-bg-elevated">Cancel</button>
+          <button onClick={submit} disabled={update.isPending} className="rounded bg-accent px-3 py-1.5 text-sm text-white hover:bg-accent/90 disabled:opacity-50">
+            {update.isPending ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function PoolsTab({ node }: { node: string }) {
   const { data: pools, isLoading } = useCephPools(node)
   const deletePool = useDeleteCephPool(node)
   const [showCreate, setShowCreate] = useState(false)
+  const [editingPool, setEditingPool] = useState<CephPool | null>(null)
 
   if (isLoading) return <SkeletonCard />
 
   return (
     <div className="space-y-4">
       {showCreate && <CreatePoolDialog node={node} onClose={() => setShowCreate(false)} />}
+      {editingPool && <EditPoolDialog pool={editingPool} node={node} onClose={() => setEditingPool(null)} />}
       <div className="flex items-center justify-between">
         <p className="text-sm text-text-secondary">{pools?.length ?? 0} pool(s)</p>
         <Button size="sm" onClick={() => setShowCreate(true)}>
@@ -744,17 +811,25 @@ function PoolsTab({ node }: { node: string }) {
                       </TableCell>
                       <TableCell>
                         {!pool.pool_name.startsWith('.') && (
-                          <button
-                            disabled={deletePool.isPending}
-                            onClick={() => {
-                              if (confirm(`Delete pool "${pool.pool_name}"? All data will be lost.`)) {
-                                deletePool.mutate({ name: pool.pool_name })
-                              }
-                            }}
-                            className="inline-flex items-center rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
-                          >
-                            <Trash2 className="size-3" />
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => setEditingPool(pool)}
+                              className="inline-flex items-center gap-1 rounded border border-border-subtle px-2 py-0.5 text-xs text-text-muted hover:text-text-primary hover:bg-bg-elevated"
+                            >
+                              <Pencil className="size-3" />
+                            </button>
+                            <button
+                              disabled={deletePool.isPending}
+                              onClick={() => {
+                                if (confirm(`Delete pool "${pool.pool_name}"? All data will be lost.`)) {
+                                  deletePool.mutate({ name: pool.pool_name })
+                                }
+                              }}
+                              className="inline-flex items-center rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                            >
+                              <Trash2 className="size-3" />
+                            </button>
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>

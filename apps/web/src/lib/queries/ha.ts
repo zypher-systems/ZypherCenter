@@ -82,6 +82,19 @@ export function useDeleteHAGroup() {
   })
 }
 
+export function useUpdateHAGroup() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ group, params }: { group: string; params: { nodes?: string; comment?: string; restricted?: number; nofailback?: number } }) =>
+      api.put(`cluster/ha/groups/${encodeURIComponent(group)}`, params),
+    onSuccess: (_, { group }) => {
+      toast.success(`HA group "${group}" updated`)
+      qc.invalidateQueries({ queryKey: haKeys.groups })
+    },
+    onError: (err) => toast.error(`Failed to update HA group — ${err.message}`),
+  })
+}
+
 export function useUpdateHAResource() {
   const qc = useQueryClient()
   return useMutation({
