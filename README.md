@@ -1,6 +1,6 @@
 # ZypherCenter — Project Build State
 
-> Last updated: April 2, 2026 — commit `1a47bf4`
+> Last updated: April 2, 2026 — commit `163b65f`
 
 ---
 
@@ -303,6 +303,11 @@ The build plan is to cover all major Proxmox functionality surface areas in orde
 ---
 
 ## Not Yet Implemented
+
+### Recent Bug Fixes (commit `163b65f`)
+- **Dropdown colors (round 2)** — moved `color-scheme: dark` to `:root` so all native browser UI inherits it; added explicit `option { background/color }` rules for Chromium-based browsers; previous select-only rule was insufficient on Linux
+- **Ceph OSD extraction** — now tries both `nodes` AND `root_list` keys and merges them; adds a deep-scan fallback that walks all array-valued response properties looking for OSD-type items; when no OSDs found a collapsible debug block shows the raw API response shape to assist diagnostics
+- **Note:** Running PVE 9.1.6; API response structure for `ceph/osd` may differ from PVE 8 assumptions; debug display will reveal exact structure on next test
 
 ### Recent Bug Fixes (commit `1a47bf4`)
 - **Ceph OSD display** — fixed: Proxmox API returns a flat `nodes` array (children are integer IDs, not nested objects); prior recursive walk found zero OSDs across all 15 devices
