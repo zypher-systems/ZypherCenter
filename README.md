@@ -1,6 +1,6 @@
 # ZypherCenter — Project Build State
 
-> Last updated: April 2, 2026 — commit `163b65f`
+> Last updated: April 2, 2026 — commit `0b9eb80`
 
 ---
 
@@ -304,14 +304,16 @@ The build plan is to cover all major Proxmox functionality surface areas in orde
 
 ## Not Yet Implemented
 
+### Recent Bug Fixes (commit `0b9eb80`)
+- **Root cause found for Ceph OSD "No OSDs found"** — inspected PVE source code (`PVE/API2/Ceph/OSD.pm`); the actual API response is `{ root: { leaf:0, children:[...nested objects...] }, flags? }`, NOT `{ nodes:[...flat...] }`. Previous implementation was based on wrong assumptions. Now uses `walkOSDTree()` recursive function that correctly traverses the nested tree PVE returns. OSD nodes already have `host` set by PVE and storage reported in bytes (`total_space`/`bytes_used`).
+- **Root cause found for dropdown invisible text** — `bg-bg-input` and `border-border-subtle` Tailwind classes referenced CSS variables (`--color-bg-input`, `--color-border-subtle`) that were never defined in `globals.css @theme`. Both variables now defined. Additionally added explicit `select { background-color; color }` and `select option { ... }` global CSS rules so Firefox on Linux also gets styled options.
+- **CephOSD type** — updated to `totalBytes`/`usedBytes`/`usedPct` (consistent bytes, not mixed kb/bytes)
+
 ### Recent Bug Fixes (commit `163b65f`)
-- **Dropdown colors (round 2)** — moved `color-scheme: dark` to `:root` so all native browser UI inherits it; added explicit `option { background/color }` rules for Chromium-based browsers; previous select-only rule was insufficient on Linux
-- **Ceph OSD extraction** — now tries both `nodes` AND `root_list` keys and merges them; adds a deep-scan fallback that walks all array-valued response properties looking for OSD-type items; when no OSDs found a collapsible debug block shows the raw API response shape to assist diagnostics
-- **Note:** Running PVE 9.1.6; API response structure for `ceph/osd` may differ from PVE 8 assumptions; debug display will reveal exact structure on next test
+- **Dropdown colors (round 2)** — moved `color-scheme: dark` to `:root`; added explicit `option { background/color }` rules; previous select-only rule was insufficient on Linux
+- **Ceph OSD extraction (round 1, incorrect assumption)** — attempted multi-strategy extraction; was still wrong because the actual API format was unknown at the time
 
 ### Recent Bug Fixes (commit `1a47bf4`)
-- **Ceph OSD display** — fixed: Proxmox API returns a flat `nodes` array (children are integer IDs, not nested objects); prior recursive walk found zero OSDs across all 15 devices
-- **Global dropdown color** — added `select { color-scheme: dark }` to globals.css; all native `<select>` popups now render with dark background
 - **HA Add Resource** — replaced free-text SID input with a dropdown listing all cluster VMs/CTs as `(VMID) — name [node]`
 - **Sidebar** — renamed ambiguous "Pools" nav item to "Resource Pools" to distinguish from Ceph pools
 
