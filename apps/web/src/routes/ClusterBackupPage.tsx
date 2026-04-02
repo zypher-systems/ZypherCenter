@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
-import { Plus, Trash2, HardDrive, Clock } from 'lucide-react'
+import { Plus, Trash2, HardDrive, Clock, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 
 function CreateBackupJobDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -166,15 +166,145 @@ function CreateBackupJobDialog({ open, onClose }: { open: boolean; onClose: () =
   )
 }
 
+function EditBackupJobDialog({ job, open, onClose }: { job: Record<string, unknown>; open: boolean; onClose: () => void }) {
+  const { data: storages } = useStorage()
+  const { data: clusterStatus } = useClusterStatus()
+  const updateJob = useUpdateBackupJob()
+
+  const nodes = (clusterStatus ?? []).filter((s) => s.type === 'node').map((s) => s.name)
+  const volumeStorages = (storages ?? []).filter((s) =>
+    s.content?.includes('backup') || !s.content,
+  )
+
+  const [schedule, setSchedule] = useState(String(job.schedule ?? job.dow ?? '0 0 * * *'))
+  const [storage, setStorage] = useState(String(job.storage ?? ''))
+  const [mode, setMode] = useState<'snapshot' | 'suspend' | 'stop'>((job.mode as 'snapshot' | 'suspend' | 'stop') ?? 'snapshot')
+  const [vmid, setVmid] = useState(String(job.vmid ?? ''))
+  const [compress, setCompress] = useState(String(job.compress ?? 'zstd'))
+  const [node, setNode] = useState(String(job.node ?? ''))
+  const [comment, setComment] = useState(String(job.comment ?? ''))
+  const [enabled, setEnabled] = useState(!job.enabled || job.enabled === 1)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!storage) return
+    const params: Record<string, unknown> = { storage, schedule, mode, compress, enabled: enabled ? 1 : 0 }
+    if (vmid.trim()) params.vmid = vmid.trim()
+    if (node) params.node = node
+    if (comment.trim()) params.comment = comment.trim()
+    updateJob.mutate({ id: String(job.id), params }, {
+      onSuccess: () => { toast.success('Backup job updated'); onClose() },
+      onError: (err: unknown) => toast.error((err as Error).message ?? 'Failed to update backup job'),
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Backup Job</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="ebj-storage">Storage</Label>
+              <select
+                id="ebj-storage"
+                value={storage}
+                onChange={(e) => setStorage(e.target.value)}
+                required
+                className="flex h-9 w-full rounded-md border border-border bg-bg-input px-3 py-1 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-accent [color-scheme:dark]"
+              >
+                <option value="">Select storage…</option>
+                {volumeStorages.map((s) => (
+                  <option key={s.storage} value={s.storage}>{s.storage}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ebj-mode">Mode</Label>
+              <select
+                id="ebj-mode"
+                value={mode}
+                onChange={(e) => setMode(e.target.value as typeof mode)}
+                className="flex h-9 w-full rounded-md border border-border bg-bg-input px-3 py-1 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-accent [color-scheme:dark]"
+              >
+                <option value="snapshot">Snapshot</option>
+                <option value="suspend">Suspend</option>
+                <option value="stop">Stop</option>
+              </select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ebj-schedule">Schedule (cron)</Label>
+            <Input id="ebj-schedule" value={schedule} onChange={(e) => setSchedule(e.target.value)} placeholder="0 0 * * *" required />
+            <p className="text-xs text-text-muted">Standard cron expression, e.g. <code className="font-mono">0 2 * * *</code> = daily at 02:00</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="ebj-compress">Compression</Label>
+              <select
+                id="ebj-compress"
+                value={compress}
+                onChange={(e) => setCompress(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-border bg-bg-input px-3 py-1 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-accent [color-scheme:dark]"
+              >
+                <option value="zstd">zstd (fast)</option>
+                <option value="gzip">gzip</option>
+                <option value="lzo">lzo (fastest)</option>
+                <option value="0">None</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ebj-node">Node (optional)</Label>
+              <select
+                id="ebj-node"
+                value={node}
+                onChange={(e) => setNode(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-border bg-bg-input px-3 py-1 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-accent [color-scheme:dark]"
+              >
+                <option value="">All nodes</option>
+                {nodes.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ebj-vmid">VM/CT IDs (optional)</Label>
+            <Input id="ebj-vmid" value={vmid} onChange={(e) => setVmid(e.target.value)} placeholder="100,101,200 (leave empty for all)" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ebj-comment">Comment</Label>
+            <Input id="ebj-comment" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Optional description" />
+          </div>
+          <div className="flex items-center gap-2">
+            <input id="ebj-enabled" type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="size-4 rounded border-border accent-accent" />
+            <Label htmlFor="ebj-enabled">Enabled</Label>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={updateJob.isPending}>
+              {updateJob.isPending ? 'Saving…' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function ClusterBackupPage() {
   const { data: jobs, isLoading } = useClusterBackupJobs()
   const deleteJob = useDeleteBackupJob()
   const updateJob = useUpdateBackupJob()
   const [showCreate, setShowCreate] = useState(false)
+  const [editingJob, setEditingJob] = useState<Record<string, unknown> | null>(null)
 
   return (
     <div className="space-y-4">
       <CreateBackupJobDialog open={showCreate} onClose={() => setShowCreate(false)} />
+      {editingJob && <EditBackupJobDialog key={String(editingJob.id)} job={editingJob} open onClose={() => setEditingJob(null)} />}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-text-primary">Backup</h1>
@@ -200,7 +330,7 @@ export function ClusterBackupPage() {
                   <TableHead>Mode</TableHead>
                   <TableHead>Nodes</TableHead>
                   <TableHead>Enabled</TableHead>
-                  <TableHead className="w-16" />
+                  <TableHead className="w-24" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -244,22 +374,32 @@ export function ClusterBackupPage() {
                         </button>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          title="Delete job"
-                          disabled={deleteJob.isPending}
-                          onClick={() => {
-                            if (confirm(`Delete backup job ${job.id}?`)) {
-                              deleteJob.mutate(job.id, {
-                                onSuccess: () => toast.success('Backup job deleted'),
-                                onError: (err: unknown) => toast.error((err as Error).message ?? 'Failed to delete job'),
-                              })
-                            }
-                          }}
-                        >
-                          <Trash2 className="size-3.5 text-text-muted hover:text-status-error" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            title="Edit job"
+                            onClick={() => setEditingJob(job)}
+                          >
+                            <Pencil className="size-3.5 text-text-muted hover:text-text-primary" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            title="Delete job"
+                            disabled={deleteJob.isPending}
+                            onClick={() => {
+                              if (confirm(`Delete backup job ${job.id}?`)) {
+                                deleteJob.mutate(job.id, {
+                                  onSuccess: () => toast.success('Backup job deleted'),
+                                  onError: (err: unknown) => toast.error((err as Error).message ?? 'Failed to delete job'),
+                                })
+                              }
+                            }}
+                          >
+                            <Trash2 className="size-3.5 text-text-muted hover:text-status-error" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
