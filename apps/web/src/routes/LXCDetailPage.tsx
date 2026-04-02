@@ -39,6 +39,7 @@ import {
   useUpdateLXCConfig,
   useDeleteLXC,
   useResizeLXCDisk,
+  useMoveLXCDisk,
   useTemplateLXC,
   useLXCInterfaces,
   useLXCRrdData,
@@ -919,12 +920,16 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: config, isLoading } = useLXCConfig(node, vmid)
   const updateConfig = useUpdateLXCConfig(node, vmid)
   const resizeDisk = useResizeLXCDisk(node, vmid)
+  const moveDisk = useMoveLXCDisk(node, vmid)
   const { data: allStorages } = useStorage()
   const { data: nodeNetwork } = useNodeNetwork(node)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [resizingKey, setResizingKey] = useState<string | null>(null)
   const [resizeAmount, setResizeAmount] = useState('+10G')
+  const [movingKey, setMovingKey] = useState<string | null>(null)
+  const [moveTargetStorage, setMoveTargetStorage] = useState('')
+  const [moveDeleteOld, setMoveDeleteOld] = useState(true)
   const [showAddMp, setShowAddMp] = useState(false)
   const [addMpStorage, setAddMpStorage] = useState('')
   const [addMpSize, setAddMpSize] = useState('8')
@@ -1360,6 +1365,7 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
             <div className="divide-y divide-border-muted">
               {mpKeys.map((k) => {
                 const isResizing = resizingKey === k
+                const isMoving = movingKey === k
                 return (
                   <div key={k} className="space-y-2 px-4 py-2.5 text-sm">
                     <div className="flex items-start justify-between gap-4">
@@ -1367,10 +1373,16 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
                       <div className="flex items-start gap-2 flex-1 min-w-0">
                         <span className="text-text-primary font-mono text-xs break-all flex-1">{String(cfgRecord[k])}</span>
                         <button
-                          onClick={() => { setResizingKey(isResizing ? null : k); setResizeAmount('+10G') }}
+                          onClick={() => { setResizingKey(isResizing ? null : k); setMovingKey(null); setResizeAmount('+10G') }}
                           className="shrink-0 text-xs text-text-muted hover:text-accent border border-border-subtle rounded px-1.5 py-0.5"
                         >
                           Resize
+                        </button>
+                        <button
+                          onClick={() => { setMovingKey(isMoving ? null : k); setResizingKey(null); setMoveTargetStorage('') }}
+                          className="shrink-0 text-xs text-text-muted hover:text-accent border border-border-subtle rounded px-1.5 py-0.5"
+                        >
+                          Move
                         </button>
                         {k !== 'rootfs' && (
                           <button
@@ -1400,6 +1412,24 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
                           {resizeDisk.isPending ? '…' : 'Apply'}
                         </Button>
                         <button onClick={() => setResizingKey(null)} className="text-text-muted hover:text-text-primary text-xs">Cancel</button>
+                      </div>
+                    )}
+                    {isMoving && (
+                      <div className="flex items-center gap-3 pl-16 flex-wrap">
+                        <select value={moveTargetStorage} onChange={(e) => setMoveTargetStorage(e.target.value)}
+                          className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent [color-scheme:dark]">
+                          <option value="">Target storage…</option>
+                          {mpStorages.map((s) => <option key={s.storage} value={s.storage}>{s.storage}</option>)}
+                        </select>
+                        <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer">
+                          <input type="checkbox" checked={moveDeleteOld} onChange={(e) => setMoveDeleteOld(e.target.checked)} />
+                          Delete source
+                        </label>
+                        <Button size="sm" disabled={moveDisk.isPending || !moveTargetStorage}
+                          onClick={() => moveDisk.mutate({ volume: k, storage: moveTargetStorage, deleteOld: moveDeleteOld }, { onSuccess: () => setMovingKey(null) })}>
+                          {moveDisk.isPending ? '…' : 'Move'}
+                        </Button>
+                        <button onClick={() => setMovingKey(null)} className="text-text-muted hover:text-text-primary text-xs">Cancel</button>
                       </div>
                     )}
                   </div>

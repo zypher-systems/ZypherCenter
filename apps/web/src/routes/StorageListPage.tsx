@@ -40,6 +40,9 @@ function CreateStorageDialog({ onClose }: { onClose: () => void }) {
   const [vgname,   setVgname]   = useState('')   // lvm, lvmthin
   const [thinpool, setThinpool] = useState('')   // lvmthin
   const [zfsPool,  setZfsPool]  = useState('')   // zfspool
+  const [datastore, setDatastore] = useState('') // pbs
+  const [namespace,  setNamespace]  = useState('') // pbs
+  const [fingerprint, setFingerprint] = useState('') // pbs
   const [nodes,    setNodes]    = useState('')   // all types optional
 
   function toggleContent(c: string) {
@@ -79,6 +82,12 @@ function CreateStorageDialog({ onClose }: { onClose: () => void }) {
       params.thinpool = thinpool
     } else if (type === 'zfspool') {
       params.pool = zfsPool
+    } else if (type === 'pbs') {
+      params.server = server
+      params.datastore = datastore
+      if (username) params.username = username
+      if (namespace.trim()) params.namespace = namespace.trim()
+      if (fingerprint.trim()) params.fingerprint = fingerprint.trim()
     }
 
     create.mutate(params, { onSuccess: () => onClose() })
@@ -184,6 +193,31 @@ function CreateStorageDialog({ onClose }: { onClose: () => void }) {
               <label className="block text-xs text-text-secondary mb-1">ZFS pool <span className="text-status-error">*</span></label>
               <input value={zfsPool} onChange={(e) => setZfsPool(e.target.value)} placeholder="rpool" className={inpCls} required />
             </div>
+          )}
+
+          {type === 'pbs' && (
+            <>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Server <span className="text-status-error">*</span></label>
+                <input value={server} onChange={(e) => setServer(e.target.value)} placeholder="192.168.1.10" className={inpCls} required />
+              </div>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Datastore <span className="text-status-error">*</span></label>
+                <input value={datastore} onChange={(e) => setDatastore(e.target.value)} placeholder="backups" className={inpCls} required />
+              </div>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Username</label>
+                <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="admin@pbs" className={inpCls} />
+              </div>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Namespace <span className="text-xs text-text-muted">(optional)</span></label>
+                <input value={namespace} onChange={(e) => setNamespace(e.target.value)} placeholder="ns/subns" className={inpCls} />
+              </div>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Fingerprint <span className="text-xs text-text-muted">(optional TLS)</span></label>
+                <input value={fingerprint} onChange={(e) => setFingerprint(e.target.value)} placeholder="xx:xx:…" className={inpCls} />
+              </div>
+            </>
           )}
 
           <div>

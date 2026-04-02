@@ -290,6 +290,19 @@ export function useResizeLXCDisk(node: string, vmid: number) {
   })
 }
 
+export function useMoveLXCDisk(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ volume, storage, deleteOld }: { volume: string; storage: string; deleteOld?: boolean }) =>
+      api.post(`nodes/${node}/lxc/${vmid}/move_volume`, { volume, storage, delete: deleteOld ? 1 : 0 }),
+    onSuccess: (_, { volume }) => {
+      toast.success(`Volume ${volume} moved`)
+      qc.invalidateQueries({ queryKey: lxcKeys.config(node, vmid) })
+    },
+    onError: (err) => toast.error(`Move failed — ${err.message}`),
+  })
+}
+
 export function useTemplateLXC(node: string, vmid: number) {
   const qc = useQueryClient()
   return useMutation({
