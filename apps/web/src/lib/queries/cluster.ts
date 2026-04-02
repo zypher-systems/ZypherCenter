@@ -360,6 +360,31 @@ export function useDeleteClusterFirewallIPSetEntry(name: string) {
   })
 }
 
+export function useUpdateClusterFirewallAlias() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, params }: { name: string; params: { cidr: string; comment?: string; rename?: string } }) =>
+      api.put(`cluster/firewall/aliases/${encodeURIComponent(name)}`, params),
+    onSuccess: (_, { name }) => {
+      toast.success(`Alias "${name}" updated`)
+      qc.invalidateQueries({ queryKey: fwk.aliases() })
+    },
+    onError: (err) => toast.error(`Failed to update alias — ${err.message}`),
+  })
+}
+
+export function useUpdateClusterFirewallIPSetEntry(name: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ cidr, params }: { cidr: string; params: { comment?: string; nomatch?: number } }) =>
+      api.put(`cluster/firewall/ipset/${encodeURIComponent(name)}/${encodeURIComponent(cidr)}`, params),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [...clusterKeys.all, 'firewall', 'ipset', name] })
+    },
+    onError: (err) => toast.error(`Failed to update entry — ${err.message}`),
+  })
+}
+
 export function useUpdateClusterOptions() {
   const qc = useQueryClient()
   return useMutation({

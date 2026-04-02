@@ -22,6 +22,8 @@ import {
   useDeleteClusterFirewallIPSetEntry,
   useCreateClusterFirewallAlias,
   useDeleteClusterFirewallAlias,
+  useUpdateClusterFirewallAlias,
+  useUpdateClusterFirewallIPSetEntry,
   useUpdateClusterFirewallOptions,
 } from '@/lib/queries/cluster'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -326,6 +328,40 @@ function CreateAliasDialog({ onClose }: { onClose: () => void }) {
           <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
           <Button size="sm" onClick={() => create.mutate({ name: name.trim(), cidr: cidr.trim(), comment: comment || undefined }, { onSuccess: () => onClose() })} disabled={!name.trim() || !cidr.trim() || create.isPending}>
             {create.isPending ? 'Creating…' : 'Create'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EditAliasDialog({ alias, onClose }: { alias: { name: string; cidr: string; comment?: string }; onClose: () => void }) {
+  const update = useUpdateClusterFirewallAlias()
+  const [cidr, setCidr] = useState(alias.cidr)
+  const [comment, setComment] = useState(alias.comment ?? '')
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold text-text-primary">Edit Alias — {alias.name}</h2>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">CIDR <span className="text-status-error">*</span></label>
+            <input value={cidr} onChange={(e) => setCidr(e.target.value)} placeholder="e.g. 10.0.0.5/32" className={inp()} />
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Comment</label>
+            <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="optional" className={inp()} />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button
+            size="sm"
+            disabled={!cidr.trim() || update.isPending}
+            onClick={() => update.mutate({ name: alias.name, params: { cidr: cidr.trim(), comment: comment.trim() || undefined } }, { onSuccess: () => onClose() })}
+          >
+            {update.isPending ? 'Saving…' : 'Save'}
           </Button>
         </div>
       </div>
@@ -645,10 +681,14 @@ function IPSetEntriesPanel({ name }: { name: string }) {
   const { data: entries, isLoading } = useClusterFirewallIPSetEntries(name)
   const addEntry = useCreateClusterFirewallIPSetEntry(name)
   const removeEntry = useDeleteClusterFirewallIPSetEntry(name)
+  const updateEntry = useUpdateClusterFirewallIPSetEntry(name)
   const [newCidr, setNewCidr] = useState('')
   const [newComment, setNewComment] = useState('')
   const [newNomatch, setNewNomatch] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [editingCidr, setEditingCidr] = useState<string | null>(null)
+  const [editComment, setEditComment] = useState('')
+  const [editNomatch, setEditNomatch] = useState(false)
 
   function handleAdd() {
     const cidr = newCidr.trim()
@@ -667,20 +707,65 @@ function IPSetEntriesPanel({ name }: { name: string }) {
         <div className="divide-y divide-border-muted/50">
           {entries.map((entry) => (
             <div key={entry.cidr} className="flex items-center justify-between px-6 py-2 gap-4">
-              <div className="flex items-center gap-3 text-sm">
-                {entry.nomatch ? (
-                  <span className="text-xs bg-status-error/10 text-status-error border border-status-error/20 rounded px-1.5 py-0.5">!</span>
-                ) : null}
-                <span className="font-mono text-text-primary">{entry.cidr}</span>
-                {entry.comment && <span className="text-text-muted text-xs">{entry.comment}</span>}
-              </div>
-              <button
-                onClick={() => { if (confirm(`Remove ${entry.cidr} from ${name}?`)) removeEntry.mutate(entry.cidr) }}
-                disabled={removeEntry.isPending}
-                className="text-text-muted hover:text-status-error disabled:opacity-40"
-              >
-                <Trash2 className="size-3.5" />
-              </button>
+              {editingCidr === entry.cidr ? (
+                <>
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="font-mono text-text-primary text-sm">{entry.cidr}</span>
+                    <input
+                      autoFocus
+                      value={editComment}
+                      onChange={(e) => setEditComment(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          updateEntry.mutate({ cidr: entry.cidr, params: { comment: editComment.trim() || undefined, nomatch: editNomatch ? 1 : undefined } }, { onSuccess: () => setEditingCidr(null) })
+                        }
+                        if (e.key === 'Escape') setEditingCidr(null)
+                      }}
+                      placeholder="comment"
+                      className="w-36 rounded border border-border-subtle bg-bg-input px-2 py-0.5 text-xs text-text-primary outline-none focus:border-accent"
+                    />
+                    <label className="flex items-center gap-1 text-xs text-text-muted cursor-pointer">
+                      <input type="checkbox" checked={editNomatch} onChange={(e) => setEditNomatch(e.target.checked)} />
+                      Nomatch
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => updateEntry.mutate({ cidr: entry.cidr, params: { comment: editComment.trim() || undefined, nomatch: editNomatch ? 1 : undefined } }, { onSuccess: () => setEditingCidr(null) })}
+                      disabled={updateEntry.isPending}
+                      className="text-xs text-accent hover:underline disabled:opacity-50"
+                    >
+                      {updateEntry.isPending ? '…' : 'Save'}
+                    </button>
+                    <button onClick={() => setEditingCidr(null)} className="text-xs text-text-muted hover:text-text-primary ml-1">Cancel</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 text-sm">
+                    {entry.nomatch ? (
+                      <span className="text-xs bg-status-error/10 text-status-error border border-status-error/20 rounded px-1.5 py-0.5">!</span>
+                    ) : null}
+                    <span className="font-mono text-text-primary">{entry.cidr}</span>
+                    {entry.comment && <span className="text-text-muted text-xs">{entry.comment}</span>}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => { setEditingCidr(entry.cidr); setEditComment(entry.comment ?? ''); setEditNomatch(!!entry.nomatch) }}
+                      className="text-text-muted hover:text-text-primary"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button
+                      onClick={() => { if (confirm(`Remove ${entry.cidr} from ${name}?`)) removeEntry.mutate(entry.cidr) }}
+                      disabled={removeEntry.isPending}
+                      className="text-text-muted hover:text-status-error disabled:opacity-40"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -785,10 +870,12 @@ function AliasesTab() {
   const { data: aliases, isLoading } = useClusterFirewallAliases()
   const deleteAlias = useDeleteClusterFirewallAlias()
   const [showCreate, setShowCreate] = useState(false)
+  const [editingAlias, setEditingAlias] = useState<{ name: string; cidr: string; comment?: string } | null>(null)
   if (isLoading) return <SkeletonCard />
   return (
     <>
       {showCreate && <CreateAliasDialog onClose={() => setShowCreate(false)} />}
+      {editingAlias && <EditAliasDialog key={editingAlias.name} alias={editingAlias} onClose={() => setEditingAlias(null)} />}
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm text-text-secondary">{aliases?.length ?? 0} alias(es)</span>
         <Button size="sm" onClick={() => setShowCreate(true)}>
@@ -816,13 +903,21 @@ function AliasesTab() {
                     <TableCell className="font-mono text-sm text-text-secondary">{a.cidr}</TableCell>
                     <TableCell className="text-text-muted text-sm">{a.comment ?? '—'}</TableCell>
                     <TableCell className="text-right">
-                      <button
-                        onClick={() => { if (confirm(`Delete alias "${a.name}"?`)) deleteAlias.mutate(a.name) }}
-                        disabled={deleteAlias.isPending}
-                        className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
-                      >
-                        <Trash2 className="size-3" />Delete
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setEditingAlias(a)}
+                          className="inline-flex items-center gap-1 rounded border border-border-subtle px-2 py-0.5 text-xs text-text-muted hover:text-text-primary hover:bg-bg-elevated"
+                        >
+                          <Pencil className="size-3" />
+                        </button>
+                        <button
+                          onClick={() => { if (confirm(`Delete alias "${a.name}"?`)) deleteAlias.mutate(a.name) }}
+                          disabled={deleteAlias.isPending}
+                          className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                        >
+                          <Trash2 className="size-3" />Delete
+                        </button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
