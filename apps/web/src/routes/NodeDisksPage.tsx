@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
 import { HardDrive, Database, Plus, RefreshCw, ShieldHalf, Info, Trash2 } from 'lucide-react'
-import { useNodeDisks, useWipeDisk, useInitDisk, useNodeZFSPools, useCreateZFSPool, useNodeZFSScrub, useNodeZFSDestroy, useNodeSmartData, type SmartData } from '@/lib/queries/nodes'
+import { useNodeDisks, useWipeDisk, useInitDisk, useNodeZFSPools, useCreateZFSPool, useNodeZFSScrub, useNodeZFSDestroy, useNodeSmartData, useNodeLVM, useCreateLVMVG, useDestroyLVMVG, useNodeLVMThin, useCreateLVMThin, useDestroyLVMThin, type SmartData, type LVMVolumeGroup, type LVMThinPool } from '@/lib/queries/nodes'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import {
   Table,
@@ -175,7 +175,7 @@ function CreateZFSForm({ node, disks, onCancel }: { node: string; disks: string[
 
 export function NodeDisksPage() {
   const { node } = useParams<{ node: string }>()
-  const [tab, setTab] = useState<'disks' | 'zfs'>('disks')
+  const [tab, setTab] = useState<'disks' | 'zfs' | 'lvm'>('disks')
   const [showCreate, setShowCreate] = useState(false)
   const [smartDisk, setSmartDisk] = useState<string | null>(null)
   const { data: disks, isLoading } = useNodeDisks(node!)
@@ -184,6 +184,22 @@ export function NodeDisksPage() {
   const { data: zfsPools, isLoading: zfsLoading, refetch: refetchZFS } = useNodeZFSPools(node!)
   const scrub = useNodeZFSScrub(node!)
   const destroyZFS = useNodeZFSDestroy(node!)
+  const { data: lvmVGs, isLoading: lvmLoading, refetch: refetchLVM } = useNodeLVM(node!)
+  const createVG = useCreateLVMVG(node!)
+  const destroyVG = useDestroyLVMVG(node!)
+  const { data: lvmThinPools, isLoading: lvmThinLoading, refetch: refetchLVMThin } = useNodeLVMThin(node!)
+  const createThin = useCreateLVMThin(node!)
+  const destroyThin = useDestroyLVMThin(node!)
+
+  // LVM create form state
+  const [lvmDevice, setLvmDevice] = useState('')
+  const [lvmName, setLvmName] = useState('')
+  // LVM-Thin create form state
+  const [thinDevice, setThinDevice] = useState('')
+  const [thinVG, setThinVG] = useState('')
+  const [thinName, setThinName] = useState('')
+  const [showLVMCreate, setShowLVMCreate] = useState(false)
+  const [showThinCreate, setShowThinCreate] = useState(false)
 
   const diskPaths = (disks ?? []).map((d) => d.devpath).filter(Boolean) as string[]
 
@@ -202,6 +218,19 @@ export function NodeDisksPage() {
             </Button>
             <Button size="sm" onClick={() => setShowCreate(!showCreate)}>
               <Plus className="size-3.5 mr-1" />Create Pool
+            </Button>
+          </div>
+        )}
+        {tab === 'lvm' && (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => { refetchLVM(); refetchLVMThin() }}>
+              <RefreshCw className="size-3.5 mr-1" />Refresh
+            </Button>
+            <Button size="sm" onClick={() => setShowLVMCreate(true)}>
+              <Plus className="size-3.5 mr-1" />Create VG
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowThinCreate(true)}>
+              <Plus className="size-3.5 mr-1" />Create Thin Pool
             </Button>
           </div>
         )}
@@ -224,6 +253,14 @@ export function NodeDisksPage() {
           }`}
         >
           <Database className="size-3.5" />ZFS Pools
+        </button>
+        <button
+          onClick={() => setTab('lvm')}
+          className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+            tab === 'lvm' ? 'border-accent text-text-primary' : 'border-transparent text-text-muted hover:text-text-secondary'
+          }`}
+        >
+          <Database className="size-3.5" />LVM
         </button>
       </div>
 
@@ -407,6 +444,184 @@ export function NodeDisksPage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {tab === 'lvm' && (
+        <div className="space-y-4">
+          {showLVMCreate && (
+            <Card>
+              <CardHeader><CardTitle>Create Volume Group</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">Device *</label>
+                    <select
+                      value={lvmDevice}
+                      onChange={(e) => setLvmDevice(e.target.value)}
+                      className="w-full rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+                    >
+                      <option value="">Select disk…</option>
+                      {diskPaths.map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">VG Name *</label>
+                    <input
+                      value={lvmName}
+                      onChange={(e) => setLvmName(e.target.value)}
+                      placeholder="pve-data"
+                      className="w-full rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" disabled={createVG.isPending || !lvmDevice || !lvmName}
+                    onClick={() => createVG.mutate({ device: lvmDevice, name: lvmName }, { onSuccess: () => { setShowLVMCreate(false); setLvmDevice(''); setLvmName('') } })}>
+                    {createVG.isPending ? 'Creating…' : 'Create VG'}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowLVMCreate(false)}>Cancel</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {showThinCreate && (
+            <Card>
+              <CardHeader><CardTitle>Create LVM-Thin Pool</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">Device *</label>
+                    <select
+                      value={thinDevice}
+                      onChange={(e) => setThinDevice(e.target.value)}
+                      className="w-full rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+                    >
+                      <option value="">Select disk…</option>
+                      {diskPaths.map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">VG Name *</label>
+                    <input
+                      value={thinVG}
+                      onChange={(e) => setThinVG(e.target.value)}
+                      placeholder="pve"
+                      className="w-full rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">Thin Pool Name *</label>
+                    <input
+                      value={thinName}
+                      onChange={(e) => setThinName(e.target.value)}
+                      placeholder="data"
+                      className="w-full rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" disabled={createThin.isPending || !thinDevice || !thinVG || !thinName}
+                    onClick={() => createThin.mutate({ device: thinDevice, name: thinVG, 'thinpool-name': thinName }, { onSuccess: () => { setShowThinCreate(false); setThinDevice(''); setThinVG(''); setThinName('') } })}>
+                    {createThin.isPending ? 'Creating…' : 'Create Thin Pool'}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowThinCreate(false)}>Cancel</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader><CardTitle>Volume Groups</CardTitle></CardHeader>
+            <CardContent className="p-0">
+              {lvmLoading ? (
+                <div className="p-6 text-center text-text-muted text-sm">Loading…</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead>Free</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(lvmVGs ?? []).length === 0 ? (
+                      <TableRow><TableCell colSpan={4} className="text-center text-text-muted py-8 text-sm">No volume groups</TableCell></TableRow>
+                    ) : (
+                      (lvmVGs as LVMVolumeGroup[]).map((vg) => (
+                        <TableRow key={vg.vg}>
+                          <TableCell className="font-mono text-sm text-text-primary">{vg.vg}</TableCell>
+                          <TableCell className="tabular-nums text-text-secondary text-sm">{vg.size ? formatBytes(vg.size) : '—'}</TableCell>
+                          <TableCell className="tabular-nums text-text-secondary text-sm">{vg.free ? formatBytes(vg.free) : '—'}</TableCell>
+                          <TableCell className="text-right">
+                            <button
+                              onClick={() => {
+                                if (confirm(`Remove VG "${vg.vg}"? This is destructive and cannot be undone.`))
+                                  destroyVG.mutate({ name: vg.vg, cleanupDisks: true })
+                              }}
+                              disabled={destroyVG.isPending}
+                              className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                            >
+                              <Trash2 className="size-3" />Remove
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Thin Pools</CardTitle></CardHeader>
+            <CardContent className="p-0">
+              {lvmThinLoading ? (
+                <div className="p-6 text-center text-text-muted text-sm">Loading…</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>LV Name</TableHead>
+                      <TableHead>VG</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead>Used</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(lvmThinPools ?? []).length === 0 ? (
+                      <TableRow><TableCell colSpan={5} className="text-center text-text-muted py-8 text-sm">No thin pools</TableCell></TableRow>
+                    ) : (
+                      (lvmThinPools as LVMThinPool[]).map((pool) => (
+                        <TableRow key={`${pool.vg}/${pool.lv}`}>
+                          <TableCell className="font-mono text-sm text-text-primary">{pool.lv}</TableCell>
+                          <TableCell className="font-mono text-xs text-text-secondary">{pool.vg}</TableCell>
+                          <TableCell className="tabular-nums text-text-secondary text-sm">{pool.size ? formatBytes(pool.size) : '—'}</TableCell>
+                          <TableCell className="tabular-nums text-text-secondary text-sm">{pool.used ? formatBytes(pool.used) : '—'}</TableCell>
+                          <TableCell className="text-right">
+                            <button
+                              onClick={() => {
+                                if (confirm(`Remove thin pool "${pool.vg}/${pool.lv}"?`))
+                                  destroyThin.mutate({ name: pool.lv, vg: pool.vg })
+                              }}
+                              disabled={destroyThin.isPending}
+                              className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                            >
+                              <Trash2 className="size-3" />Remove
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   )

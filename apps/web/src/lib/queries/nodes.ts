@@ -625,6 +625,88 @@ export function useNodeZFSDestroy(node: string) {
   })
 }
 
+export interface LVMVolumeGroup {
+  vg: string
+  size: number
+  free: number
+  children?: unknown[]
+}
+
+export function useNodeLVM(node: string) {
+  return useQuery({
+    queryKey: [...nodeKeys.all(node), 'disks', 'lvm'],
+    queryFn: () => api.get<LVMVolumeGroup[]>(`nodes/${node}/disks/lvm`),
+  })
+}
+
+export function useCreateLVMVG(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { device: string; name: string }) =>
+      api.post(`nodes/${node}/disks/lvm`, params),
+    onSuccess: () => {
+      toast.success('LVM volume group created')
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'disks', 'lvm'] })
+    },
+    onError: (err) => toast.error(`Create VG failed — ${err.message}`),
+  })
+}
+
+export function useDestroyLVMVG(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, cleanupDisks }: { name: string; cleanupDisks?: boolean }) =>
+      api.del(`nodes/${node}/disks/lvm/${encodeURIComponent(name)}${cleanupDisks ? '?cleanup-disks=1' : ''}`),
+    onSuccess: () => {
+      toast.success('LVM volume group removed')
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'disks', 'lvm'] })
+    },
+    onError: (err) => toast.error(`Remove VG failed — ${err.message}`),
+  })
+}
+
+export interface LVMThinPool {
+  lv: string
+  vg: string
+  size: number
+  used: number
+  metadata: number
+  metadata_size: number
+}
+
+export function useNodeLVMThin(node: string) {
+  return useQuery({
+    queryKey: [...nodeKeys.all(node), 'disks', 'lvmthin'],
+    queryFn: () => api.get<LVMThinPool[]>(`nodes/${node}/disks/lvmthin`),
+  })
+}
+
+export function useCreateLVMThin(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { device: string; name: string; 'thinpool-name': string }) =>
+      api.post(`nodes/${node}/disks/lvmthin`, params),
+    onSuccess: () => {
+      toast.success('LVM thin pool created')
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'disks', 'lvmthin'] })
+    },
+    onError: (err) => toast.error(`Create thin pool failed — ${err.message}`),
+  })
+}
+
+export function useDestroyLVMThin(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, vg }: { name: string; vg: string }) =>
+      api.del(`nodes/${node}/disks/lvmthin/${encodeURIComponent(vg)}/${encodeURIComponent(name)}`),
+    onSuccess: () => {
+      toast.success('LVM thin pool removed')
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'disks', 'lvmthin'] })
+    },
+    onError: (err) => toast.error(`Remove thin pool failed — ${err.message}`),
+  })
+}
+
 export function useRevertNetworkConfig(node: string) {
   const qc = useQueryClient()
   return useMutation({

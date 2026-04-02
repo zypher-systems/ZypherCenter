@@ -161,7 +161,12 @@ export function NodeNetworkPage() {
   const [editAddress, setEditAddress] = useState('')
   const [editNetmask, setEditNetmask] = useState('')
   const [editGateway, setEditGateway] = useState('')
+  const [editAddress6, setEditAddress6] = useState('')
+  const [editNetmask6, setEditNetmask6] = useState('')
+  const [editGateway6, setEditGateway6] = useState('')
   const [editBridgePorts, setEditBridgePorts] = useState('')
+  const [editBondSlaves, setEditBondSlaves] = useState('')
+  const [editBondMode, setEditBondMode] = useState('active-backup')
   const [editComment, setEditComment] = useState('')
 
   const existingIfaceNames = (ifaces ?? []).map((i) => i.iface).filter(Boolean)
@@ -172,7 +177,12 @@ export function NodeNetworkPage() {
     setEditAddress((r['address'] as string) ?? '')
     setEditNetmask((r['netmask'] as string) ?? '')
     setEditGateway((r['gateway'] as string) ?? '')
+    setEditAddress6((r['address6'] as string) ?? '')
+    setEditNetmask6((r['netmask6'] as string) ?? '')
+    setEditGateway6((r['gateway6'] as string) ?? '')
     setEditBridgePorts((r['bridge_ports'] as string) ?? '')
+    setEditBondSlaves((r['slaves'] as string) ?? '')
+    setEditBondMode((r['bond_mode'] as string) ?? 'active-backup')
     setEditComment((r['comments'] as string) ?? '')
   }
 
@@ -182,7 +192,12 @@ export function NodeNetworkPage() {
     if (editAddress) params['address'] = editAddress
     if (editNetmask) params['netmask'] = editNetmask
     if (editGateway) params['gateway'] = editGateway
+    if (editAddress6) params['address6'] = editAddress6
+    if (editNetmask6) params['netmask6'] = editNetmask6
+    if (editGateway6) params['gateway6'] = editGateway6
     if (editBridgePorts) params['bridge_ports'] = editBridgePorts
+    if (editBondSlaves) params['slaves'] = editBondSlaves
+    if (editBondMode) params['bond_mode'] = editBondMode
     if (editComment) params['comments'] = editComment
     updateIface.mutate({ iface: editingIface, params }, { onSuccess: () => setEditingIface(null) })
   }
@@ -325,6 +340,41 @@ export function NodeNetworkPage() {
                                     className="w-28 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
                                 </div>
                               )}
+                              {(iface.type === 'bond' || r['slaves'] != null) && (
+                                <>
+                                  <div>
+                                    <label className="block text-xs text-text-muted mb-0.5">Slaves</label>
+                                    <input value={editBondSlaves} onChange={(e) => setEditBondSlaves(e.target.value)}
+                                      placeholder="ens3 ens4"
+                                      className="w-28 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs text-text-muted mb-0.5">Bond Mode</label>
+                                    <select value={editBondMode} onChange={(e) => setEditBondMode(e.target.value)}
+                                      className="rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent [color-scheme:dark]">
+                                      {BOND_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
+                                    </select>
+                                  </div>
+                                </>
+                              )}
+                              <div>
+                                <label className="block text-xs text-text-muted mb-0.5">IPv6 Address</label>
+                                <input value={editAddress6} onChange={(e) => setEditAddress6(e.target.value)}
+                                  placeholder="2001:db8::1"
+                                  className="w-44 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-text-muted mb-0.5">IPv6 Prefix Len</label>
+                                <input value={editNetmask6} onChange={(e) => setEditNetmask6(e.target.value)}
+                                  placeholder="64"
+                                  className="w-20 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-text-muted mb-0.5">IPv6 Gateway</label>
+                                <input value={editGateway6} onChange={(e) => setEditGateway6(e.target.value)}
+                                  placeholder="fe80::1"
+                                  className="w-36 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                              </div>
                               <div>
                                 <label className="block text-xs text-text-muted mb-0.5">Comment</label>
                                 <input value={editComment} onChange={(e) => setEditComment(e.target.value)}

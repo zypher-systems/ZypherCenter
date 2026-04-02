@@ -35,6 +35,7 @@ import {
   useCreateLXCSnapshot,
   useDeleteLXCSnapshot,
   useRollbackLXCSnapshot,
+  useUpdateLXCSnapshot,
   useMigrateLXC,
   useCloneLXC,
   useUpdateLXCConfig,
@@ -1735,10 +1736,18 @@ function SnapshotsTab({ node, vmid }: { node: string; vmid: number }) {
   const createSnap = useCreateLXCSnapshot(node, vmid)
   const deleteSnap = useDeleteLXCSnapshot(node, vmid)
   const rollbackSnap = useRollbackLXCSnapshot(node, vmid)
+  const updateSnap = useUpdateLXCSnapshot(node, vmid)
 
   const [showForm, setShowForm] = useState(false)
   const [snapname, setSnapname] = useState('')
   const [description, setDescription] = useState('')
+  const [editingSnap, setEditingSnap] = useState<string | null>(null)
+  const [editDesc, setEditDesc] = useState('')
+
+  function startEditDesc(name: string, current: string | undefined) {
+    setEditingSnap(name)
+    setEditDesc(current ?? '')
+  }
 
   function handleCreate() {
     if (!snapname.trim()) return
@@ -1838,25 +1847,55 @@ function SnapshotsTab({ node, vmid }: { node: string; vmid: number }) {
                       {s.snaptime ? formatTimestamp(s.snaptime) : '—'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="inline-flex gap-1.5">
-                        <button
-                          onClick={() => rollbackSnap.mutate(s.name)}
-                          disabled={rollbackSnap.isPending}
-                          className="inline-flex items-center gap-1 rounded border border-border-muted px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-hover disabled:opacity-50"
-                        >
-                          <RotateCcw className="size-3" />
-                          Rollback
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Delete snapshot "${s.name}"?`)) deleteSnap.mutate(s.name)
-                          }}
-                          disabled={deleteSnap.isPending}
-                          className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
-                        >
-                          Delete
-                        </button>
-                      </div>
+                      {editingSnap === s.name ? (
+                        <div className="inline-flex items-center gap-1.5">
+                          <input
+                            className="rounded-md border border-border-muted bg-bg-input px-2 py-0.5 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+                            value={editDesc}
+                            onChange={(e) => setEditDesc(e.target.value)}
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => updateSnap.mutate({ snapname: s.name, description: editDesc }, { onSuccess: () => setEditingSnap(null) })}
+                            disabled={updateSnap.isPending}
+                            className="inline-flex items-center gap-1 rounded border border-accent px-2 py-0.5 text-xs text-accent hover:bg-accent/10 disabled:opacity-50"
+                          >
+                            <Check className="size-3" />Save
+                          </button>
+                          <button
+                            onClick={() => setEditingSnap(null)}
+                            className="inline-flex items-center gap-1 rounded border border-border-muted px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-hover"
+                          >
+                            <X className="size-3" />Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="inline-flex gap-1.5">
+                          <button
+                            onClick={() => startEditDesc(s.name, s.description)}
+                            className="inline-flex items-center gap-1 rounded border border-border-muted px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-hover"
+                          >
+                            <Pencil className="size-3" />
+                          </button>
+                          <button
+                            onClick={() => rollbackSnap.mutate(s.name)}
+                            disabled={rollbackSnap.isPending}
+                            className="inline-flex items-center gap-1 rounded border border-border-muted px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-hover disabled:opacity-50"
+                          >
+                            <RotateCcw className="size-3" />
+                            Rollback
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete snapshot "${s.name}"?`)) deleteSnap.mutate(s.name)
+                            }}
+                            disabled={deleteSnap.isPending}
+                            className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))

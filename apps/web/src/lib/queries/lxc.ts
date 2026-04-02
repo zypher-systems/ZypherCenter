@@ -126,6 +126,19 @@ export function useRollbackLXCSnapshot(node: string, vmid: number) {
   })
 }
 
+export function useUpdateLXCSnapshot(node: string, vmid: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ snapname, description }: { snapname: string; description: string }) =>
+      api.put(`nodes/${node}/lxc/${vmid}/snapshot/${encodeURIComponent(snapname)}/config`, { description }),
+    onSuccess: () => {
+      toast.success('Snapshot description updated')
+      qc.invalidateQueries({ queryKey: lxcKeys.snapshots(node, vmid) })
+    },
+    onError: (err) => toast.error(`Update failed — ${err.message}`),
+  })
+}
+
 export function useMigrateLXC(node: string, vmid: number) {
   const qc = useQueryClient()
   return useMutation({
