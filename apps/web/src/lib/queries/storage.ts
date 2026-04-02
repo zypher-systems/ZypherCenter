@@ -95,3 +95,12 @@ export function usePruneBackups(node: string, storageId: string) {
     onError: (err) => toast.error(`Prune failed — ${err.message}`),
   })
 }
+
+export function useDownloadURLContent(node: string, storageId: string) {
+  return useMutation({
+    mutationFn: (params: { url: string; filename: string; content: 'iso' | 'vztmpl' }) =>
+      api.post(`nodes/${node}/storage/${storageId}/download-url`, params),
+    onSuccess: () => toast.success('Download started — check Tasks for progress'),
+    onError: (err) => toast.error(`Download failed — ${err.message}`),
+  })
+}

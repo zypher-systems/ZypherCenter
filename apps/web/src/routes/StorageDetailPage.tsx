@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useParams } from 'react-router'
-import { HardDrive, Package, Server, Trash2, Upload, RotateCcw, Scissors } from 'lucide-react'
-import { useStorage, useStorageContent, useDeleteStorageContent, useUploadContent, usePruneBackups } from '@/lib/queries/storage'
+import { HardDrive, Package, Server, Trash2, Upload, RotateCcw, Scissors, Link2 } from 'lucide-react'
+import { useStorage, useStorageContent, useDeleteStorageContent, useUploadContent, usePruneBackups, useDownloadURLContent } from '@/lib/queries/storage'
 import { useNodeStorage } from '@/lib/queries/nodes'
 import { useRestoreVM } from '@/lib/queries/vms'
 import { useRestoreLXC } from '@/lib/queries/lxc'
@@ -153,6 +153,10 @@ export function StorageDetailPage() {
   const [uploadType, setUploadType] = useState<'iso' | 'vztmpl'>('iso')
   const [restoreItem, setRestoreItem] = useState<StorageContentItem | null>(null)
   const [selectedVolids, setSelectedVolids] = useState<Set<string>>(new Set())
+  const [showDownloadUrl, setShowDownloadUrl] = useState(false)
+  const [dlUrl, setDlUrl] = useState('')
+  const [dlFilename, setDlFilename] = useState('')
+  const [dlType, setDlType] = useState<'iso' | 'vztmpl'>('iso')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: storages } = useStorage()
@@ -171,6 +175,7 @@ export function StorageDetailPage() {
   const deleteContent = useDeleteStorageContent(targetNode, storageid!)
   const uploadContent = useUploadContent(targetNode, storageid!)
   const pruneBackups = usePruneBackups(targetNode, storageid!)
+  const downloadUrl = useDownloadURLContent(targetNode, storageid!)
 
   function toggleSelect(volid: string) {
     setSelectedVolids((prev) => {
@@ -210,6 +215,20 @@ export function StorageDetailPage() {
     )
   }
 
+  function handleDownloadUrl() {
+    if (!dlUrl.trim() || !dlFilename.trim()) return
+    downloadUrl.mutate(
+      { url: dlUrl.trim(), filename: dlFilename.trim(), content: dlType },
+      {
+        onSuccess: () => {
+          setShowDownloadUrl(false)
+          setDlUrl('')
+          setDlFilename('')
+        },
+      },
+    )
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
@@ -223,6 +242,11 @@ export function StorageDetailPage() {
           {canUpload && (
             <Button size="sm" variant="default" onClick={() => setShowUpload(true)}>
               <Upload className="size-3.5" /> Upload
+            </Button>
+          )}
+          {canUpload && (
+            <Button size="sm" variant="outline" onClick={() => setShowDownloadUrl(true)}>
+              <Link2 className="size-3.5" /> Download URL
             </Button>
           )}
           {hasBackupContent && (
@@ -358,6 +382,67 @@ export function StorageDetailPage() {
           node={targetNode}
           onClose={() => setRestoreItem(null)}
         />
+      )}
+
+      {/* Download from URL dialog */}
+      {showDownloadUrl && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Link2 className="size-4 text-text-muted" /> Download from URL
+              </CardTitle>
+              <button onClick={() => { setShowDownloadUrl(false); setDlUrl(''); setDlFilename('') }} className="text-text-muted hover:text-text-primary">
+                ✕
+              </button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-text-muted w-20">Type</span>
+              <select
+                value={dlType}
+                onChange={(e) => setDlType(e.target.value as 'iso' | 'vztmpl')}
+                className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+              >
+                {canUploadIso && <option value="iso">ISO Image</option>}
+                {canUploadTemplate && <option value="vztmpl">CT Template</option>}
+              </select>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-text-muted w-20">URL</span>
+              <input
+                type="url"
+                value={dlUrl}
+                onChange={(e) => {
+                  setDlUrl(e.target.value)
+                  if (!dlFilename) {
+                    const name = e.target.value.split('/').pop()?.split('?')[0] ?? ''
+                    if (name) setDlFilename(name)
+                  }
+                }}
+                placeholder="https://example.com/debian.iso"
+                className="flex-1 rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-text-muted w-20">Filename</span>
+              <input
+                type="text"
+                value={dlFilename}
+                onChange={(e) => setDlFilename(e.target.value)}
+                placeholder="debian-12.iso"
+                className="flex-1 rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button size="sm" variant="ghost" onClick={() => { setShowDownloadUrl(false); setDlUrl(''); setDlFilename('') }}>Cancel</Button>
+              <Button size="sm" onClick={handleDownloadUrl} disabled={!dlUrl.trim() || !dlFilename.trim() || downloadUrl.isPending}>
+                {downloadUrl.isPending ? 'Starting…' : 'Download'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Content type filter */}
