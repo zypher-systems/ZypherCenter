@@ -113,7 +113,7 @@ export function StorageListPage() {
   // aggregate disk usage per storage name from cluster resources
   const capacityMap = new Map<string, { used: number; total: number }>()
   resources?.filter((r) => r.type === 'storage').forEach((r) => {
-    const key = r.name ?? ''
+    const key = r.storage ?? r.id?.split('/')?.[2] ?? ''
     if (!key) return
     const existing = capacityMap.get(key) ?? { used: 0, total: 0 }
     capacityMap.set(key, {

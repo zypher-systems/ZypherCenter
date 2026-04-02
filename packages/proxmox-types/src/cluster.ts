@@ -40,6 +40,7 @@ export const ClusterResourceSchema = z.object({
   node: z.string().optional(),
   pool: z.string().optional(),
   name: z.string().optional(),
+  storage: z.string().optional(),
   vmid: z.number().int().optional(),
   uptime: z.number().optional(),
   cpu: z.number().optional(),
