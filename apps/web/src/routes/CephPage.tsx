@@ -22,6 +22,7 @@ import {
   useCreateCephPool,
   useDeleteCephPool,
   useDestroyOSD,
+  useCreateCephOSD,
   flattenOSDs,
   type CephStatus,
   type CephOSD,
@@ -30,6 +31,7 @@ import {
   type CephMDS,
 } from '@/lib/queries/ceph'
 import { useClusterResources } from '@/lib/queries/cluster'
+import { useNodeDisks } from '@/lib/queries/nodes'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
 import { ResourceGauge } from '@/components/ui/ResourceGauge'
@@ -363,9 +365,93 @@ function StatusTab({ node }: { node: string }) {
 
 // ── OSDs tab ──────────────────────────────────────────────────────────────────
 
+const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]'
+
+function CreateOSDDialog({ node, onClose }: { node: string; onClose: () => void }) {
+  const { data: disks } = useNodeDisks(node)
+  const createOSD = useCreateCephOSD(node)
+
+  const freeDisks = (disks ?? []).filter((d) => !d.used && !d.osdid)
+  const allDisks  = disks ?? []
+
+  const [dev, setDev]         = useState('')
+  const [dbDev, setDbDev]     = useState('')
+  const [walDev, setWalDev]   = useState('')
+  const [encrypted, setEncrypted] = useState(false)
+
+  function submit() {
+    if (!dev) return
+    const params: { dev: string; db_dev?: string; wal_dev?: string; encrypted?: number } = { dev }
+    if (dbDev)  params.db_dev  = dbDev
+    if (walDev) params.wal_dev = walDev
+    if (encrypted) params.encrypted = 1
+    createOSD.mutate(params, { onSuccess: () => onClose() })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold text-text-primary">Create OSD</h2>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Device <span className="text-status-error">*</span></label>
+            <select value={dev} onChange={(e) => setDev(e.target.value)} className={inp}>
+              <option value="">Select a disk…</option>
+              {freeDisks.map((d) => (
+                <option key={d.devpath} value={d.devpath}>
+                  {d.devpath} — {formatBytes(d.size)}{d.model ? ` (${d.model})` : ''}
+                </option>
+              ))}
+            </select>
+            {freeDisks.length === 0 && (
+              <p className="text-xs text-status-paused mt-1">No free disks detected on this node.</p>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">DB Device <span className="text-text-disabled">(optional)</span></label>
+            <select value={dbDev} onChange={(e) => setDbDev(e.target.value)} className={inp}>
+              <option value="">None (co-located on OSD device)</option>
+              {allDisks.map((d) => (
+                <option key={d.devpath} value={d.devpath}>
+                  {d.devpath} — {formatBytes(d.size)}{d.model ? ` (${d.model})` : ''}{d.used ? ` [${d.used}]` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">WAL Device <span className="text-text-disabled">(optional)</span></label>
+            <select value={walDev} onChange={(e) => setWalDev(e.target.value)} className={inp}>
+              <option value="">None (co-located on OSD device)</option>
+              {allDisks.map((d) => (
+                <option key={d.devpath} value={d.devpath}>
+                  {d.devpath} — {formatBytes(d.size)}{d.model ? ` (${d.model})` : ''}{d.used ? ` [${d.used}]` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+            <input type="checkbox" checked={encrypted} onChange={(e) => setEncrypted(e.target.checked)} className="accent-accent" />
+            Encrypt OSD (LUKS)
+          </label>
+        </div>
+        <p className="text-xs text-status-error/80 bg-status-error/5 border border-status-error/20 rounded px-3 py-2">
+          Creating an OSD will wipe all data on the selected disk. This cannot be undone.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={submit} disabled={!dev || createOSD.isPending}>
+            {createOSD.isPending ? 'Creating…' : 'Create OSD'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function OSDsTab({ node }: { node: string }) {
   const { data: raw, isLoading } = useCephOSDs(node)
   const destroyOSD = useDestroyOSD(node)
+  const [showCreate, setShowCreate] = useState(false)
 
   if (isLoading) return <SkeletonCard />
 
@@ -377,24 +463,30 @@ function OSDsTab({ node }: { node: string }) {
 
   return (
     <div className="space-y-4">
+      {showCreate && <CreateOSDDialog node={node} onClose={() => setShowCreate(false)} />}
       {/* Summary */}
-      <div className="flex items-center gap-6 text-sm">
-        <span className="text-text-muted">
-          <span className={`font-semibold ${upCount < osds.length ? 'text-status-error' : 'text-status-running'}`}>
-            {upCount}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-6 text-sm">
+          <span className="text-text-muted">
+            <span className={`font-semibold ${upCount < osds.length ? 'text-status-error' : 'text-status-running'}`}>
+              {upCount}
+            </span>
+            <span className="text-text-disabled"> / {osds.length} up</span>
           </span>
-          <span className="text-text-disabled"> / {osds.length} up</span>
-        </span>
-        <span className="text-text-muted">
-          <span className="font-semibold text-text-primary">{inCount}</span>
-          <span className="text-text-disabled"> / {osds.length} in</span>
-        </span>
-        {deviceClasses.map((cls) => (
-          <span key={cls} className="text-text-muted">
-            <span className="font-mono text-xs bg-bg-elevated px-1.5 py-0.5 rounded">{cls.toUpperCase()}</span>
-            <span className="ml-1">{osds.filter((o) => o.deviceClass === cls).length}</span>
+          <span className="text-text-muted">
+            <span className="font-semibold text-text-primary">{inCount}</span>
+            <span className="text-text-disabled"> / {osds.length} in</span>
           </span>
-        ))}
+          {deviceClasses.map((cls) => (
+            <span key={cls} className="text-text-muted">
+              <span className="font-mono text-xs bg-bg-elevated px-1.5 py-0.5 rounded">{cls.toUpperCase()}</span>
+              <span className="ml-1">{osds.filter((o) => o.deviceClass === cls).length}</span>
+            </span>
+          ))}
+        </div>
+        <Button size="sm" onClick={() => setShowCreate(true)}>
+          <Plus className="size-3.5 mr-1" />Create OSD
+        </Button>
       </div>
 
       <Card>

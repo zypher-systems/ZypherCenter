@@ -247,3 +247,17 @@ export function useDestroyOSD(node: string) {
     onError: (err) => toast.error(`Failed to destroy OSD — ${err.message}`),
   })
 }
+
+export function useCreateCephOSD(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { dev: string; db_dev?: string; wal_dev?: string; encrypted?: number }) =>
+      api.post(`nodes/${node}/ceph/osd`, params),
+    onSuccess: () => {
+      toast.success('OSD creation started')
+      qc.invalidateQueries({ queryKey: cephKeys.osds(node) })
+      qc.invalidateQueries({ queryKey: cephKeys.status(node) })
+    },
+    onError: (err) => toast.error(`Failed to create OSD — ${err.message}`),
+  })
+}
