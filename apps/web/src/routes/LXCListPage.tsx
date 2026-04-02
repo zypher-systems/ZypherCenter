@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router'
 import { Play, Square, RotateCcw, Power, Terminal, Search, Plus, Trash2 } from 'lucide-react'
 import { useLXCs, useLXCStart, useLXCStop, useLXCShutdown, useLXCReboot, useCreateLXC, useDeleteLXC } from '@/lib/queries/lxc'
 import { useNextVMId } from '@/lib/queries/vms'
-import { useNodeStorage } from '@/lib/queries/nodes'
+import { useNodeStorage, useNodeNetwork } from '@/lib/queries/nodes'
 import { Card, CardContent } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -22,6 +22,7 @@ import { formatBytes, formatPercent, formatUptime } from '@/lib/utils'
 function CreateLXCDialog({ node, onClose }: { node: string; onClose: () => void }) {
   const { data: nextId } = useNextVMId()
   const { data: storages } = useNodeStorage(node)
+  const { data: network } = useNodeNetwork(node)
   const createLXC = useCreateLXC(node)
 
   const [vmid, setVmid] = useState('')
@@ -36,17 +37,25 @@ function CreateLXCDialog({ node, onClose }: { node: string; onClose: () => void 
   const [onboot, setOnboot] = useState(false)
   const [unprivileged, setUnprivileged] = useState(true)
   const [start, setStart] = useState(false)
+  // network
+  const [bridge, setBridge] = useState('')
+  const [netIp, setNetIp] = useState('dhcp')
+  const [netIp6, setNetIp6] = useState('auto')
+  const [netVlan, setNetVlan] = useState('')
+  const [netStaticIp, setNetStaticIp] = useState('')
+  const [netGateway, setNetGateway] = useState('')
 
   const rootStores = (storages ?? []).filter((s) =>
     s.content?.split(',').some((c) => ['images', 'rootdir'].includes(c.trim()))
   )
+  const bridges = (network ?? []).filter((n) => n.type === 'bridge' || n.type === 'OVSBridge')
 
   const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]'
 
   function submit() {
     const id = Number(vmid) || nextId
     if (!id || !hostname.trim() || !password || !ostemplate.trim()) return
-    createLXC.mutate({
+    const params: Parameters<typeof createLXC.mutate>[0] = {
       vmid: id,
       hostname: hostname.trim(),
       password,
@@ -58,7 +67,17 @@ function CreateLXCDialog({ node, onClose }: { node: string; onClose: () => void 
       onboot: onboot ? 1 : 0,
       unprivileged: unprivileged ? 1 : 0,
       start: start ? 1 : 0,
-    }, { onSuccess: () => onClose() })
+    }
+    if (bridge) {
+      const vlanPart = netVlan.trim() ? `,tag=${netVlan.trim()}` : ''
+      let ipPart = `ip=${netIp}`
+      if (netIp === 'static' && netStaticIp.trim()) {
+        ipPart = `ip=${netStaticIp.trim()}`
+        if (netGateway.trim()) ipPart += `,gw=${netGateway.trim()}`
+      }
+      params.net0 = `name=eth0,bridge=${bridge},${ipPart},ip6=${netIp6}${vlanPart}`
+    }
+    createLXC.mutate(params, { onSuccess: () => onClose() })
   }
 
   return (
@@ -129,6 +148,55 @@ function CreateLXCDialog({ node, onClose }: { node: string; onClose: () => void 
             <input type="checkbox" checked={start} onChange={(e) => setStart(e.target.checked)} />
             Start after creation
           </label>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-text-secondary mb-2">Network (net0)</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Bridge</label>
+              <select value={bridge} onChange={(e) => setBridge(e.target.value)} className={inp}>
+                <option value="">— none —</option>
+                {bridges.map((b) => <option key={b.iface} value={b.iface}>{b.iface}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">VLAN Tag</label>
+              <input type="number" value={netVlan} onChange={(e) => setNetVlan(e.target.value)} placeholder="none" disabled={!bridge} className={inp} />
+            </div>
+          </div>
+          {bridge && (
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <div>
+                <label className="block text-xs text-text-muted mb-1">IPv4</label>
+                <select value={netIp} onChange={(e) => setNetIp(e.target.value)} className={inp}>
+                  <option value="dhcp">DHCP</option>
+                  <option value="static">Static</option>
+                  <option value="manual">Manual</option>
+                </select>
+              </div>
+              {netIp === 'static' && (
+                <>
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">IP/CIDR</label>
+                    <input value={netStaticIp} onChange={(e) => setNetStaticIp(e.target.value)} placeholder="192.168.1.100/24" className={inp} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">Gateway</label>
+                    <input value={netGateway} onChange={(e) => setNetGateway(e.target.value)} placeholder="192.168.1.1" className={inp} />
+                  </div>
+                </>
+              )}
+              <div>
+                <label className="block text-xs text-text-muted mb-1">IPv6</label>
+                <select value={netIp6} onChange={(e) => setNetIp6(e.target.value)} className={inp}>
+                  <option value="auto">SLAAC</option>
+                  <option value="dhcp">DHCPv6</option>
+                  <option value="manual">Manual</option>
+                </select>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 pt-1">

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router'
 import { Play, Square, RotateCcw, Power, Terminal, Plus, Search, Trash2 } from 'lucide-react'
 import { useVMs, useVMStart, useVMStop, useVMShutdown, useVMReboot, useCreateVM, useNextVMId, useDeleteVM } from '@/lib/queries/vms'
-import { useNodeStorage } from '@/lib/queries/nodes'
+import { useNodeStorage, useNodeNetwork } from '@/lib/queries/nodes'
 import { Card, CardContent } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -31,6 +31,7 @@ const OS_TYPES = [
 function CreateVMDialog({ node, onClose }: { node: string; onClose: () => void }) {
   const { data: nextId } = useNextVMId()
   const { data: storages } = useNodeStorage(node)
+  const { data: network } = useNodeNetwork(node)
   const createVM = useCreateVM(node)
 
   const [vmid, setVmid] = useState('')
@@ -41,10 +42,15 @@ function CreateVMDialog({ node, onClose }: { node: string; onClose: () => void }
   const [diskStorage, setDiskStorage] = useState('')
   const [diskSize, setDiskSize] = useState('32')
   const [onboot, setOnboot] = useState(false)
+  // network
+  const [bridge, setBridge] = useState('')
+  const [netModel, setNetModel] = useState('virtio')
+  const [netVlan, setNetVlan] = useState('')
 
   const diskStores = (storages ?? []).filter((s) =>
     s.content?.split(',').some((c) => ['images', 'rootdir'].includes(c.trim()))
   )
+  const bridges = (network ?? []).filter((n) => n.type === 'bridge' || n.type === 'OVSBridge')
 
   const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]'
 
@@ -62,6 +68,10 @@ function CreateVMDialog({ node, onClose }: { node: string; onClose: () => void }
     if (diskStorage) {
       params.scsi0 = `${diskStorage}:${diskSize}`
       params.boot = 'order=scsi0'
+    }
+    if (bridge) {
+      const netVlanPart = netVlan.trim() ? `,tag=${netVlan.trim()}` : ''
+      params.net0 = `${netModel},bridge=${bridge}${netVlanPart}`
     }
     createVM.mutate(params, { onSuccess: () => onClose() })
   }
@@ -118,6 +128,35 @@ function CreateVMDialog({ node, onClose }: { node: string; onClose: () => void }
           <input type="checkbox" checked={onboot} onChange={(e) => setOnboot(e.target.checked)} className="rounded" />
           Start at boot
         </label>
+
+        <div>
+          <p className="text-xs font-medium text-text-secondary mb-2">Network (net0)</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="col-span-2">
+              <label className="block text-xs text-text-muted mb-1">Bridge</label>
+              <select value={bridge} onChange={(e) => setBridge(e.target.value)} className={inp}>
+                <option value="">— none —</option>
+                {bridges.map((b) => <option key={b.iface} value={b.iface}>{b.iface}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">VLAN Tag</label>
+              <input type="number" value={netVlan} onChange={(e) => setNetVlan(e.target.value)} placeholder="none" disabled={!bridge} className={inp} />
+            </div>
+          </div>
+          {bridge && (
+            <div className="mt-2">
+              <label className="block text-xs text-text-muted mb-1">Adapter Model</label>
+              <select value={netModel} onChange={(e) => setNetModel(e.target.value)} className={inp}>
+                <option value="virtio">VirtIO (paravirtualized)</option>
+                <option value="e1000">Intel E1000</option>
+                <option value="e1000e">Intel E1000e</option>
+                <option value="rtl8139">Realtek RTL8139</option>
+                <option value="vmxnet3">VMware vmxnet3</option>
+              </select>
+            </div>
+          )}
+        </div>
 
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
