@@ -109,3 +109,9 @@ body {
 .font-mono {
   font-family: var(--font-mono);
 }
+
+/* Force all native <select> dropdowns to use dark color scheme so the
+   browser-rendered option list matches the dark UI (prevents white bg / white text) */
+select {
+  color-scheme: dark;
+}

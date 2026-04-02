@@ -474,11 +474,21 @@ function OSDsTab({ node }: { node: string }) {
     </div>
   )
 
-  // API may return { root_list: [...] } or the array directly depending on PVE version
-  const rootItems: CephOSDTreeItem[] = Array.isArray(raw)
-    ? raw
-    : ((raw as { root_list?: CephOSDTreeItem[] })?.root_list ?? [])
-  const osds: CephOSD[] = flattenOSDs(rootItems)
+  // API returns { nodes: [...flat CRUSH items...], root_list: [...] } or the array directly.
+  // `children` in each node are integer IDs, so we use the flat `nodes` array for OSD extraction.
+  let flatNodes: CephOSDTreeItem[] = []
+  if (Array.isArray(raw)) {
+    flatNodes = raw
+  } else if (raw && typeof raw === 'object') {
+    const r = raw as Record<string, unknown>
+    if (Array.isArray(r.nodes)) {
+      flatNodes = r.nodes as CephOSDTreeItem[]
+    } else if (Array.isArray(r.root_list)) {
+      // Fallback: walk root_list treating children as nested objects
+      flatNodes = r.root_list as CephOSDTreeItem[]
+    }
+  }
+  const osds: CephOSD[] = flattenOSDs(flatNodes)
   const upCount = osds.filter((o) => o.up).length
   const inCount = osds.filter((o) => o.inCluster).length
 

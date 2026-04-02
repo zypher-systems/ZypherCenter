@@ -10,6 +10,7 @@ import {
   useUpdateHAGroup,
   useUpdateHAResource,
 } from '@/lib/queries/ha'
+import { useClusterResources } from '@/lib/queries/cluster'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   Table,
@@ -41,6 +42,16 @@ function AddResourceDialog({
   const [maxRelocate, setMaxRelocate] = useState('1')
   const [comment, setComment] = useState('')
   const create = useCreateHAResource()
+  const { data: resources } = useClusterResources()
+
+  // Build sorted list of all VMs and CTs for the SID picker
+  const guestOptions = (resources ?? [])
+    .filter((r) => (r.type === 'qemu' || r.type === 'lxc') && r.vmid != null)
+    .sort((a, b) => (a.vmid ?? 0) - (b.vmid ?? 0))
+    .map((r) => ({
+      value: `${r.type === 'qemu' ? 'vm' : 'ct'}:${r.vmid}`,
+      label: `(${r.vmid}) — ${r.name ?? r.id ?? 'unnamed'} [${r.node}]`,
+    }))
 
   function submit() {
     if (!sid.trim()) return
@@ -64,22 +75,34 @@ function AddResourceDialog({
         <div className="space-y-3">
           <div>
             <label className="block text-sm text-text-secondary mb-1">
-              Resource ID <span className="text-status-error">*</span>
-              <span className="ml-1 text-xs text-text-muted">(e.g. vm:100)</span>
+              VM / Container <span className="text-status-error">*</span>
             </label>
-            <input
-              value={sid}
-              onChange={(e) => setSid(e.target.value)}
-              placeholder="vm:100"
-              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
-            />
+            {guestOptions.length > 0 ? (
+              <select
+                value={sid}
+                onChange={(e) => setSid(e.target.value)}
+                className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+              >
+                <option value="">— Select a VM or Container —</option>
+                {guestOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={sid}
+                onChange={(e) => setSid(e.target.value)}
+                placeholder="vm:100"
+                className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+              />
+            )}
           </div>
           <div>
             <label className="block text-sm text-text-secondary mb-1">Group</label>
             <select
               value={group}
               onChange={(e) => setGroup(e.target.value)}
-              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
             >
               <option value="">— None —</option>
               {groups.map((g) => (
@@ -92,7 +115,7 @@ function AddResourceDialog({
             <select
               value={state}
               onChange={(e) => setState(e.target.value)}
-              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
             >
               {HA_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>

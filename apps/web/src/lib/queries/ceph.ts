@@ -66,7 +66,8 @@ export interface CephOSDTreeItem {
   kb?: number
   kb_used?: number
   kb_avail?: number
-  children?: CephOSDTreeItem[]
+  // children can be integer IDs (referencing another node's id) or nested objects
+  children?: (number | CephOSDTreeItem)[]
 }
 
 /** Flattened OSD with host name resolved from tree parent */
@@ -119,34 +120,58 @@ export interface CephMDS {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-export function flattenOSDs(
-  items: CephOSDTreeItem[],
-  hostName = '',
-): CephOSD[] {
+/**
+ * Extract OSDs from the flat `nodes` array returned by GET /nodes/{node}/ceph/osd.
+ *
+ * The Proxmox API returns:
+ *   { nodes: CephOSDTreeItem[], root_list: [...] }
+ * where each item in `nodes` has `type`/`type_id` and `children` is an array
+ * of integer IDs referencing other `nodes` entries by their `id` field.
+ *
+ * We:
+ *  1. Build an id→node map for O(1) lookup
+ *  2. Build an id→hostName map by walking host nodes' children
+ *  3. Collect all OSD-type nodes and attach their host name
+ */
+export function flattenOSDs(nodes: CephOSDTreeItem[]): CephOSD[] {
+  // Build id → node map
+  const byId = new Map<number, CephOSDTreeItem>()
+  for (const n of nodes) {
+    if (n.id != null) byId.set(n.id, n)
+  }
+
+  // Build osdId → hostName from host nodes
+  const osdHost = new Map<number, string>()
+  for (const n of nodes) {
+    const isHost = n.type === 'host' || n.type_id === 1
+    if (isHost && n.children?.length) {
+      for (const child of n.children) {
+        const childId = typeof child === 'number' ? child : child.id
+        if (childId != null) {
+          osdHost.set(childId, n.name ?? '')
+        }
+      }
+    }
+  }
+
+  // Collect OSD nodes
   const osds: CephOSD[] = []
-  for (const item of items) {
-    // Match OSD leaf nodes — check type string AND numeric type_id (0=osd) for resilience
-    const isOSD = item.type === 'osd' || item.type_id === 0
-    const isHost = item.type === 'host' || item.type_id === 1
-    if (isOSD && item.id != null && item.id >= 0) {
+  for (const n of nodes) {
+    const isOSD = n.type === 'osd' || n.type_id === 0
+    if (isOSD && n.id != null && n.id >= 0) {
       osds.push({
-        id: item.id,
-        name: item.name ?? `osd.${item.id}`,
-        host: hostName,
-        up: item.up === 1 || item.status === 'up',
-        inCluster: item.in === 1,
-        // Ceph Reef+ uses device_class or class; older uses type-class
-        deviceClass: item.device_class ?? item.class ?? item['type-class'] ?? 'hdd',
-        // Ceph Reef+ uses crush_weight (underscore); older uses crush-weight (hyphen)
-        crushWeight: item.crush_weight ?? item['crush-weight'] ?? 1,
-        reweight: item.reweight ?? 1,
-        kb: item.kb ?? 0,
-        kbUsed: item.kb_used ?? 0,
-        kbAvail: item.kb_avail ?? 0,
+        id: n.id,
+        name: n.name ?? `osd.${n.id}`,
+        host: osdHost.get(n.id) ?? '',
+        up: n.up === 1 || n.status === 'up',
+        inCluster: n.in === 1,
+        deviceClass: n.device_class ?? n.class ?? n['type-class'] ?? 'hdd',
+        crushWeight: n.crush_weight ?? n['crush-weight'] ?? 1,
+        reweight: n.reweight ?? 1,
+        kb: n.kb ?? 0,
+        kbUsed: n.kb_used ?? 0,
+        kbAvail: n.kb_avail ?? 0,
       })
-    } else if (item.children?.length) {
-      const childHost = isHost ? (item.name ?? hostName) : hostName
-      osds.push(...flattenOSDs(item.children, childHost))
     }
   }
   return osds
