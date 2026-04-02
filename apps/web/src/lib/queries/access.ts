@@ -214,3 +214,17 @@ export function useDeleteUserToken() {
     onError: (err) => toast.error(`Failed — ${err.message}`),
   })
 }
+
+export function useUpdateUserToken() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userid, tokenid, params }: { userid: string; tokenid: string; params: Record<string, unknown> }) =>
+      api.put(`access/users/${encodeURIComponent(userid)}/token/${encodeURIComponent(tokenid)}`, params),
+    onSuccess: (_, { userid }) => {
+      qc.invalidateQueries({ queryKey: accessKeys.tokens(userid) })
+      toast.success('Token updated')
+    },
+    onError: (err) => toast.error(`Update failed — ${err.message}`),
+  })
+}
+
