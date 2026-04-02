@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Shield, List, Network, Tag, Plus, Trash2, ChevronRight, Pencil } from 'lucide-react'
+import { Shield, List, Network, Tag, Plus, Trash2, ChevronRight, Pencil, ChevronDown } from 'lucide-react'
 import {
   useClusterFirewallRules,
   useClusterFirewallOptions,
@@ -12,6 +12,10 @@ import {
   useUpdateClusterFirewallRule,
   useCreateClusterFirewallGroup,
   useDeleteClusterFirewallGroup,
+  useClusterFirewallGroupRules,
+  useCreateClusterFirewallGroupRule,
+  useDeleteClusterFirewallGroupRule,
+  useUpdateClusterFirewallGroupRule,
   useCreateClusterFirewallIPSet,
   useDeleteClusterFirewallIPSet,
   useCreateClusterFirewallIPSetEntry,
@@ -149,7 +153,7 @@ function CreateRuleDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
-function EditRuleDialog({ rule, onClose }: { rule: import('@zyphercenter/proxmox-types').FirewallRule; onClose: () => void }) {
+function EditRuleDialog({ rule, onClose, groupOverride }: { rule: import('@zyphercenter/proxmox-types').FirewallRule; onClose: () => void; groupOverride?: string }) {
   const [type, setType] = useState<'in' | 'out'>(rule.type as 'in' | 'out')
   const [action, setAction] = useState(rule.action)
   const [macro, setMacro] = useState(rule.macro ?? '')
@@ -159,24 +163,24 @@ function EditRuleDialog({ rule, onClose }: { rule: import('@zyphercenter/proxmox
   const [dport, setDport] = useState(rule.dport ?? rule.sport ?? '')
   const [comment, setComment] = useState(rule.comment ?? '')
   const updateRule = useUpdateClusterFirewallRule()
+  const updateGroupRule = useUpdateClusterFirewallGroupRule(groupOverride ?? '')
 
   function submit() {
-    updateRule.mutate(
-      {
-        pos: rule.pos,
-        params: {
-          type,
-          action,
-          macro: macro || undefined,
-          proto: !macro && proto ? proto : undefined,
-          source: source || undefined,
-          dest: dest || undefined,
-          dport: dport || undefined,
-          comment: comment || undefined,
-        },
-      },
-      { onSuccess: () => onClose() },
-    )
+    const params = {
+      type,
+      action,
+      macro: macro || undefined,
+      proto: !macro && proto ? proto : undefined,
+      source: source || undefined,
+      dest: dest || undefined,
+      dport: dport || undefined,
+      comment: comment || undefined,
+    }
+    if (groupOverride) {
+      updateGroupRule.mutate({ pos: rule.pos, params }, { onSuccess: () => onClose() })
+    } else {
+      updateRule.mutate({ pos: rule.pos, params }, { onSuccess: () => onClose() })
+    }
   }
 
   return (
@@ -484,10 +488,111 @@ function RulesTab() {
   )
 }
 
+function GroupRulesPanel({ group }: { group: string }) {
+  const { data: rules, isLoading } = useClusterFirewallGroupRules(group)
+  const createRule = useCreateClusterFirewallGroupRule(group)
+  const deleteRule = useDeleteClusterFirewallGroupRule(group)
+  const updateRule = useUpdateClusterFirewallGroupRule(group)
+  const [showAdd, setShowAdd] = useState(false)
+  const [editingRule, setEditingRule] = useState<import('@zyphercenter/proxmox-types').FirewallRule | null>(null)
+  const [type, setType] = useState<'in' | 'out'>('in')
+  const [action, setAction] = useState('ACCEPT')
+  const [macro, setMacro] = useState('')
+  const [proto, setProto] = useState('')
+  const [source, setSource] = useState('')
+  const [dest, setDest] = useState('')
+  const [dport, setDport] = useState('')
+  const [comment, setComment] = useState('')
+
+  function submitAdd() {
+    createRule.mutate(
+      { type, action, macro: macro || undefined, proto: !macro && proto ? proto : undefined, source: source || undefined, dest: dest || undefined, dport: dport || undefined, comment: comment || undefined, enable: 1 },
+      { onSuccess: () => { setShowAdd(false); setMacro(''); setSource(''); setDest(''); setDport(''); setComment('') } }
+    )
+  }
+
+  if (isLoading) return <p className="px-6 py-3 text-xs text-text-muted animate-pulse">Loading rules…</p>
+
+  return (
+    <div className="border-t border-border-muted bg-bg-elevated">
+      {editingRule && <EditRuleDialog rule={editingRule} onClose={() => setEditingRule(null)} groupOverride={group} />}
+      {(rules && rules.length > 0) && (
+        <div className="divide-y divide-border-muted/50">
+          {rules.map((rule) => (
+            <div key={rule.pos} className={`flex items-center gap-3 px-6 py-2 text-xs ${rule.enable === 0 ? 'opacity-40' : ''}`}>
+              <span className="w-6 text-text-muted font-mono">{rule.pos}</span>
+              <span className="uppercase text-xs font-medium text-text-secondary w-8">{rule.type}</span>
+              <FWActionBadge action={rule.action} />
+              <span className="text-text-secondary">{rule.macro ?? rule.proto ?? '—'}</span>
+              <span className="font-mono text-text-muted">{rule.source ?? '—'}</span>
+              <span className="font-mono text-text-muted">→ {rule.dest ?? 'any'}</span>
+              {rule.dport && <span className="font-mono text-text-muted">:{rule.dport}</span>}
+              {rule.comment && <span className="text-text-disabled italic truncate max-w-[200px]">{rule.comment}</span>}
+              <div className="ml-auto flex items-center gap-1">
+                <button
+                  onClick={() => updateRule.mutate({ pos: rule.pos, params: { enable: rule.enable === 0 ? 1 : 0 } })}
+                  disabled={updateRule.isPending}
+                  className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors disabled:opacity-50 ${rule.enable !== 0 ? 'bg-accent' : 'bg-border-muted'}`}
+                >
+                  <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${rule.enable !== 0 ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                </button>
+                <button onClick={() => setEditingRule(rule)} className="rounded border border-border-subtle px-1.5 py-0.5 text-text-muted hover:text-text-primary hover:bg-bg-card">
+                  <Pencil className="size-3" />
+                </button>
+                <button
+                  onClick={() => { if (confirm(`Delete rule #${rule.pos}?`)) deleteRule.mutate(rule.pos) }}
+                  disabled={deleteRule.isPending}
+                  className="rounded border border-status-error/40 px-1.5 py-0.5 text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                >
+                  <Trash2 className="size-3" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {showAdd ? (
+        <div className="px-6 py-3 space-y-2 border-t border-border-muted/50">
+          <div className="grid grid-cols-3 gap-2">
+            <select value={type} onChange={(e) => setType(e.target.value as 'in' | 'out')} className={inp('text-xs py-1')}>
+              <option value="in">in</option><option value="out">out</option>
+            </select>
+            <select value={action} onChange={(e) => setAction(e.target.value)} className={inp('text-xs py-1')}>
+              {FW_ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <select value={macro} onChange={(e) => setMacro(e.target.value)} className={inp('text-xs py-1')}>
+              {FW_MACROS.map((m) => <option key={m} value={m}>{m || '— no macro —'}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="source" className={inp('text-xs py-1')} />
+            <input value={dest} onChange={(e) => setDest(e.target.value)} placeholder="dest" className={inp('text-xs py-1')} />
+            <input value={dport} onChange={(e) => setDport(e.target.value)} placeholder="port" className={inp('text-xs py-1')} />
+          </div>
+          <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="comment (optional)" className={inp('text-xs py-1 w-full')} />
+          <div className="flex gap-2 justify-end">
+            <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}>Cancel</Button>
+            <Button size="sm" onClick={submitAdd} disabled={createRule.isPending}>
+              <Plus className="size-3.5 mr-1" />{createRule.isPending ? 'Adding…' : 'Add Rule'}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="px-6 py-2">
+          <button onClick={() => setShowAdd(true)} className="text-xs text-accent hover:underline flex items-center gap-1">
+            <Plus className="size-3" /> Add rule to group
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function GroupsTab() {
   const { data: groups, isLoading } = useClusterFirewallGroups()
   const deleteGroup = useDeleteClusterFirewallGroup()
   const [showCreate, setShowCreate] = useState(false)
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
   if (isLoading) return <SkeletonCard />
   return (
     <>
@@ -503,32 +608,32 @@ function GroupsTab() {
           {!groups?.length ? (
             <p className="text-center text-text-muted text-sm py-10">No security groups defined</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Group Name</TableHead>
-                  <TableHead>Comment</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {groups.map((g) => (
-                  <TableRow key={g.group}>
-                    <TableCell className="font-mono font-medium text-text-primary">{g.group}</TableCell>
-                    <TableCell className="text-text-muted text-sm">{g.comment ?? '—'}</TableCell>
-                    <TableCell className="text-right">
-                      <button
-                        onClick={() => { if (confirm(`Delete security group "${g.group}"?`)) deleteGroup.mutate(g.group) }}
-                        disabled={deleteGroup.isPending}
-                        className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
-                      >
-                        <Trash2 className="size-3" />Delete
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="divide-y divide-border-muted">
+              {groups.map((g) => (
+                <div key={g.group}>
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <button
+                      onClick={() => setExpandedGroup(expandedGroup === g.group ? null : g.group)}
+                      className="flex items-center gap-2 flex-1 text-left"
+                    >
+                      {expandedGroup === g.group
+                        ? <ChevronDown className="size-4 text-text-muted" />
+                        : <ChevronRight className="size-4 text-text-muted" />}
+                      <span className="font-mono font-medium text-text-primary">{g.group}</span>
+                      {g.comment && <span className="text-sm text-text-muted">{g.comment}</span>}
+                    </button>
+                    <button
+                      onClick={() => { if (confirm(`Delete security group "${g.group}"?`)) deleteGroup.mutate(g.group) }}
+                      disabled={deleteGroup.isPending}
+                      className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                    >
+                      <Trash2 className="size-3" />Delete
+                    </button>
+                  </div>
+                  {expandedGroup === g.group && <GroupRulesPanel group={g.group} />}
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

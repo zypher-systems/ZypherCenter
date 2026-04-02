@@ -239,6 +239,53 @@ export function useDeleteClusterFirewallGroup() {
   })
 }
 
+export function useClusterFirewallGroupRules(group: string) {
+  return useQuery({
+    queryKey: [...fwk.groups(), group, 'rules'],
+    queryFn: () => api.get<FirewallRule[]>(`cluster/firewall/groups/${encodeURIComponent(group)}`),
+    enabled: !!group,
+  })
+}
+
+export function useCreateClusterFirewallGroupRule(group: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: Record<string, unknown>) =>
+      api.post(`cluster/firewall/groups/${encodeURIComponent(group)}`, params),
+    onSuccess: () => {
+      toast.success('Rule added to group')
+      qc.invalidateQueries({ queryKey: [...fwk.groups(), group, 'rules'] })
+    },
+    onError: (err) => toast.error(`Failed to add rule — ${err.message}`),
+  })
+}
+
+export function useDeleteClusterFirewallGroupRule(group: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (pos: number) =>
+      api.del(`cluster/firewall/groups/${encodeURIComponent(group)}/${pos}`),
+    onSuccess: () => {
+      toast.success('Rule removed from group')
+      qc.invalidateQueries({ queryKey: [...fwk.groups(), group, 'rules'] })
+    },
+    onError: (err) => toast.error(`Failed to delete rule — ${err.message}`),
+  })
+}
+
+export function useUpdateClusterFirewallGroupRule(group: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ pos, params }: { pos: number; params: Record<string, unknown> }) =>
+      api.put(`cluster/firewall/groups/${encodeURIComponent(group)}/${pos}`, params),
+    onSuccess: () => {
+      toast.success('Rule updated')
+      qc.invalidateQueries({ queryKey: [...fwk.groups(), group, 'rules'] })
+    },
+    onError: (err) => toast.error(`Failed to update rule — ${err.message}`),
+  })
+}
+
 export function useCreateClusterFirewallAlias() {
   const qc = useQueryClient()
   return useMutation({
