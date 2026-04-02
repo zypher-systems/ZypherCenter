@@ -474,21 +474,55 @@ function OSDsTab({ node }: { node: string }) {
     </div>
   )
 
-  // API returns { nodes: [...flat CRUSH items...], root_list: [...] } or the array directly.
-  // `children` in each node are integer IDs, so we use the flat `nodes` array for OSD extraction.
+  // Multi-strategy OSD extraction to handle different PVE versions:
+  // PVE 8+/Squid: { nodes: [...flat array of all CRUSH items...], root_list: [...] }
+  // PVE 7: { root_list: [...nested tree...] } where children are integer IDs
+  // Some versions: raw array directly
+  // Fallback: deep scan the entire response object for OSD-type items
   let flatNodes: CephOSDTreeItem[] = []
+
   if (Array.isArray(raw)) {
-    flatNodes = raw
+    flatNodes = raw as CephOSDTreeItem[]
   } else if (raw && typeof raw === 'object') {
     const r = raw as Record<string, unknown>
-    if (Array.isArray(r.nodes)) {
+    // Try 'nodes' key first (standard in PVE 8+)
+    if (Array.isArray(r.nodes) && (r.nodes as unknown[]).length > 0) {
       flatNodes = r.nodes as CephOSDTreeItem[]
-    } else if (Array.isArray(r.root_list)) {
-      // Fallback: walk root_list treating children as nested objects
-      flatNodes = r.root_list as CephOSDTreeItem[]
+    }
+    // Also try 'root_list' — includes host/root nodes that reference OSD child IDs
+    // Merge both arrays so flattenOSDs has ALL nodes to build its ID map
+    if (Array.isArray(r.root_list) && (r.root_list as unknown[]).length > 0) {
+      const rootNodes = r.root_list as CephOSDTreeItem[]
+      const existingIds = new Set(flatNodes.map((n) => n.id))
+      flatNodes = [...flatNodes, ...rootNodes.filter((n) => !existingIds.has(n.id))]
+    }
+    // Deep-scan: if still no OSD-type items found after standard keys, walk all array values
+    if (!flatNodes.some((n) => n.type === 'osd' || n.type_id === 0)) {
+      for (const val of Object.values(r)) {
+        if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object') {
+          const candidates = val as CephOSDTreeItem[]
+          if (candidates.some((c) => c.type === 'osd' || c.type_id === 0)) {
+            flatNodes = candidates
+            break
+          }
+        }
+      }
     }
   }
+
   const osds: CephOSD[] = flattenOSDs(flatNodes)
+
+  // Debug info — shown only when no OSDs extracted, helps diagnose PVE API shape
+  const debugInfo = osds.length === 0 && raw != null
+    ? JSON.stringify(
+        typeof raw === 'object' && !Array.isArray(raw)
+          ? Object.fromEntries(Object.entries(raw as object).map(([k, v]) =>
+              [k, Array.isArray(v) ? `[Array(${v.length})] first=${JSON.stringify(v[0]).slice(0, 80)}` : v]
+            ))
+          : { type: typeof raw, isArray: Array.isArray(raw), length: Array.isArray(raw) ? raw.length : 0 },
+        null, 2
+      )
+    : null
   const upCount = osds.filter((o) => o.up).length
   const inCount = osds.filter((o) => o.inCluster).length
 
@@ -525,7 +559,19 @@ function OSDsTab({ node }: { node: string }) {
       <Card>
         <CardContent className="p-0">
           {!osds.length ? (
-            <p className="text-center text-text-muted text-sm py-10">No OSDs found</p>
+            <div className="py-10 text-center space-y-3">
+              <p className="text-text-muted text-sm">No OSDs found</p>
+              {debugInfo && (
+                <details className="text-left mx-auto max-w-2xl">
+                  <summary className="text-xs text-text-disabled cursor-pointer hover:text-text-muted">
+                    Debug: show raw API response shape
+                  </summary>
+                  <pre className="mt-2 text-xs bg-bg-elevated rounded p-3 text-text-muted overflow-auto max-h-48 font-mono">
+                    {debugInfo}
+                  </pre>
+                </details>
+              )}
+            </div>
           ) : (
             <Table>
               <TableHeader>

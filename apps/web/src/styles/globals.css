@@ -110,8 +110,21 @@ body {
   font-family: var(--font-mono);
 }
 
-/* Force all native <select> dropdowns to use dark color scheme so the
-   browser-rendered option list matches the dark UI (prevents white bg / white text) */
-select {
+/* Tell the browser the entire page is dark-mode so all native UI elements
+   (select dropdowns, scrollbars, date pickers, etc.) render accordingly.
+   This is the primary fix for <select> popup list backgrounds on Linux/macOS. */
+:root {
   color-scheme: dark;
+}
+
+/* Belt-and-suspenders: explicitly style option elements so Chromium-based
+   browsers apply dark bg + light text directly to each option item in the popup. */
+select option {
+  background-color: rgb(20 20 25);
+  color: rgb(228 228 235);
+}
+
+select option:checked,
+select option:hover {
+  background-color: rgb(40 40 55);
 }
