@@ -47,30 +47,49 @@ export interface CephStatus {
   }
 }
 
+/**
+ * PVE GET /nodes/{node}/ceph/osd returns a nested object tree, NOT a flat array.
+ * The root-level response (after stripping the Proxmox `data` wrapper) is:
+ *   { root: { leaf: 0, children: [<root bucket>, ...] }, flags?: string }
+ * Each non-leaf node has `children: CephOSDTreeItem[]` (nested objects, not IDs).
+ * OSD nodes already have `host` set by PVE, and storage in bytes via
+ * `total_space` / `bytes_used` (PVE converts from kb×1024 before returning).
+ */
 export interface CephOSDTreeItem {
   id?: number
-  type?: string
-  type_id?: number
+  type?: string          // 'osd' | 'host' | 'root' | 'rack' | ...
+  type_id?: number       // 0 = osd, 1 = host, 10 = root (fallback for older Ceph)
   name?: string
-  status?: string
-  up?: 0 | 1
+  leaf?: 0 | 1           // 1 for OSD nodes, 0 for bucket nodes
+  // OSD status set by PVE from `osd dump`
+  status?: string        // 'up' | 'down'
+  up?: 0 | 1             // raw Ceph field (older format fallback)
   in?: 0 | 1
-  // field name varies by Ceph version: hyphenated (older) vs underscored (Reef+)
-  'type-class'?: string
-  device_class?: string
-  class?: string
-  'crush-weight'?: number
+  // host name — already resolved by PVE and set directly on the OSD node
+  host?: string
+  // storage — PVE returns bytes (kb * 1024), raw Ceph fallback uses kb fields
+  total_space?: number   // bytes
+  bytes_used?: number    // bytes
+  percent_used?: number  // 0–100
+  pgs?: number
+  // CRUSH fields
   crush_weight?: number
+  'crush-weight'?: number
   reweight?: number
   'primary-affinity'?: number
+  // device class (field name varies by Ceph version)
+  device_class?: string
+  class?: string
+  'type-class'?: string
+  // raw Ceph kb fields (fallback if total_space/bytes_used not present)
   kb?: number
   kb_used?: number
   kb_avail?: number
-  // children can be integer IDs (referencing another node's id) or nested objects
-  children?: (number | CephOSDTreeItem)[]
+  // In PVE's nested tree, children are already resolved objects (not IDs)
+  children?: CephOSDTreeItem[]
 }
 
-/** Flattened OSD with host name resolved from tree parent */
+/** Parsed OSD with all fields in consistent units */
 export interface CephOSD {
   id: number
   name: string
@@ -80,9 +99,9 @@ export interface CephOSD {
   deviceClass: string
   crushWeight: number
   reweight: number
-  kb: number
-  kbUsed: number
-  kbAvail: number
+  totalBytes: number     // bytes
+  usedBytes: number      // bytes
+  usedPct: number        // 0–1 fraction
 }
 
 export interface CephPool {
@@ -121,60 +140,55 @@ export interface CephMDS {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
- * Extract OSDs from the flat `nodes` array returned by GET /nodes/{node}/ceph/osd.
+ * Recursively walk PVE's nested OSD tree and collect all OSD-type leaf nodes.
  *
- * The Proxmox API returns:
- *   { nodes: CephOSDTreeItem[], root_list: [...] }
- * where each item in `nodes` has `type`/`type_id` and `children` is an array
- * of integer IDs referencing other `nodes` entries by their `id` field.
+ * PVE GET /nodes/{node}/ceph/osd returns:
+ *   { root: { leaf:0, children:[<root buckets with nested children>] }, flags? }
  *
- * We:
- *  1. Build an id→node map for O(1) lookup
- *  2. Build an id→hostName map by walking host nodes' children
- *  3. Collect all OSD-type nodes and attach their host name
+ * Each OSD node already has `host` set by PVE and storage in bytes
+ * (`total_space` / `bytes_used`).  This walks the tree and converts each
+ * OSD node into a flat CephOSD record.
  */
+export function walkOSDTree(node: CephOSDTreeItem): CephOSD[] {
+  const results: CephOSD[] = []
+
+  const isOSD = node.type === 'osd' || node.type_id === 0 || node.leaf === 1
+  if (isOSD && node.id != null && node.id >= 0) {
+    const totalBytes = node.total_space ?? (node.kb ?? 0) * 1024
+    const usedBytes  = node.bytes_used  ?? (node.kb_used ?? 0) * 1024
+    const usedPct    = node.percent_used != null
+      ? node.percent_used / 100
+      : totalBytes > 0 ? usedBytes / totalBytes : 0
+
+    results.push({
+      id:          node.id,
+      name:        node.name ?? `osd.${node.id}`,
+      host:        node.host ?? '',
+      up:          node.status === 'up' || node.up === 1,
+      inCluster:   node.in === 1,
+      deviceClass: node.device_class ?? node.class ?? node['type-class'] ?? 'hdd',
+      crushWeight: node.crush_weight ?? node['crush-weight'] ?? 1,
+      reweight:    node.reweight ?? 1,
+      totalBytes,
+      usedBytes,
+      usedPct,
+    })
+  }
+
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) {
+      results.push(...walkOSDTree(child))
+    }
+  }
+
+  return results
+}
+
+/** @deprecated Use walkOSDTree with a PVE-response root node instead.
+ *  Kept for any callers passing a flat array of CRUSH nodes. */
 export function flattenOSDs(nodes: CephOSDTreeItem[]): CephOSD[] {
-  // Build id → node map
-  const byId = new Map<number, CephOSDTreeItem>()
-  for (const n of nodes) {
-    if (n.id != null) byId.set(n.id, n)
-  }
-
-  // Build osdId → hostName from host nodes
-  const osdHost = new Map<number, string>()
-  for (const n of nodes) {
-    const isHost = n.type === 'host' || n.type_id === 1
-    if (isHost && n.children?.length) {
-      for (const child of n.children) {
-        const childId = typeof child === 'number' ? child : child.id
-        if (childId != null) {
-          osdHost.set(childId, n.name ?? '')
-        }
-      }
-    }
-  }
-
-  // Collect OSD nodes
-  const osds: CephOSD[] = []
-  for (const n of nodes) {
-    const isOSD = n.type === 'osd' || n.type_id === 0
-    if (isOSD && n.id != null && n.id >= 0) {
-      osds.push({
-        id: n.id,
-        name: n.name ?? `osd.${n.id}`,
-        host: osdHost.get(n.id) ?? '',
-        up: n.up === 1 || n.status === 'up',
-        inCluster: n.in === 1,
-        deviceClass: n.device_class ?? n.class ?? n['type-class'] ?? 'hdd',
-        crushWeight: n.crush_weight ?? n['crush-weight'] ?? 1,
-        reweight: n.reweight ?? 1,
-        kb: n.kb ?? 0,
-        kbUsed: n.kb_used ?? 0,
-        kbAvail: n.kb_avail ?? 0,
-      })
-    }
-  }
-  return osds
+  const syntheticRoot: CephOSDTreeItem = { type: 'root', children: nodes }
+  return walkOSDTree(syntheticRoot)
 }
 
 // ── Query keys ────────────────────────────────────────────────────────────────
@@ -199,10 +213,16 @@ export function useCephStatus(node: string) {
   })
 }
 
+/** PVE /nodes/{node}/ceph/osd response shape (after data-wrapper strip) */
+export interface CephOSDResponse {
+  root: CephOSDTreeItem   // nested CRUSH tree root
+  flags?: string
+}
+
 export function useCephOSDs(node: string) {
   return useQuery({
     queryKey: cephKeys.osds(node),
-    queryFn: () => api.get<{ root_list?: CephOSDTreeItem[] } | CephOSDTreeItem[]>(`nodes/${node}/ceph/osd`),
+    queryFn: () => api.get<CephOSDResponse>(`nodes/${node}/ceph/osd`),
     enabled: !!node,
     refetchInterval: 15_000,
     retry: 1,

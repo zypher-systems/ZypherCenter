@@ -10,10 +10,12 @@
   --color-bg-sidebar: rgb(12 12 16);
   --color-bg-muted: rgb(27 27 33);
   --color-bg-hover: rgb(32 32 40);
+  --color-bg-input: rgb(18 18 23);
 
   /* Borders */
   --color-border: rgb(39 39 50);
   --color-border-muted: rgb(30 30 40);
+  --color-border-subtle: rgb(33 33 44);
 
   /* Text */
   --color-text-primary: rgb(228 228 235);
@@ -111,20 +113,28 @@ body {
 }
 
 /* Tell the browser the entire page is dark-mode so all native UI elements
-   (select dropdowns, scrollbars, date pickers, etc.) render accordingly.
-   This is the primary fix for <select> popup list backgrounds on Linux/macOS. */
+   (select dropdowns, scrollbars, date pickers, etc.) render accordingly. */
 :root {
   color-scheme: dark;
 }
 
-/* Belt-and-suspenders: explicitly style option elements so Chromium-based
-   browsers apply dark bg + light text directly to each option item in the popup. */
+/* Explicit dark styling for native <select> and its options.
+   color-scheme on :root handles Chrome/Edge on Linux. The explicit
+   background/color below ensures Firefox on Linux also renders correctly
+   since Firefox uses CSS styles for option elements in the popup. */
+select {
+  background-color: var(--color-bg-input);
+  color: var(--color-text-primary);
+  color-scheme: dark;
+}
+
 select option {
-  background-color: rgb(20 20 25);
-  color: rgb(228 228 235);
+  background-color: var(--color-bg-input);
+  color: var(--color-text-primary);
 }
 
 select option:checked,
 select option:hover {
   background-color: rgb(40 40 55);
+  color: var(--color-text-primary);
 }
