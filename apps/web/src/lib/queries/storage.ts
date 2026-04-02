@@ -41,6 +41,19 @@ export function useCreateStorage() {
   })
 }
 
+export function useUpdateStorage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ storageId, params }: { storageId: string; params: Record<string, unknown> }) =>
+      api.put(`storage/${encodeURIComponent(storageId)}`, params),
+    onSuccess: (_, { storageId }) => {
+      toast.success(`Storage "${storageId}" updated`)
+      qc.invalidateQueries({ queryKey: storageKeys.list() })
+    },
+    onError: (err) => toast.error(`Failed to update storage — ${err.message}`),
+  })
+}
+
 export function useDeleteStorage() {
   const qc = useQueryClient()
   return useMutation({
