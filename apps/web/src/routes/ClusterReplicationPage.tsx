@@ -6,6 +6,7 @@ import {
   useUpdateReplicationJob,
   useClusterStatus,
 } from '@/lib/queries/cluster'
+import type { ReplicationJob } from '@zyphercenter/proxmox-types'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   Table,
@@ -26,7 +27,7 @@ import {
 } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
-import { Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -96,7 +97,7 @@ function CreateReplicationJobDialog({ open, onClose }: { open: boolean; onClose:
                 value={target}
                 onChange={(e) => setTarget(e.target.value)}
                 required
-                className="flex h-9 w-full rounded-md border border-border bg-bg-input px-3 py-1 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                className="flex h-9 w-full rounded-md border border-border bg-bg-input px-3 py-1 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-accent [color-scheme:dark]"
               >
                 <option value="">Select target…</option>
                 {nodes.map((n) => (
@@ -142,15 +143,92 @@ function CreateReplicationJobDialog({ open, onClose }: { open: boolean; onClose:
   )
 }
 
+function EditReplicationJobDialog({ job, onClose }: { job: ReplicationJob; onClose: () => void }) {
+  const updateJob = useUpdateReplicationJob()
+
+  const [schedule, setSchedule] = useState(job.schedule ?? '*/15 * * * *')
+  const [rate, setRate] = useState(job.rate != null ? String(job.rate) : '')
+  const [comment, setComment] = useState(job.comment ?? '')
+  const [enabled, setEnabled] = useState(job.enabled !== 0)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const params: Record<string, unknown> = {
+      schedule,
+      enabled: enabled ? 1 : 0,
+    }
+    if (rate) params.rate = parseFloat(rate)
+    if (comment.trim()) params.comment = comment.trim()
+    updateJob.mutate({ id: job.id, params }, {
+      onSuccess: () => onClose(),
+    })
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Replication Job — {job.id}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>VM/CT ID</Label>
+              <Input value={job.guest} disabled className="opacity-60" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Target Node</Label>
+              <Input value={job.target} disabled className="opacity-60" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="erj-schedule">Schedule (cron)</Label>
+            <Input id="erj-schedule" value={schedule} onChange={(e) => setSchedule(e.target.value)} placeholder="*/15 * * * *" required />
+            <p className="text-xs text-text-muted">e.g. <code className="font-mono">*/15 * * * *</code> = every 15 minutes</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="erj-rate">Rate Limit (MB/s, optional)</Label>
+            <Input
+              id="erj-rate"
+              type="number"
+              min={0}
+              step={0.1}
+              value={rate}
+              onChange={(e) => setRate(e.target.value)}
+              placeholder="Unlimited"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="erj-comment">Comment</Label>
+            <Input id="erj-comment" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Optional description" />
+          </div>
+          <div className="flex items-center gap-2">
+            <input id="erj-enabled" type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="size-4 rounded border-border accent-accent" />
+            <Label htmlFor="erj-enabled">Enabled</Label>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={updateJob.isPending}>
+              {updateJob.isPending ? 'Saving…' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function ClusterReplicationPage() {
   const { data: jobs, isLoading } = useClusterReplication()
   const deleteJob = useDeleteReplicationJob()
   const updateJob = useUpdateReplicationJob()
   const [showCreate, setShowCreate] = useState(false)
+  const [editingJob, setEditingJob] = useState<ReplicationJob | null>(null)
 
   return (
     <div className="space-y-4">
       <CreateReplicationJobDialog open={showCreate} onClose={() => setShowCreate(false)} />
+      {editingJob && <EditReplicationJobDialog job={editingJob} onClose={() => setEditingJob(null)} />}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-text-primary">Replication</h1>
@@ -183,7 +261,7 @@ export function ClusterReplicationPage() {
               <TableBody>
                 {jobs?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-text-muted py-12">
+                    <TableCell colSpan={8} className="text-center text-text-muted py-12">
                       No replication jobs configured
                     </TableCell>
                   </TableRow>
@@ -224,6 +302,15 @@ export function ClusterReplicationPage() {
                         </span>
                       </TableCell>
                       <TableCell>
+                        <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Edit job"
+                          onClick={() => setEditingJob(job)}
+                        >
+                          <Pencil className="size-3.5 text-text-muted hover:text-text-primary" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon-sm"
@@ -240,6 +327,7 @@ export function ClusterReplicationPage() {
                         >
                           <Trash2 className="size-3.5 text-text-muted hover:text-status-error" />
                         </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
