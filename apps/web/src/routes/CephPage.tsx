@@ -23,6 +23,10 @@ import {
   useDeleteCephPool,
   useDestroyOSD,
   useCreateCephOSD,
+  useCreateCephMon,
+  useDestroyCephMon,
+  useCreateCephMDS,
+  useDestroyCephMDS,
   flattenOSDs,
   type CephStatus,
   type CephOSD,
@@ -769,47 +773,77 @@ function PoolsTab({ node }: { node: string }) {
 
 function MonsTab({ node }: { node: string }) {
   const { data: mons, isLoading } = useCephMons(node)
+  const createMon = useCreateCephMon(node)
+  const destroyMon = useDestroyCephMon(node)
 
   if (isLoading) return <SkeletonCard />
 
   return (
-    <Card>
-      <CardContent className="p-0">
-        {!mons?.length ? (
-          <p className="text-center text-text-muted text-sm py-10">No monitors found</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Address</TableHead>
-                <TableHead>Rank</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(mons as CephMon[]).map((mon) => (
-                <TableRow key={mon.name}>
-                  <TableCell className="font-medium font-mono text-text-primary">{mon.name}</TableCell>
-                  <TableCell className="font-mono text-xs text-text-secondary">{mon.addr ?? '—'}</TableCell>
-                  <TableCell className="text-text-muted text-sm">{mon.rank ?? '—'}</TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded font-medium ${
-                      mon.quorum !== false
-                        ? 'bg-status-running/10 text-status-running'
-                        : 'bg-status-error/10 text-status-error'
-                    }`}>
-                      <span className={`size-1.5 rounded-full ${mon.quorum !== false ? 'bg-status-running' : 'bg-status-error'}`} />
-                      {mon.quorum !== false ? 'in quorum' : 'out of quorum'}
-                    </span>
-                  </TableCell>
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          onClick={() => createMon.mutate({})}
+          disabled={createMon.isPending}
+        >
+          <Plus className="size-4 mr-1.5" />
+          {createMon.isPending ? 'Creating…' : 'Create Monitor'}
+        </Button>
+      </div>
+      <Card>
+        <CardContent className="p-0">
+          {!mons?.length ? (
+            <p className="text-center text-text-muted text-sm py-10">No monitors found</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Address</TableHead>
+                  <TableHead>Rank</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-12" />
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+              </TableHeader>
+              <TableBody>
+                {(mons as CephMon[]).map((mon) => (
+                  <TableRow key={mon.name}>
+                    <TableCell className="font-medium font-mono text-text-primary">{mon.name}</TableCell>
+                    <TableCell className="font-mono text-xs text-text-secondary">{mon.addr ?? '—'}</TableCell>
+                    <TableCell className="text-text-muted text-sm">{mon.rank ?? '—'}</TableCell>
+                    <TableCell>
+                      <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded font-medium ${
+                        mon.quorum !== false
+                          ? 'bg-status-running/10 text-status-running'
+                          : 'bg-status-error/10 text-status-error'
+                      }`}>
+                        <span className={`size-1.5 rounded-full ${mon.quorum !== false ? 'bg-status-running' : 'bg-status-error'}`} />
+                        {mon.quorum !== false ? 'in quorum' : 'out of quorum'}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        title="Remove monitor"
+                        disabled={destroyMon.isPending}
+                        onClick={() => {
+                          if (confirm(`Remove Ceph monitor ${mon.name}?`)) {
+                            destroyMon.mutate(mon.name)
+                          }
+                        }}
+                      >
+                        <Trash2 className="size-3.5 text-text-muted hover:text-status-error" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 
@@ -817,52 +851,115 @@ function MonsTab({ node }: { node: string }) {
 
 function MDSTab({ node }: { node: string }) {
   const { data: mdsServers, isLoading } = useCephMDS(node)
+  const createMDS = useCreateCephMDS(node)
+  const destroyMDS = useDestroyCephMDS(node)
+  const [showCreate, setShowCreate] = useState(false)
+  const [mdsName, setMdsName] = useState('')
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!mdsName.trim()) return
+    createMDS.mutate(mdsName.trim(), {
+      onSuccess: () => { setShowCreate(false); setMdsName('') },
+    })
+  }
 
   if (isLoading) return <SkeletonCard />
 
   return (
-    <Card>
-      <CardContent className="p-0">
-        {!mdsServers?.length ? (
-          <p className="text-center text-text-muted text-sm py-10">
-            No MDS (CephFS metadata servers) configured
-          </p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Address</TableHead>
-                <TableHead>Rank</TableHead>
-                <TableHead>State</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(mdsServers as CephMDS[]).map((mds) => {
-                const isActive = mds.state?.toLowerCase().includes('active')
-                return (
-                  <TableRow key={mds.name}>
-                    <TableCell className="font-medium font-mono text-text-primary">{mds.name}</TableCell>
-                    <TableCell className="font-mono text-xs text-text-secondary">{mds.addr ?? '—'}</TableCell>
-                    <TableCell className="text-text-muted text-sm">{mds.rank ?? '—'}</TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded font-medium ${
-                        isActive
-                          ? 'bg-status-running/10 text-status-running'
-                          : 'bg-bg-elevated text-text-muted'
-                      }`}>
-                        <span className={`size-1.5 rounded-full ${isActive ? 'bg-status-running' : 'bg-border'}`} />
-                        {mds.state ?? 'unknown'}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button size="sm" onClick={() => setShowCreate(true)}>
+          <Plus className="size-4 mr-1.5" />
+          Create MDS
+        </Button>
+      </div>
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowCreate(false)}>
+          <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-text-primary">Create Ceph MDS</h2>
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-text-primary" htmlFor="mds-name">MDS Name</label>
+                <input
+                  id="mds-name"
+                  value={mdsName}
+                  onChange={(e) => setMdsName(e.target.value)}
+                  placeholder="mds1"
+                  required
+                  autoFocus
+                  className="flex h-9 w-full rounded-md border border-border bg-bg-input px-3 py-1 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowCreate(false)}>Cancel</Button>
+                <Button type="submit" size="sm" disabled={createMDS.isPending}>
+                  {createMDS.isPending ? 'Creating…' : 'Create'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      <Card>
+        <CardContent className="p-0">
+          {!mdsServers?.length ? (
+            <p className="text-center text-text-muted text-sm py-10">
+              No MDS (CephFS metadata servers) configured
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Address</TableHead>
+                  <TableHead>Rank</TableHead>
+                  <TableHead>State</TableHead>
+                  <TableHead className="w-12" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(mdsServers as CephMDS[]).map((mds) => {
+                  const isActive = mds.state?.toLowerCase().includes('active')
+                  return (
+                    <TableRow key={mds.name}>
+                      <TableCell className="font-medium font-mono text-text-primary">{mds.name}</TableCell>
+                      <TableCell className="font-mono text-xs text-text-secondary">{mds.addr ?? '—'}</TableCell>
+                      <TableCell className="text-text-muted text-sm">{mds.rank ?? '—'}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded font-medium ${
+                          isActive
+                            ? 'bg-status-running/10 text-status-running'
+                            : 'bg-bg-elevated text-text-muted'
+                        }`}>
+                          <span className={`size-1.5 rounded-full ${isActive ? 'bg-status-running' : 'bg-border'}`} />
+                          {mds.state ?? 'unknown'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Remove MDS"
+                          disabled={destroyMDS.isPending}
+                          onClick={() => {
+                            if (confirm(`Remove Ceph MDS ${mds.name}?`)) {
+                              destroyMDS.mutate(mds.name)
+                            }
+                          }}
+                        >
+                          <Trash2 className="size-3.5 text-text-muted hover:text-status-error" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 

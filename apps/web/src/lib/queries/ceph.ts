@@ -261,3 +261,56 @@ export function useCreateCephOSD(node: string) {
     onError: (err) => toast.error(`Failed to create OSD — ${err.message}`),
   })
 }
+
+export function useCreateCephMon(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params?: { monaddress?: string }) =>
+      api.post(`nodes/${node}/ceph/mon`, params ?? {}),
+    onSuccess: () => {
+      toast.success('Monitor creation started')
+      qc.invalidateQueries({ queryKey: cephKeys.mons(node) })
+      qc.invalidateQueries({ queryKey: cephKeys.status(node) })
+    },
+    onError: (err) => toast.error(`Failed to create monitor — ${err.message}`),
+  })
+}
+
+export function useDestroyCephMon(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (monid: string) => api.del(`nodes/${node}/ceph/mon/${encodeURIComponent(monid)}`),
+    onSuccess: () => {
+      toast.success('Monitor removed')
+      qc.invalidateQueries({ queryKey: cephKeys.mons(node) })
+      qc.invalidateQueries({ queryKey: cephKeys.status(node) })
+    },
+    onError: (err) => toast.error(`Failed to remove monitor — ${err.message}`),
+  })
+}
+
+export function useCreateCephMDS(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => api.post(`nodes/${node}/ceph/mds/${encodeURIComponent(name)}`, {}),
+    onSuccess: () => {
+      toast.success('MDS creation started')
+      qc.invalidateQueries({ queryKey: cephKeys.mds(node) })
+      qc.invalidateQueries({ queryKey: cephKeys.status(node) })
+    },
+    onError: (err) => toast.error(`Failed to create MDS — ${err.message}`),
+  })
+}
+
+export function useDestroyCephMDS(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => api.del(`nodes/${node}/ceph/mds/${encodeURIComponent(name)}`),
+    onSuccess: () => {
+      toast.success('MDS removed')
+      qc.invalidateQueries({ queryKey: cephKeys.mds(node) })
+      qc.invalidateQueries({ queryKey: cephKeys.status(node) })
+    },
+    onError: (err) => toast.error(`Failed to remove MDS — ${err.message}`),
+  })
+}
