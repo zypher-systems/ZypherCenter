@@ -38,9 +38,12 @@ function CreateVMDialog({ node, onClose }: { node: string; onClose: () => void }
   const [name, setName] = useState('')
   const [memory, setMemory] = useState('2048')
   const [cores, setCores] = useState('1')
+  const [cpuType, setCpuType] = useState('kvm64')
   const [ostype, setOstype] = useState('l26')
   const [diskStorage, setDiskStorage] = useState('')
   const [diskSize, setDiskSize] = useState('32')
+  const [diskDiscard, setDiskDiscard] = useState(true)
+  const [diskSSD, setDiskSSD] = useState(false)
   const [onboot, setOnboot] = useState(false)
   // network
   const [bridge, setBridge] = useState('')
@@ -62,11 +65,13 @@ function CreateVMDialog({ node, onClose }: { node: string; onClose: () => void }
       name: name.trim() || `vm-${id}`,
       memory: Number(memory),
       cores: Number(cores),
+      cpu: cpuType,
       ostype,
       onboot: onboot ? 1 : 0,
     }
     if (diskStorage) {
-      params.scsi0 = `${diskStorage}:${diskSize}`
+      const diskFlags = [diskDiscard ? 'discard=on' : '', diskSSD ? 'ssd=1' : ''].filter(Boolean).join(',')
+      params.scsi0 = `${diskStorage}:${diskSize}${diskFlags ? `,${diskFlags}` : ''}`
       params.boot = 'order=scsi0'
     }
     if (bridge) {
@@ -78,7 +83,7 @@ function CreateVMDialog({ node, onClose }: { node: string; onClose: () => void }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4">
+      <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-lg p-6 space-y-4">
         <h2 className="text-lg font-semibold text-text-primary">Create Virtual Machine</h2>
 
         <div className="grid grid-cols-2 gap-3">
@@ -99,7 +104,7 @@ function CreateVMDialog({ node, onClose }: { node: string; onClose: () => void }
           </select>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="block text-xs text-text-secondary mb-1">Memory (MiB) *</label>
             <input type="number" value={memory} onChange={(e) => setMemory(e.target.value)} className={inp} />
@@ -107,6 +112,21 @@ function CreateVMDialog({ node, onClose }: { node: string; onClose: () => void }
           <div>
             <label className="block text-xs text-text-secondary mb-1">CPU Cores *</label>
             <input type="number" min="1" value={cores} onChange={(e) => setCores(e.target.value)} className={inp} />
+          </div>
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">CPU Type</label>
+            <select value={cpuType} onChange={(e) => setCpuType(e.target.value)} className={inp}>
+              <option value="kvm64">kvm64 (default)</option>
+              <option value="host">host (best performance)</option>
+              <option value="x86-64-v2-AES">x86-64-v2-AES</option>
+              <option value="x86-64-v3">x86-64-v3</option>
+              <option value="x86-64-v4">x86-64-v4</option>
+              <option value="Haswell">Haswell</option>
+              <option value="Broadwell">Broadwell</option>
+              <option value="SandyBridge">SandyBridge</option>
+              <option value="IvyBridge">IvyBridge</option>
+              <option value="qemu64">qemu64</option>
+            </select>
           </div>
         </div>
 
@@ -123,6 +143,19 @@ function CreateVMDialog({ node, onClose }: { node: string; onClose: () => void }
             <input type="number" min="1" value={diskSize} onChange={(e) => setDiskSize(e.target.value)} disabled={!diskStorage} className={inp} />
           </div>
         </div>
+
+        {diskStorage && (
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
+              <input type="checkbox" checked={diskDiscard} onChange={(e) => setDiskDiscard(e.target.checked)} className="rounded" />
+              Discard (TRIM/UNMAP)
+            </label>
+            <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
+              <input type="checkbox" checked={diskSSD} onChange={(e) => setDiskSSD(e.target.checked)} className="rounded" />
+              SSD emulation
+            </label>
+          </div>
+        )}
 
         <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
           <input type="checkbox" checked={onboot} onChange={(e) => setOnboot(e.target.checked)} className="rounded" />

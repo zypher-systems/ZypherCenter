@@ -122,7 +122,7 @@ export interface RrdDataPoint {
   [key: string]: number | undefined
 }
 
-export function useNodeRrdData(node: string, timeframe: 'hour' | 'day' = 'hour') {
+export function useNodeRrdData(node: string, timeframe: 'hour' | 'day' | 'week' | 'month' = 'hour') {
   return useQuery({
     queryKey: [...nodeKeys.all(node), 'rrddata', timeframe],
     queryFn: () =>

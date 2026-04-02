@@ -91,9 +91,9 @@ function fmtRate(bytesPerSec: number | undefined): string {
 }
 
 function fmtOps(ops: number | undefined): string {
-  if (!ops) return '0 ops/s'
-  if (ops >= 1000) return `${(ops / 1000).toFixed(1)}k ops/s`
-  return `${ops} ops/s`
+  if (!ops) return '0 iops/s'
+  if (ops >= 1000) return `${(ops / 1000).toFixed(1)}k iops/s`
+  return `${ops} iops/s`
 }
 
 // ── History sparkline (ring buffer maintained in component state) ─────────────
@@ -278,7 +278,7 @@ function StatusTab({ node }: { node: string }) {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Card>
             <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-medium text-text-muted">IOPS (ops/s)</CardTitle>
+              <CardTitle className="text-xs font-medium text-text-muted">IOPS</CardTitle>
             </CardHeader>
             <CardContent className="pt-0 pb-3">
               <ResponsiveContainer width="100%" height={80}>
@@ -295,7 +295,7 @@ function StatusTab({ node }: { node: string }) {
                   </defs>
                   <XAxis dataKey="t" tickFormatter={(t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} tick={AX} tickLine={false} axisLine={false} />
                   <YAxis tick={AX} tickLine={false} axisLine={false} width={28} />
-                  <RechartsTip contentStyle={TIP_STYLE} formatter={(v: number, name: string) => [`${v} ops/s`, name === 'readOps' ? 'Read' : 'Write']} labelFormatter={(t: number) => new Date(t).toLocaleTimeString()} />
+                  <RechartsTip contentStyle={TIP_STYLE} formatter={(v: number, name: string) => [`${v} iops/s`, name === 'readOps' ? 'Read' : 'Write']} labelFormatter={(t: number) => new Date(t).toLocaleTimeString()} />
                   <Area type="monotone" dataKey="readOps"  stroke="rgb(96 165 250)"  fill="url(#cgReadOps)"  strokeWidth={1.5} dot={false} name="Read" />
                   <Area type="monotone" dataKey="writeOps" stroke="rgb(251 146 60)"  fill="url(#cgWriteOps)" strokeWidth={1.5} dot={false} name="Write" />
                 </AreaChart>

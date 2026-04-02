@@ -290,3 +290,139 @@ export function ResourceCharts({
     </div>
   )
 }
+
+// ── NodeResourceCharts (for physical nodes) ───────────────────────────────────
+
+interface NodeRrdPoint {
+  time: number
+  cpu?: number
+  memused?: number
+  maxmem?: number
+  netin?: number
+  netout?: number
+  [key: string]: number | undefined
+}
+
+export function NodeResourceCharts({ node }: { node: string }) {
+  const [tf, setTf] = useState<Timeframe>('hour')
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['nodes', node, 'rrddata', tf],
+    queryFn: () =>
+      api.get<NodeRrdPoint[]>(
+        `nodes/${node}/rrddata?timeframe=${tf}&cf=AVERAGE`,
+      ),
+    refetchInterval: 30_000,
+    enabled: !!node,
+  })
+
+  const raw = (data ?? []).filter((p) => p.time != null)
+  const step = raw.length > 120 ? Math.ceil(raw.length / 120) : 1
+  const pts = step > 1 ? raw.filter((_, i) => i % step === 0) : raw
+
+  const uid = `node-${node}`
+
+  const cpuPts = pts.map((p) => ({ t: p.time, v: +((p.cpu ?? 0) * 100).toFixed(2) }))
+  const memPts = pts.map((p) => ({ t: p.time, used: p.memused ?? 0, total: p.maxmem ?? 0 }))
+  const netPts = pts.map((p) => ({ t: p.time, i: p.netin ?? 0, o: p.netout ?? 0 }))
+
+  const xFmt = (v: number) => fmtTime(v, tf)
+
+  return (
+    <div className="space-y-4">
+      <TimeframeBar tf={tf} onChange={setTf} />
+
+      {!isLoading && pts.length === 0 ? (
+        <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-border">
+          <p className="text-sm text-text-muted">No performance data available</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+          {/* CPU */}
+          <ChartCard title="CPU Usage">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={cpuPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id={`gCPU-${uid}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={C.cpu} stopOpacity={0.25} />
+                    <stop offset="95%" stopColor={C.cpu} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="t" tickFormatter={xFmt} tick={AX} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                <YAxis domain={[0, 100]} tick={AX} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
+                <RechartsTip
+                  contentStyle={TIP}
+                  formatter={(v) => [`${(v as number).toFixed(1)}%`, 'CPU']}
+                  labelFormatter={(l) => fmtTime(l as number, tf)}
+                />
+                <Area
+                  type="monotone" dataKey="v" name="CPU"
+                  stroke={C.cpu} strokeWidth={1.5}
+                  fill={`url(#gCPU-${uid})`} dot={false} isAnimationActive={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          {/* Memory */}
+          <ChartCard
+            title="Memory"
+            legend={[{ color: C.memUsed, label: 'Used' }, { color: C.memTotal, label: 'Total' }]}
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={memPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id={`gMEM-${uid}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={C.memUsed} stopOpacity={0.25} />
+                    <stop offset="95%" stopColor={C.memUsed} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="t" tickFormatter={xFmt} tick={AX} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                <YAxis tick={AX} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v as number)} />
+                <RechartsTip
+                  contentStyle={TIP}
+                  formatter={(v, name) => [formatBytes(v as number), name === 'total' ? 'Total' : 'Used']}
+                  labelFormatter={(l) => fmtTime(l as number, tf)}
+                />
+                <Area type="monotone" dataKey="total" name="total" stroke={C.memTotal} strokeWidth={1} strokeDasharray="4 2" fill="none" dot={false} isAnimationActive={false} />
+                <Area type="monotone" dataKey="used"  name="used"  stroke={C.memUsed}  strokeWidth={1.5} fill={`url(#gMEM-${uid})`} dot={false} isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          {/* Network */}
+          <ChartCard
+            title="Network"
+            legend={[{ color: C.netIn, label: 'In' }, { color: C.netOut, label: 'Out' }]}
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={netPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id={`gNI-${uid}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={C.netIn}  stopOpacity={0.2} />
+                    <stop offset="95%" stopColor={C.netIn}  stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id={`gNO-${uid}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={C.netOut} stopOpacity={0.2} />
+                    <stop offset="95%" stopColor={C.netOut} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="t" tickFormatter={xFmt} tick={AX} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                <YAxis tick={AX} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v as number)} />
+                <RechartsTip
+                  contentStyle={TIP}
+                  formatter={(v, name) => [`${formatBytes(v as number)}/s`, name === 'i' ? 'In' : 'Out']}
+                  labelFormatter={(l) => fmtTime(l as number, tf)}
+                />
+                <Area type="monotone" dataKey="i" name="i" stroke={C.netIn}  strokeWidth={1.5} fill={`url(#gNI-${uid})`} dot={false} isAnimationActive={false} />
+                <Area type="monotone" dataKey="o" name="o" stroke={C.netOut} strokeWidth={1.5} fill={`url(#gNO-${uid})`} dot={false} isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+        </div>
+      )}
+    </div>
+  )
+}

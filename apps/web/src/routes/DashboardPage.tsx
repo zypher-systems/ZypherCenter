@@ -1,14 +1,17 @@
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { Server, Monitor, Box, Database, CheckCircle, AlertCircle, Activity, Cpu, MemoryStick, HardDrive, TrendingUp } from 'lucide-react'
-import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts'
+import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { useQueries } from '@tanstack/react-query'
 import { useClusterResources, useClusterStatus } from '@/lib/queries/cluster'
 import { useClusterTasks } from '@/lib/queries/tasks'
 import { useNodeRrdData } from '@/lib/queries/nodes'
+import { api } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { ResourceGauge } from '@/components/ui/ResourceGauge'
 import { SkeletonCard } from '@/components/ui/Skeleton'
-import { formatBytes, formatPercent, formatTimestamp } from '@/lib/utils'
+import { formatBytes, formatPercent, formatTimestamp, cn } from '@/lib/utils'
 import type { ClusterResource } from '@zyphercenter/proxmox-types'
 
 // ── Summary stat card ─────────────────────────────────────────────────────────
@@ -274,6 +277,203 @@ function TopConsumers({ guests }: { guests: ClusterResource[] }) {
   )
 }
 
+// ── Cluster performance history ────────────────────────────────────────────────
+
+type ClusterTF = 'hour' | 'day' | 'week' | 'month'
+const CLUSTER_TF_OPTS: { value: ClusterTF; label: string }[] = [
+  { value: 'hour', label: '1h' },
+  { value: 'day', label: '24h' },
+  { value: 'week', label: '7d' },
+  { value: 'month', label: '30d' },
+]
+
+interface RrdPt { time: number; cpu?: number; memused?: number; maxmem?: number; maxcpu?: number; netin?: number; netout?: number }
+
+const CHART_TIP: React.CSSProperties = {
+  background: 'rgb(15 15 18)', border: '1px solid rgb(39 39 50)',
+  borderRadius: '6px', fontSize: '11px', color: 'rgb(228 228 235)', padding: '6px 10px',
+}
+const CHART_AX = { fontSize: 9, fill: 'rgb(113 113 122)' }
+
+function fmtClusterTs(ts: number, tf: ClusterTF): string {
+  const d = new Date(ts * 1000)
+  if (tf === 'hour' || tf === 'day')
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
+
+function ClusterPerfCharts({ nodeNames }: { nodeNames: string[] }) {
+  const [tf, setTf] = useState<ClusterTF>('hour')
+
+  const results = useQueries({
+    queries: nodeNames.map((node) => ({
+      queryKey: ['nodes', node, 'rrddata', tf],
+      queryFn: () => api.get<RrdPt[]>(`nodes/${node}/rrddata?timeframe=${tf}&cf=AVERAGE`),
+      refetchInterval: 30_000,
+      enabled: nodeNames.length > 0,
+    })),
+  })
+
+  const allLoaded = results.every((r) => !r.isLoading)
+  const allData = results.map((r) => r.data ?? [])
+
+  const aggPts = (() => {
+    if (!allLoaded || allData.length === 0 || !allData[0] || allData[0].length === 0) return []
+    const refLen = Math.min(...allData.map((d) => d.length))
+    if (refLen === 0) return []
+    const step = refLen > 120 ? Math.ceil(refLen / 120) : 1
+    const indices = Array.from({ length: Math.ceil(refLen / step) }, (_, i) => i * step)
+
+    return indices.map((idx) => {
+      const time = allData[0]![idx]?.time ?? 0
+      let cpuSum = 0, cpuCores = 0, memUsed = 0, maxMem = 0, netIn = 0, netOut = 0
+      for (const data of allData) {
+        const pt = data[idx]
+        if (!pt) continue
+        const cores = pt.maxcpu ?? 1
+        cpuSum   += (pt.cpu ?? 0) * cores
+        cpuCores += cores
+        memUsed  += pt.memused ?? 0
+        maxMem   += pt.maxmem ?? 0
+        netIn    += pt.netin ?? 0
+        netOut   += pt.netout ?? 0
+      }
+      return {
+        t: time,
+        cpuPct: cpuCores > 0 ? +((cpuSum / cpuCores) * 100).toFixed(2) : 0,
+        memUsed,
+        maxMem,
+        netIn,
+        netOut,
+      }
+    })
+  })()
+
+  const xFmt = (v: number) => fmtClusterTs(v, tf)
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium text-text-secondary">Cluster Performance History</h2>
+        <div className="flex gap-1">
+          {CLUSTER_TF_OPTS.map((t) => (
+            <button
+              key={t.value}
+              onClick={() => setTf(t.value)}
+              className={cn(
+                'px-3 py-1 rounded-md text-xs font-medium transition-colors',
+                tf === t.value ? 'bg-accent text-white' : 'text-text-muted hover:text-text-secondary hover:bg-bg-hover',
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {!allLoaded || aggPts.length === 0 ? (
+        <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-border">
+          <p className="text-sm text-text-muted">{!allLoaded ? 'Loading…' : 'No cluster data available'}</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="pb-1.5"><CardTitle className="text-sm font-medium">CPU (avg %)</CardTitle></CardHeader>
+            <CardContent>
+              <div className="h-32">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={aggPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="clGCPU" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor="rgb(234 88 12)"  stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="rgb(234 88 12)"  stopOpacity={0}    />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="t" tickFormatter={xFmt} tick={CHART_AX} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                    <YAxis domain={[0, 100]} tick={CHART_AX} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
+                    <Tooltip contentStyle={CHART_TIP} formatter={(v) => [`${(v as number).toFixed(1)}%`, 'CPU']} labelFormatter={(l) => fmtClusterTs(l as number, tf)} />
+                    <Area type="monotone" dataKey="cpuPct" name="CPU" stroke="rgb(234 88 12)" strokeWidth={1.5} fill="url(#clGCPU)" dot={false} isAnimationActive={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1.5">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium">Memory</CardTitle>
+                <div className="flex items-center gap-3">
+                  {[{ color: 'rgb(56 189 248)', label: 'Used' }, { color: 'rgb(71 85 105)', label: 'Total' }].map(({ color, label }) => (
+                    <span key={label} className="flex items-center gap-1.5 text-xs text-text-muted">
+                      <span className="inline-block h-[2px] w-4 rounded-full" style={{ background: color }} />{label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-32">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={aggPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="clGMEM" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor="rgb(56 189 248)" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="rgb(56 189 248)" stopOpacity={0}    />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="t" tickFormatter={xFmt} tick={CHART_AX} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={CHART_AX} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v as number)} />
+                    <Tooltip contentStyle={CHART_TIP} formatter={(v, name) => [formatBytes(v as number), name === 'maxMem' ? 'Total' : 'Used']} labelFormatter={(l) => fmtClusterTs(l as number, tf)} />
+                    <Area type="monotone" dataKey="maxMem"  name="maxMem"  stroke="rgb(71 85 105)"  strokeWidth={1}   strokeDasharray="4 2" fill="none"            dot={false} isAnimationActive={false} />
+                    <Area type="monotone" dataKey="memUsed" name="memUsed" stroke="rgb(56 189 248)" strokeWidth={1.5} fill="url(#clGMEM)"                         dot={false} isAnimationActive={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1.5">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium">Network</CardTitle>
+                <div className="flex items-center gap-3">
+                  {[{ color: 'rgb(99 102 241)', label: 'In' }, { color: 'rgb(168 85 247)', label: 'Out' }].map(({ color, label }) => (
+                    <span key={label} className="flex items-center gap-1.5 text-xs text-text-muted">
+                      <span className="inline-block h-[2px] w-4 rounded-full" style={{ background: color }} />{label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-32">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={aggPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="clGNI" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor="rgb(99 102 241)"  stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="rgb(99 102 241)"  stopOpacity={0}   />
+                      </linearGradient>
+                      <linearGradient id="clGNO" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor="rgb(168 85 247)" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="rgb(168 85 247)" stopOpacity={0}   />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="t" tickFormatter={xFmt} tick={CHART_AX} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={CHART_AX} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v as number)} />
+                    <Tooltip contentStyle={CHART_TIP} formatter={(v, name) => [`${formatBytes(v as number)}/s`, name === 'netIn' ? 'In' : 'Out']} labelFormatter={(l) => fmtClusterTs(l as number, tf)} />
+                    <Area type="monotone" dataKey="netIn"  name="netIn"  stroke="rgb(99 102 241)"  strokeWidth={1.5} fill="url(#clGNI)" dot={false} isAnimationActive={false} />
+                    <Area type="monotone" dataKey="netOut" name="netOut" stroke="rgb(168 85 247)" strokeWidth={1.5} fill="url(#clGNO)" dot={false} isAnimationActive={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 export function DashboardPage() {
@@ -344,6 +544,11 @@ export function DashboardPage() {
       {/* Cluster aggregate */}
       {!resLoading && (
         <ClusterResourceSummary nodes={nodes} storages={storages} />
+      )}
+
+      {/* Cluster performance history */}
+      {!resLoading && nodes.filter((n) => n.status !== 'offline').length > 0 && (
+        <ClusterPerfCharts nodeNames={nodes.filter((n) => n.status !== 'offline').map((n) => n.node ?? n.name ?? '')} />
       )}
 
       {/* Node cards */}

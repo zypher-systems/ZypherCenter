@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { PlusCircle } from 'lucide-react'
 import { useClusterResources } from '@/lib/queries/cluster'
-import { useNodeStorage } from '@/lib/queries/nodes'
+import { useNodeStorage, useNodeNetwork } from '@/lib/queries/nodes'
 import { useStorageContent } from '@/lib/queries/storage'
 import { useCreateLXC } from '@/lib/queries/lxc'
 import { useNextVMId } from '@/lib/queries/vms'
@@ -29,6 +29,7 @@ interface FormValues {
   diskSize: string
   storage: string
   bridge: string
+  vlan: string
   unprivileged: boolean
   startOnBoot: boolean
 }
@@ -189,13 +190,16 @@ export function CreateLXCDialog({ defaultNode }: { defaultNode?: string } = {}) 
       cores: '1',
       diskSize: '8',
       storage: '',
-      bridge: 'vmbr0',
+      bridge: '',
+      vlan: '',
       unprivileged: true,
       startOnBoot: false,
     },
   })
 
   const selectedNode = watch('node')
+  const { data: networkData } = useNodeNetwork(selectedNode)
+  const bridges = (networkData ?? []).filter((iface) => iface.type === 'bridge' || iface.type === 'OVSBridge')
 
   useEffect(() => {
     if (open && nextId) setValue('vmid', String(nextId))
@@ -219,7 +223,7 @@ export function CreateLXCDialog({ defaultNode }: { defaultNode?: string } = {}) 
       swap: parseInt(values.swap, 10),
       cores: parseInt(values.cores, 10),
       rootfs: `${rootfsStorage}:${values.diskSize}`,
-      net0: `name=eth0,bridge=${values.bridge},ip=dhcp`,
+      net0: `name=eth0,bridge=${values.bridge || 'vmbr0'},ip=dhcp${values.vlan ? `,tag=${values.vlan}` : ''}`,
       unprivileged: values.unprivileged ? 1 : 0,
       onboot: values.startOnBoot ? 1 : 0,
     })
@@ -355,13 +359,34 @@ export function CreateLXCDialog({ defaultNode }: { defaultNode?: string } = {}) 
             />
           </div>
 
-          {/* Network bridge */}
-          <FieldInput
-            label="Network Bridge"
-            id="lxc-bridge"
-            placeholder="vmbr0"
-            {...register('bridge')}
-          />
+          {/* Network bridge + VLAN */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2 space-y-1.5">
+              <label htmlFor="lxc-bridge" className="block text-sm font-medium text-text-secondary">
+                Network Bridge<span className="text-status-error ml-0.5">*</span>
+              </label>
+              <select
+                id="lxc-bridge"
+                disabled={!selectedNode}
+                className="w-full rounded-md border border-border bg-bg-elevated px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                {...register('bridge', { required: true })}
+              >
+                <option value="">{!selectedNode ? 'Select a node first' : bridges.length === 0 ? 'No bridges found' : 'Select bridge…'}</option>
+                {bridges.map((b) => (
+                  <option key={b.iface} value={b.iface}>{b.iface}</option>
+                ))}
+              </select>
+            </div>
+            <FieldInput
+              label="VLAN Tag"
+              id="lxc-vlan"
+              type="number"
+              min={1}
+              max={4094}
+              placeholder="None"
+              {...register('vlan')}
+            />
+          </div>
 
           {/* Options */}
           <div className="flex items-center gap-6">
@@ -383,7 +408,7 @@ export function CreateLXCDialog({ defaultNode }: { defaultNode?: string } = {}) 
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || createLXC.isPending || !template || !rootfsStorage}>
+            <Button type="submit" disabled={isSubmitting || createLXC.isPending || !template || !rootfsStorage || !watch('bridge')}>
               {createLXC.isPending ? 'Creating…' : 'Create Container'}
             </Button>
           </div>

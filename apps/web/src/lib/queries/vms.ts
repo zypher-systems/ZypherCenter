@@ -176,6 +176,7 @@ export interface CreateVMParams {
   name: string
   memory: number
   cores: number
+  cpu?: string
   sockets?: number
   ostype?: string
   scsi0?: string

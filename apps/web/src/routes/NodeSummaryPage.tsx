@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useParams, Link } from 'react-router'
 import {
   Cpu,
@@ -10,7 +9,7 @@ import {
   Power,
   RefreshCw,
 } from 'lucide-react'
-import { useNodeStatus, useNodeRrdData, useNodePower, useNodeSubscription, useNodeHardwarePCI, useNodeZFSPools, useNodeDisks, useNodeStorage, useNodeTasks } from '@/lib/queries/nodes'
+import { useNodeStatus, useNodePower, useNodeSubscription, useNodeHardwarePCI, useNodeZFSPools, useNodeDisks, useNodeStorage, useNodeTasks } from '@/lib/queries/nodes'
 import { useVMs } from '@/lib/queries/vms'
 import { useLXCs } from '@/lib/queries/lxc'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -18,168 +17,7 @@ import { ResourceGauge } from '@/components/ui/ResourceGauge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import { formatBytes, formatUptime, formatPercent, cn } from '@/lib/utils'
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts'
-
-// ── Node performance history section ──────────────────────────────────────────────────
-
-type NTF = 'hour' | 'day'
-const NTF_OPTS: { v: NTF; l: string }[] = [
-  { v: 'hour', l: '1h' }, { v: 'day', l: '24h' },
-]
-
-function fmtNTs(ts: number, tf: NTF) {
-  const d = new Date(ts * 1000)
-  return tf === 'hour' || tf === 'day'
-    ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleDateString([], { month: 'short', day: 'numeric' })
-}
-
-const NT: React.CSSProperties = {
-  background: 'rgb(15 15 18)', border: '1px solid rgb(39 39 50)',
-  borderRadius: '6px', fontSize: '11px', color: 'rgb(228 228 235)', padding: '6px 10px',
-}
-const NAX = { fontSize: 9, fill: 'rgb(113 113 122)' }
-
-function NodePerfSection({ node }: { node: string }) {
-  const [tf, setTf] = useState<NTF>('hour')
-  const { data } = useNodeRrdData(node, tf)
-  const raw = data ?? []
-  const step = raw.length > 120 ? Math.ceil(raw.length / 120) : 1
-  const pts = step > 1 ? raw.filter((_, i) => i % step === 0) : raw
-  const xFmt = (v: number) => fmtNTs(v, tf)
-
-  const cpuPts = pts.map((p) => ({ t: p.time, v: +((p.cpu ?? 0) * 100).toFixed(2) }))
-  const memPts = pts.map((p) => ({ t: p.time, used: p.memused ?? 0, total: p.maxmem ?? 0 }))
-  const netPts = pts.map((p) => ({ t: p.time, i: p.netin ?? 0, o: p.netout ?? 0 }))
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-text-secondary">Performance History</h2>
-        <div className="flex gap-1">
-          {NTF_OPTS.map((t) => (
-            <button
-              key={t.v}
-              onClick={() => setTf(t.v)}
-              className={cn(
-                'px-3 py-1 rounded-md text-xs font-medium transition-colors',
-                tf === t.v ? 'bg-accent text-white' : 'text-text-muted hover:text-text-secondary hover:bg-bg-hover',
-              )}
-            >
-              {t.l}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* CPU */}
-        <Card>
-          <CardHeader className="pb-1.5"><CardTitle className="text-sm font-medium">CPU Usage</CardTitle></CardHeader>
-          <CardContent>
-            <div className="h-36">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={cpuPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="gNdCPU" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="rgb(234 88 12)"  stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="rgb(234 88 12)"  stopOpacity={0}    />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="t" tickFormatter={xFmt} tick={NAX} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis domain={[0, 100]} tick={NAX} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip contentStyle={NT} formatter={(v) => [`${(v as number).toFixed(1)}%`, 'CPU']} labelFormatter={(l) => fmtNTs(l as number, tf)} />
-                  <Area type="monotone" dataKey="v" stroke="rgb(234 88 12)" strokeWidth={1.5} fill="url(#gNdCPU)" dot={false} isAnimationActive={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Memory */}
-        <Card>
-          <CardHeader className="pb-1.5">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">Memory</CardTitle>
-              <div className="flex items-center gap-3">
-                {[{ color: 'rgb(56 189 248)', label: 'Used' }, { color: 'rgb(71 85 105)', label: 'Total' }].map(({ color, label }) => (
-                  <span key={label} className="flex items-center gap-1.5 text-xs text-text-muted">
-                    <span className="inline-block h-[2px] w-4 rounded-full" style={{ background: color }} />{label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="h-36">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={memPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="gNdMEM" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="rgb(56 189 248)" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="rgb(56 189 248)" stopOpacity={0}    />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="t" tickFormatter={xFmt} tick={NAX} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={NAX} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v as number)} />
-                  <Tooltip contentStyle={NT} formatter={(v, name) => [formatBytes(v as number), name === 'total' ? 'Total' : 'Used']} labelFormatter={(l) => fmtNTs(l as number, tf)} />
-                  <Area type="monotone" dataKey="total" stroke="rgb(71 85 105)"  strokeWidth={1}   strokeDasharray="4 2" fill="none"            dot={false} isAnimationActive={false} />
-                  <Area type="monotone" dataKey="used"  stroke="rgb(56 189 248)" strokeWidth={1.5} fill="url(#gNdMEM)"                         dot={false} isAnimationActive={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Network */}
-        <Card>
-          <CardHeader className="pb-1.5">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">Network</CardTitle>
-              <div className="flex items-center gap-3">
-                {[{ color: 'rgb(99 102 241)', label: 'In' }, { color: 'rgb(168 85 247)', label: 'Out' }].map(({ color, label }) => (
-                  <span key={label} className="flex items-center gap-1.5 text-xs text-text-muted">
-                    <span className="inline-block h-[2px] w-4 rounded-full" style={{ background: color }} />{label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="h-36">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={netPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="gNdNI" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="rgb(99 102 241)"  stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="rgb(99 102 241)"  stopOpacity={0}   />
-                    </linearGradient>
-                    <linearGradient id="gNdNO" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="rgb(168 85 247)" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="rgb(168 85 247)" stopOpacity={0}   />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="t" tickFormatter={xFmt} tick={NAX} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={NAX} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v as number)} />
-                  <Tooltip contentStyle={NT} formatter={(v, name) => [`${formatBytes(v as number)}/s`, name === 'i' ? 'In' : 'Out']} labelFormatter={(l) => fmtNTs(l as number, tf)} />
-                  <Area type="monotone" dataKey="i" stroke="rgb(99 102 241)"  strokeWidth={1.5} fill="url(#gNdNI)" dot={false} isAnimationActive={false} />
-                  <Area type="monotone" dataKey="o" stroke="rgb(168 85 247)" strokeWidth={1.5} fill="url(#gNdNO)" dot={false} isAnimationActive={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  )
-}
+import { NodeResourceCharts } from '@/components/features/ResourceCharts'
 
 export function NodeSummaryPage() {
   const { node } = useParams<{ node: string }>()
@@ -652,7 +490,7 @@ export function NodeSummaryPage() {
       })()}
 
       {/* Performance history */}
-      <NodePerfSection node={node!} />
+      <NodeResourceCharts node={node!} />
     </div>
   )
 }

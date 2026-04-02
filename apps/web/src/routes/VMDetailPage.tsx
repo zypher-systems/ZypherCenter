@@ -12,7 +12,6 @@ import {
   Cloud,
   Shield,
   Archive,
-  Activity,
   Plus,
   Trash2,
   Pencil,
@@ -55,7 +54,6 @@ import {
   useVMAgentFsInfo,
   useMoveVMDisk,
   useRegenerateCloudInit,
-  useVMRrdData,
 } from '@/lib/queries/vms'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered, useNodeStorage, useNodeNetwork, useVzdump, useNodeHardwarePCI, useNodeHardwareUSB } from '@/lib/queries/nodes'
@@ -77,164 +75,8 @@ import {
 } from '@/components/ui/Table'
 import { formatBytes, formatPercent, formatUptime, formatTimestamp, cn } from '@/lib/utils'
 import { ResourceCharts } from '@/components/features/ResourceCharts'
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
-
-// ── VM performance history ─────────────────────────────────────────────────────────────
-
-const VT: React.CSSProperties = {
-  background: 'rgb(15 15 18)', border: '1px solid rgb(39 39 50)',
-  borderRadius: '6px', fontSize: '11px', color: 'rgb(228 228 235)', padding: '6px 10px',
-}
-const VAX = { fontSize: 9, fill: 'rgb(113 113 122)' }
-
-function VMPerfSection({ node, vmid }: { node: string; vmid: number }) {
-  const [tf, setTf] = useState<'hour' | 'day'>('hour')
-  const { data } = useVMRrdData(node, vmid, tf)
-  const raw = data ?? []
-  const step = raw.length > 120 ? Math.ceil(raw.length / 120) : 1
-  const pts = step > 1 ? raw.filter((_, i) => i % step === 0) : raw
-  function xFmt(v: number) {
-    const d = new Date(v * 1000)
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  }
-
-  const cpuPts = pts.map((p) => ({ t: p.time, v: +((p.cpu ?? 0) * 100).toFixed(2) }))
-  const memPts = pts.map((p) => ({ t: p.time, used: p.mem ?? 0, total: p.maxmem ?? 0 }))
-  const netPts = pts.map((p) => ({ t: p.time, i: p.netin ?? 0, o: p.netout ?? 0 }))
-  const diskPts = pts.map((p) => ({ t: p.time, r: p.diskread ?? 0, w: p.diskwrite ?? 0 }))
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-text-secondary">Performance History</h2>
-        <div className="flex gap-1">
-          {(['hour', 'day'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTf(t)}
-              className={cn(
-                'px-3 py-1 rounded-md text-xs font-medium transition-colors',
-                tf === t ? 'bg-accent text-white' : 'text-text-muted hover:text-text-secondary hover:bg-bg-hover',
-              )}
-            >
-              {t === 'hour' ? '1h' : '24h'}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-        {/* CPU */}
-        <Card>
-          <CardHeader className="pb-1.5"><CardTitle className="text-sm font-medium">CPU Usage</CardTitle></CardHeader>
-          <CardContent>
-            <div className="h-28">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={cpuPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="gVmCPU" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="rgb(234 88 12)"  stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="rgb(234 88 12)"  stopOpacity={0}    />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="t" tickFormatter={xFmt} tick={VAX} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis domain={[0, 100]} tick={VAX} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip contentStyle={VT} formatter={(v) => [`${(v as number).toFixed(1)}%`, 'CPU']} labelFormatter={(l) => xFmt(l as number)} />
-                  <Area type="monotone" dataKey="v" stroke="rgb(234 88 12)" strokeWidth={1.5} fill="url(#gVmCPU)" dot={false} isAnimationActive={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-        {/* Memory */}
-        <Card>
-          <CardHeader className="pb-1.5"><CardTitle className="text-sm font-medium">Memory</CardTitle></CardHeader>
-          <CardContent>
-            <div className="h-28">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={memPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="gVmMEM" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="rgb(56 189 248)" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="rgb(56 189 248)" stopOpacity={0}    />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="t" tickFormatter={xFmt} tick={VAX} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={VAX} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v as number)} />
-                  <Tooltip contentStyle={VT} formatter={(v, name) => [formatBytes(v as number), name === 'total' ? 'Total' : 'Used']} labelFormatter={(l) => xFmt(l as number)} />
-                  <Area type="monotone" dataKey="total" stroke="rgb(71 85 105)"  strokeWidth={1}   strokeDasharray="4 2" fill="none"            dot={false} isAnimationActive={false} />
-                  <Area type="monotone" dataKey="used"  stroke="rgb(56 189 248)" strokeWidth={1.5} fill="url(#gVmMEM)"                         dot={false} isAnimationActive={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-        {/* Network */}
-        <Card>
-          <CardHeader className="pb-1.5"><CardTitle className="text-sm font-medium">Network</CardTitle></CardHeader>
-          <CardContent>
-            <div className="h-28">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={netPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="gVmNI" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="rgb(99 102 241)"  stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="rgb(99 102 241)"  stopOpacity={0}   />
-                    </linearGradient>
-                    <linearGradient id="gVmNO" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="rgb(168 85 247)" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="rgb(168 85 247)" stopOpacity={0}   />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="t" tickFormatter={xFmt} tick={VAX} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={VAX} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v as number)} />
-                  <Tooltip contentStyle={VT} formatter={(v, name) => [`${formatBytes(v as number)}/s`, name === 'i' ? 'In' : 'Out']} labelFormatter={(l) => xFmt(l as number)} />
-                  <Area type="monotone" dataKey="i" stroke="rgb(99 102 241)"  strokeWidth={1.5} fill="url(#gVmNI)" dot={false} isAnimationActive={false} />
-                  <Area type="monotone" dataKey="o" stroke="rgb(168 85 247)" strokeWidth={1.5} fill="url(#gVmNO)" dot={false} isAnimationActive={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-        {/* Disk I/O */}
-        <Card>
-          <CardHeader className="pb-1.5"><CardTitle className="text-sm font-medium">Disk I/O</CardTitle></CardHeader>
-          <CardContent>
-            <div className="h-28">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={diskPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="gVmDR" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="rgb(34 197 94)"  stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="rgb(34 197 94)"  stopOpacity={0}   />
-                    </linearGradient>
-                    <linearGradient id="gVmDW" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="rgb(251 191 36)" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="rgb(251 191 36)" stopOpacity={0}   />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="t" tickFormatter={xFmt} tick={VAX} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={VAX} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v as number)} />
-                  <Tooltip contentStyle={VT} formatter={(v, name) => [`${formatBytes(v as number)}/s`, name === 'r' ? 'Read' : 'Write']} labelFormatter={(l) => xFmt(l as number)} />
-                  <Area type="monotone" dataKey="r" stroke="rgb(34 197 94)"  strokeWidth={1.5} fill="url(#gVmDR)" dot={false} isAnimationActive={false} />
-                  <Area type="monotone" dataKey="w" stroke="rgb(251 191 36)" strokeWidth={1.5} fill="url(#gVmDW)" dot={false} isAnimationActive={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  )
-}
 
 // ── Summary tab ───────────────────────────────────────────────────────────────
 
@@ -417,7 +259,7 @@ function SummaryTab({ node, vmid }: { node: string; vmid: number }) {
         </Card>
         <NotesCard node={node} vmid={vmid} />
       </div>
-      <VMPerfSection node={node} vmid={vmid} />
+      <ResourceCharts node={node} vmid={vmid} type="qemu" />
     </div>
   )
 }
@@ -2785,7 +2627,6 @@ export function VMDetailPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="summary">Summary</TabsTrigger>
-          <TabsTrigger value="perf"><Activity className="size-3.5" /> Performance</TabsTrigger>
           <TabsTrigger value="hardware"><HardDrive className="size-3.5" /> Hardware</TabsTrigger>
           <TabsTrigger value="options"><Settings className="size-3.5" /> Options</TabsTrigger>
           <TabsTrigger value="cloudinit"><Cloud className="size-3.5" /> Cloud-Init</TabsTrigger>
@@ -2796,7 +2637,6 @@ export function VMDetailPage() {
           <TabsTrigger value="tasks"><ClipboardList className="size-3.5" /> Tasks</TabsTrigger>
         </TabsList>
         <TabsContent value="summary"><SummaryTab node={node!} vmid={vmid} /></TabsContent>
-        <TabsContent value="perf"><ResourceCharts node={node!} vmid={vmid} type="qemu" /></TabsContent>
         <TabsContent value="hardware"><HardwareTab node={node!} vmid={vmid} /></TabsContent>
         <TabsContent value="options"><VMOptionsTab node={node!} vmid={vmid} /></TabsContent>
         <TabsContent value="cloudinit"><CloudInitTab node={node!} vmid={vmid} /></TabsContent>
