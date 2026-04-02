@@ -33,6 +33,7 @@ import {
   flattenOSDs,
   type CephStatus,
   type CephOSD,
+  type CephOSDTreeItem,
   type CephPool,
   type CephMon,
   type CephMDS,
@@ -456,14 +457,23 @@ function CreateOSDDialog({ node, onClose }: { node: string; onClose: () => void 
 }
 
 function OSDsTab({ node }: { node: string }) {
-  const { data: raw, isLoading } = useCephOSDs(node)
+  const { data: raw, isLoading, isError } = useCephOSDs(node)
   const destroyOSD = useDestroyOSD(node)
   const osdInOut = useOSDInOut(node)
   const [showCreate, setShowCreate] = useState(false)
 
   if (isLoading) return <SkeletonCard />
+  if (isError) return (
+    <div className="flex flex-col items-center justify-center h-32 text-center gap-2">
+      <p className="text-sm text-status-error">Failed to load OSD data. Check that Ceph is configured and accessible on this node.</p>
+    </div>
+  )
 
-  const osds: CephOSD[] = flattenOSDs(raw?.root_list ?? [])
+  // API may return { root_list: [...] } or the array directly depending on PVE version
+  const rootItems: CephOSDTreeItem[] = Array.isArray(raw)
+    ? raw
+    : ((raw as { root_list?: CephOSDTreeItem[] })?.root_list ?? [])
+  const osds: CephOSD[] = flattenOSDs(rootItems)
   const upCount = osds.filter((o) => o.up).length
   const inCount = osds.filter((o) => o.inCluster).length
 
@@ -740,12 +750,17 @@ function EditPoolDialog({ pool, node, onClose }: { pool: CephPool; node: string;
 }
 
 function PoolsTab({ node }: { node: string }) {
-  const { data: pools, isLoading } = useCephPools(node)
+  const { data: pools, isLoading, isError } = useCephPools(node)
   const deletePool = useDeleteCephPool(node)
   const [showCreate, setShowCreate] = useState(false)
   const [editingPool, setEditingPool] = useState<CephPool | null>(null)
 
   if (isLoading) return <SkeletonCard />
+  if (isError) return (
+    <div className="flex flex-col items-center justify-center h-32 text-center gap-2">
+      <p className="text-sm text-status-error">Failed to load pool data. Check that Ceph is configured and accessible on this node.</p>
+    </div>
+  )
 
   return (
     <div className="space-y-4">

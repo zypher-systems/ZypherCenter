@@ -50,12 +50,17 @@ export interface CephStatus {
 export interface CephOSDTreeItem {
   id?: number
   type?: string
+  type_id?: number
   name?: string
   status?: string
   up?: 0 | 1
   in?: 0 | 1
+  // field name varies by Ceph version: hyphenated (older) vs underscored (Reef+)
   'type-class'?: string
+  device_class?: string
+  class?: string
   'crush-weight'?: number
+  crush_weight?: number
   reweight?: number
   'primary-affinity'?: number
   kb?: number
@@ -115,22 +120,27 @@ export function flattenOSDs(
 ): CephOSD[] {
   const osds: CephOSD[] = []
   for (const item of items) {
-    if (item.type === 'osd' && item.id != null) {
+    // Match OSD leaf nodes — check type string AND numeric type_id (0=osd) for resilience
+    const isOSD = item.type === 'osd' || item.type_id === 0
+    const isHost = item.type === 'host' || item.type_id === 1
+    if (isOSD && item.id != null && item.id >= 0) {
       osds.push({
         id: item.id,
         name: item.name ?? `osd.${item.id}`,
         host: hostName,
         up: item.up === 1 || item.status === 'up',
         inCluster: item.in === 1,
-        deviceClass: item['type-class'] ?? 'hdd',
-        crushWeight: item['crush-weight'] ?? 1,
+        // Ceph Reef+ uses device_class or class; older uses type-class
+        deviceClass: item.device_class ?? item.class ?? item['type-class'] ?? 'hdd',
+        // Ceph Reef+ uses crush_weight (underscore); older uses crush-weight (hyphen)
+        crushWeight: item.crush_weight ?? item['crush-weight'] ?? 1,
         reweight: item.reweight ?? 1,
         kb: item.kb ?? 0,
         kbUsed: item.kb_used ?? 0,
         kbAvail: item.kb_avail ?? 0,
       })
     } else if (item.children?.length) {
-      const childHost = item.type === 'host' ? (item.name ?? hostName) : hostName
+      const childHost = isHost ? (item.name ?? hostName) : hostName
       osds.push(...flattenOSDs(item.children, childHost))
     }
   }
@@ -162,20 +172,20 @@ export function useCephStatus(node: string) {
 export function useCephOSDs(node: string) {
   return useQuery({
     queryKey: cephKeys.osds(node),
-    queryFn: () => api.get<{ root_list?: CephOSDTreeItem[] }>(`nodes/${node}/ceph/osd`),
+    queryFn: () => api.get<{ root_list?: CephOSDTreeItem[] } | CephOSDTreeItem[]>(`nodes/${node}/ceph/osd`),
     enabled: !!node,
     refetchInterval: 15_000,
-    retry: false,
+    retry: 1,
   })
 }
 
 export function useCephPools(node: string) {
   return useQuery({
     queryKey: cephKeys.pools(node),
-    queryFn: () => api.get<CephPool[]>(`nodes/${node}/ceph/pools`),
+    queryFn: () => api.get<CephPool[]>(`nodes/${node}/ceph/pools?detail=1`),
     enabled: !!node,
     refetchInterval: 15_000,
-    retry: false,
+    retry: 1,
   })
 }
 

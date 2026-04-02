@@ -393,16 +393,51 @@ export function HAPage() {
       </div>
 
       {/* HA Manager Status */}
-      {status && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {Object.entries(status as Record<string, unknown>).map(([key, val]) => (
-            <div key={key} className="rounded-lg border border-border-subtle bg-bg-card p-4">
-              <p className="text-xs text-text-muted capitalize">{key.replace(/_/g, ' ')}</p>
-              <p className="text-lg font-semibold text-text-primary mt-1">{String(val)}</p>
-            </div>
-          ))}
-        </div>
-      )}
+      {status && (() => {
+        // cluster/ha/status/current returns an array of service status items
+        const statusItems: Record<string, unknown>[] = Array.isArray(status)
+          ? (status as Record<string, unknown>[])
+          : Object.entries(status as Record<string, unknown>)
+              .filter(([, v]) => v !== null && typeof v !== 'object')
+              .map(([k, v]) => ({ id: k, state: String(v), type: k, node: '' } as Record<string, unknown>))
+        return (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border-subtle">
+                  <th className="text-left text-xs text-text-muted font-medium pb-2 pr-4">Service</th>
+                  <th className="text-left text-xs text-text-muted font-medium pb-2 pr-4">Type</th>
+                  <th className="text-left text-xs text-text-muted font-medium pb-2 pr-4">Node</th>
+                  <th className="text-left text-xs text-text-muted font-medium pb-2">State</th>
+                </tr>
+              </thead>
+              <tbody>
+                {statusItems.map((item, i) => {
+                  const state = String(item['state'] ?? item['status'] ?? '—')
+                  const isActive = state === 'active' || state === 'online'
+                  return (
+                    <tr key={String(item['id'] ?? i)} className="border-b border-border-subtle/40 last:border-0">
+                      <td className="py-2 pr-4 font-mono text-xs text-text-primary">{String(item['id'] ?? '—')}</td>
+                      <td className="py-2 pr-4">
+                        <span className="text-xs bg-bg-elevated text-text-muted px-1.5 py-0.5 rounded uppercase tracking-wide">
+                          {String(item['type'] ?? '—')}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-4 text-text-secondary text-xs">{String(item['node'] ?? '—')}</td>
+                      <td className="py-2">
+                        <span className={`inline-flex items-center gap-1 text-xs font-medium ${isActive ? 'text-status-running' : 'text-status-paused'}`}>
+                          <span className={`size-1.5 rounded-full ${isActive ? 'bg-status-running' : 'bg-status-paused'}`} />
+                          {state}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      })()}
 
       <Tabs defaultValue="resources">
         <TabsList>
