@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Network, Layers, Plus, Trash2, CheckCircle } from 'lucide-react'
+import { Network, Layers, Plus, Trash2, CheckCircle, Pencil } from 'lucide-react'
 import {
   useSDNVNets,
   useSDNZones,
@@ -8,6 +8,8 @@ import {
   useCreateSDNZone,
   useDeleteSDNZone,
   useApplySDN,
+  useUpdateSDNVNet,
+  useUpdateSDNZone,
 } from '@/lib/queries/cluster'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
@@ -151,17 +153,122 @@ function CreateZoneDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
+function EditVNetDialog({ vnet, zones, onClose }: { vnet: Record<string, unknown>; zones: Record<string, unknown>[]; onClose: () => void }) {
+  const update = useUpdateSDNVNet()
+  const [zone, setZone] = useState(String(vnet['zone'] ?? ''))
+  const [tag, setTag] = useState(vnet['tag'] != null ? String(vnet['tag']) : '')
+  const [alias, setAlias] = useState(String(vnet['alias'] ?? ''))
+  const [vlanaware, setVlanaware] = useState(Boolean(vnet['vlanaware']))
+
+  function submit() {
+    const params: Record<string, unknown> = { zone, vlanaware: vlanaware ? 1 : undefined }
+    if (tag) params.tag = Number(tag)
+    if (alias.trim()) params.alias = alias.trim()
+    update.mutate({ vnet: vnet['vnet'] as string, params }, { onSuccess: () => onClose() })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold text-text-primary">Edit VNet — {vnet['vnet'] as string}</h2>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Zone <span className="text-status-error">*</span></label>
+            <select value={zone} onChange={(e) => setZone(e.target.value)}
+              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]">
+              {zones.map((z) => (
+                <option key={z['zone'] as string} value={z['zone'] as string}>{z['zone'] as string}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Tag (VLAN)</label>
+            <input type="number" value={tag} onChange={(e) => setTag(e.target.value)} placeholder="optional"
+              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent" />
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Alias</label>
+            <input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="optional"
+              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent" />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+            <input type="checkbox" checked={vlanaware} onChange={(e) => setVlanaware(e.target.checked)} className="accent-accent" />
+            VLAN Aware
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={submit} disabled={!zone || update.isPending}>
+            {update.isPending ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EditZoneDialog({ zone, onClose }: { zone: Record<string, unknown>; onClose: () => void }) {
+  const update = useUpdateSDNZone()
+  const [bridge, setBridge] = useState(String(zone['bridge'] ?? ''))
+  const [nodes, setNodes] = useState(String(zone['nodes'] ?? ''))
+  const [dns, setDns] = useState(String(zone['dns'] ?? ''))
+
+  function submit() {
+    const params: Record<string, unknown> = {}
+    if (bridge.trim()) params.bridge = bridge.trim()
+    if (nodes.trim()) params.nodes = nodes.trim()
+    if (dns.trim()) params.dns = dns.trim()
+    update.mutate({ zone: zone['zone'] as string, params }, { onSuccess: () => onClose() })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold text-text-primary">Edit Zone — {zone['zone'] as string}</h2>
+        <p className="text-xs text-text-muted">Type: <span className="font-mono">{zone['type'] as string}</span></p>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Bridge</label>
+            <input value={bridge} onChange={(e) => setBridge(e.target.value)} placeholder="e.g. vmbr0"
+              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent" />
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Nodes (comma-separated)</label>
+            <input value={nodes} onChange={(e) => setNodes(e.target.value)} placeholder="e.g. pve1,pve2"
+              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent" />
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">DNS Server</label>
+            <input value={dns} onChange={(e) => setDns(e.target.value)} placeholder="optional"
+              className="w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent" />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={submit} disabled={update.isPending}>
+            {update.isPending ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function VNetsTab() {
   const { data: zones } = useSDNZones()
   const { data: vnets, isLoading } = useSDNVNets()
   const deleteVNet = useDeleteSDNVNet()
   const [showCreate, setShowCreate] = useState(false)
+  const [editingVNet, setEditingVNet] = useState<Record<string, unknown> | null>(null)
 
   if (isLoading) return <SkeletonCard />
   return (
     <>
       {showCreate && (
         <CreateVNetDialog zones={zones ?? []} onClose={() => setShowCreate(false)} />
+      )}
+      {editingVNet && (
+        <EditVNetDialog key={editingVNet['vnet'] as string} vnet={editingVNet} zones={zones ?? []} onClose={() => setEditingVNet(null)} />
       )}
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm text-text-secondary">{vnets?.length ?? 0} VNet(s)</span>
@@ -198,17 +305,25 @@ function VNetsTab() {
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <button
-                        onClick={() => {
-                          if (confirm(`Delete VNet "${v['vnet'] as string}"?`)) {
-                            deleteVNet.mutate(v['vnet'] as string)
-                          }
-                        }}
-                        disabled={deleteVNet.isPending}
-                        className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
-                      >
-                        <Trash2 className="size-3" />Delete
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setEditingVNet(v)}
+                          className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-xs text-text-muted hover:bg-bg-elevated"
+                        >
+                          <Pencil className="size-3" />Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete VNet "${v['vnet'] as string}"?`)) {
+                              deleteVNet.mutate(v['vnet'] as string)
+                            }
+                          }}
+                          disabled={deleteVNet.isPending}
+                          className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                        >
+                          <Trash2 className="size-3" />Delete
+                        </button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -225,11 +340,13 @@ function ZonesTab() {
   const { data: zones, isLoading } = useSDNZones()
   const deleteZone = useDeleteSDNZone()
   const [showCreate, setShowCreate] = useState(false)
+  const [editingZone, setEditingZone] = useState<Record<string, unknown> | null>(null)
 
   if (isLoading) return <SkeletonCard />
   return (
     <>
       {showCreate && <CreateZoneDialog onClose={() => setShowCreate(false)} />}
+      {editingZone && <EditZoneDialog key={editingZone['zone'] as string} zone={editingZone} onClose={() => setEditingZone(null)} />}
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm text-text-secondary">{zones?.length ?? 0} Zone(s)</span>
         <Button size="sm" onClick={() => setShowCreate(true)}>
@@ -265,17 +382,25 @@ function ZonesTab() {
                     <TableCell className="text-text-muted text-sm">{(z['nodes'] as string) ?? 'All'}</TableCell>
                     <TableCell className="font-mono text-xs text-text-muted">{(z['dns'] as string) ?? '—'}</TableCell>
                     <TableCell className="text-right">
-                      <button
-                        onClick={() => {
-                          if (confirm(`Delete Zone "${z['zone'] as string}"?`)) {
-                            deleteZone.mutate(z['zone'] as string)
-                          }
-                        }}
-                        disabled={deleteZone.isPending}
-                        className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
-                      >
-                        <Trash2 className="size-3" />Delete
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setEditingZone(z)}
+                          className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-xs text-text-muted hover:bg-bg-elevated"
+                        >
+                          <Pencil className="size-3" />Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete Zone "${z['zone'] as string}"?`)) {
+                              deleteZone.mutate(z['zone'] as string)
+                            }
+                          }}
+                          disabled={deleteZone.isPending}
+                          className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                        >
+                          <Trash2 className="size-3" />Delete
+                        </button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

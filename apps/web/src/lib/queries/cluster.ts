@@ -438,6 +438,32 @@ export function useDeleteSDNZone() {
   })
 }
 
+export function useUpdateSDNVNet() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ vnet, params }: { vnet: string; params: Record<string, unknown> }) =>
+      api.put(`cluster/sdn/vnets/${encodeURIComponent(vnet)}`, params),
+    onSuccess: (_, { vnet }) => {
+      toast.success(`VNet "${vnet}" updated`)
+      qc.invalidateQueries({ queryKey: ['sdn', 'vnets'] })
+    },
+    onError: (err) => toast.error(`Failed to update VNet — ${err.message}`),
+  })
+}
+
+export function useUpdateSDNZone() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ zone, params }: { zone: string; params: Record<string, unknown> }) =>
+      api.put(`cluster/sdn/zones/${encodeURIComponent(zone)}`, params),
+    onSuccess: (_, { zone }) => {
+      toast.success(`Zone "${zone}" updated`)
+      qc.invalidateQueries({ queryKey: ['sdn', 'zones'] })
+    },
+    onError: (err) => toast.error(`Failed to update zone — ${err.message}`),
+  })
+}
+
 export function useApplySDN() {
   const qc = useQueryClient()
   return useMutation({
