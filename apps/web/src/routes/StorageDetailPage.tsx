@@ -152,6 +152,7 @@ export function StorageDetailPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadType, setUploadType] = useState<'iso' | 'vztmpl'>('iso')
   const [restoreItem, setRestoreItem] = useState<StorageContentItem | null>(null)
+  const [selectedVolids, setSelectedVolids] = useState<Set<string>>(new Set())
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: storages } = useStorage()
@@ -170,6 +171,23 @@ export function StorageDetailPage() {
   const deleteContent = useDeleteStorageContent(targetNode, storageid!)
   const uploadContent = useUploadContent(targetNode, storageid!)
   const pruneBackups = usePruneBackups(targetNode, storageid!)
+
+  function toggleSelect(volid: string) {
+    setSelectedVolids((prev) => {
+      const next = new Set(prev)
+      if (next.has(volid)) next.delete(volid); else next.add(volid)
+      return next
+    })
+  }
+
+  async function bulkDelete() {
+    if (selectedVolids.size === 0) return
+    if (!confirm(`Delete ${selectedVolids.size} item${selectedVolids.size !== 1 ? 's' : ''}? This cannot be undone.`)) return
+    for (const volid of selectedVolids) {
+      await new Promise<void>((resolve) => deleteContent.mutate(volid, { onSettled: () => resolve() }))
+    }
+    setSelectedVolids(new Set())
+  }
 
   // Allowed content types for upload
   const supportedContent = storageInfo?.content?.split(',').map((s) => s.trim()) ?? []
@@ -343,17 +361,25 @@ export function StorageDetailPage() {
       )}
 
       {/* Content type filter */}
-      <div className="flex items-center gap-1 flex-wrap">
-        {CONTENT_TYPES.map((ct) => (
-          <Button
-            key={ct.value}
-            size="sm"
-            variant={contentFilter === ct.value ? 'default' : 'ghost'}
-            onClick={() => setContentFilter(ct.value)}
-          >
-            {ct.label}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1 flex-wrap">
+          {CONTENT_TYPES.map((ct) => (
+            <Button
+              key={ct.value}
+              size="sm"
+              variant={contentFilter === ct.value ? 'default' : 'ghost'}
+              onClick={() => { setContentFilter(ct.value); setSelectedVolids(new Set()) }}
+            >
+              {ct.label}
+            </Button>
+          ))}
+        </div>
+        {selectedVolids.size > 0 && (
+          <Button size="sm" variant="destructive" onClick={bulkDelete} disabled={deleteContent.isPending}>
+            <Trash2 className="size-3.5 mr-1" />
+            Delete {selectedVolids.size} selected
           </Button>
-        ))}
+        )}
       </div>
 
       {isLoading ? (
@@ -364,6 +390,17 @@ export function StorageDetailPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8">
+                    <input
+                      type="checkbox"
+                      className="accent-accent cursor-pointer"
+                      checked={!!content?.length && content.length === selectedVolids.size}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedVolids(new Set(content?.map((i) => i.volid) ?? []))
+                        else setSelectedVolids(new Set())
+                      }}
+                    />
+                  </TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Size</TableHead>
@@ -375,13 +412,21 @@ export function StorageDetailPage() {
               <TableBody>
                 {content?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-text-muted py-10">
+                    <TableCell colSpan={7} className="text-center text-text-muted py-10">
                       No content
                     </TableCell>
                   </TableRow>
                 ) : (
                   content?.map((item) => (
-                    <TableRow key={item.volid}>
+                    <TableRow key={item.volid} className={selectedVolids.has(item.volid) ? 'bg-accent/5' : ''}>
+                      <TableCell className="w-8">
+                        <input
+                          type="checkbox"
+                          className="accent-accent cursor-pointer"
+                          checked={selectedVolids.has(item.volid)}
+                          onChange={() => toggleSelect(item.volid)}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {contentIcon(item.content)}
