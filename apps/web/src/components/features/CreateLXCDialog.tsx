@@ -137,8 +137,8 @@ function StorageSelect({
 }) {
   const { data: storages, isLoading } = useNodeStorage(node)
   const filtered = filterFn
-    ? (storages ?? []).filter((s) => s.content && filterFn(s.content))
-    : (storages ?? [])
+    ? (storages ?? []).filter((s) => s.active !== 0 && s.content && filterFn(s.content))
+    : (storages ?? []).filter((s) => s.active !== 0)
 
   return (
     <FieldSelect

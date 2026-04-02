@@ -111,9 +111,9 @@ function StorageSelect({
 }) {
   const { data: storages, isLoading } = useNodeStorage(node)
 
-  // Filter to storages that support VM images / disks
+  // Filter to storages that support VM images / disks AND are active on this node
   const diskStorages = (storages ?? []).filter(
-    (s) => s.content && (s.content.includes('images') || s.content.includes('rootdir')),
+    (s) => s.active !== 0 && s.content && (s.content.includes('images') || s.content.includes('rootdir')),
   )
 
   return (
