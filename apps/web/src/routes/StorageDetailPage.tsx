@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { useParams } from 'react-router'
-import { HardDrive, Package, Server, Trash2, Upload, RotateCcw, Scissors, Link2 } from 'lucide-react'
+import { HardDrive, Package, Server, Trash2, Upload, RotateCcw, Scissors, Link2, BookOpen } from 'lucide-react'
 import { useStorage, useStorageContent, useDeleteStorageContent, useUploadContent, usePruneBackups, useDownloadURLContent } from '@/lib/queries/storage'
-import { useNodeStorage } from '@/lib/queries/nodes'
+import { useNodeStorage, useNodeAplinfo, useDownloadNodeTemplate } from '@/lib/queries/nodes'
+import type { AplTemplate } from '@/lib/queries/nodes'
 import { useRestoreVM } from '@/lib/queries/vms'
 import { useRestoreLXC } from '@/lib/queries/lxc'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -28,6 +29,119 @@ const CONTENT_TYPES = [
   { value: 'backup', label: 'Backups' },
   { value: 'snippets', label: 'Snippets' },
 ]
+
+function TemplateBrowserModal({
+  node,
+  storage,
+  onClose,
+}: {
+  node: string
+  storage: string
+  onClose: () => void
+}) {
+  const { data: templates = [], isLoading } = useNodeAplinfo(node)
+  const download = useDownloadNodeTemplate(node)
+  const [osFilter, setOsFilter] = useState('')
+  const [search, setSearch] = useState('')
+
+  const osList = useMemo(
+    () => [...new Set(templates.map((t: AplTemplate) => t.os ?? '').filter(Boolean))].sort(),
+    [templates],
+  )
+
+  const filtered = (templates as AplTemplate[]).filter((t) => {
+    if (osFilter && t.os !== osFilter) return false
+    if (search) {
+      const q = search.toLowerCase()
+      return (
+        (t.package ?? '').toLowerCase().includes(q) ||
+        (t.headline ?? '').toLowerCase().includes(q) ||
+        (t.section ?? '').toLowerCase().includes(q)
+      )
+    }
+    return true
+  })
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={onClose}
+    >
+      <div
+        className="bg-bg-surface border border-border-subtle rounded-lg w-[700px] max-w-[95vw] max-h-[80vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
+          <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+            <BookOpen className="size-4 text-text-muted" />
+            CT Template Catalog — {storage}
+          </h2>
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary text-lg leading-none">✕</button>
+        </div>
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-border-subtle">
+          <input
+            type="text"
+            placeholder="Search templates…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent"
+          />
+          <select
+            value={osFilter}
+            onChange={(e) => setOsFilter(e.target.value)}
+            className="rounded border border-border-subtle bg-bg-input px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]"
+          >
+            <option value="">All OS</option>
+            {osList.map((os) => (
+              <option key={os} value={os}>{os}</option>
+            ))}
+          </select>
+        </div>
+        <div className="overflow-y-auto flex-1">
+          {isLoading ? (
+            <p className="text-center text-text-muted py-10 text-sm">Loading templates…</p>
+          ) : filtered.length === 0 ? (
+            <p className="text-center text-text-muted py-10 text-sm">No templates found</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border-subtle">
+                  <th className="px-4 py-2 text-left text-xs text-text-muted font-medium">Package</th>
+                  <th className="px-4 py-2 text-left text-xs text-text-muted font-medium">Version</th>
+                  <th className="px-4 py-2 text-left text-xs text-text-muted font-medium">OS</th>
+                  <th className="px-4 py-2 text-left text-xs text-text-muted font-medium">Description</th>
+                  <th className="px-4 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((t) => (
+                  <tr key={t.template ?? t.package} className="border-b border-border-subtle/50 hover:bg-bg-muted/20">
+                    <td className="px-4 py-2 font-mono text-text-primary text-xs">{t.package}</td>
+                    <td className="px-4 py-2 text-text-secondary text-xs tabular-nums">{t.version ?? '—'}</td>
+                    <td className="px-4 py-2 text-text-secondary text-xs capitalize">{t.os ?? '—'}</td>
+                    <td className="px-4 py-2 text-text-muted text-xs max-w-[240px] truncate">{t.headline ?? t.description ?? '—'}</td>
+                    <td className="px-4 py-2 text-right">
+                      <button
+                        disabled={!t.template || download.isPending}
+                        onClick={() => { if (t.template) download.mutate({ storage, template: t.template }) }}
+                        className="inline-flex items-center gap-1 rounded border border-accent/40 px-2 py-0.5 text-xs text-accent hover:bg-accent/10 disabled:opacity-50"
+                      >
+                        Download
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="px-4 py-2 border-t border-border-subtle text-xs text-text-muted">
+          {filtered.length} template{filtered.length !== 1 ? 's' : ''} · node: {node}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function contentIcon(type?: string) {
   if (type === 'iso') return <Package className="size-3.5 text-text-muted" />
@@ -153,6 +267,7 @@ export function StorageDetailPage() {
   const [uploadType, setUploadType] = useState<'iso' | 'vztmpl'>('iso')
   const [restoreItem, setRestoreItem] = useState<StorageContentItem | null>(null)
   const [selectedVolids, setSelectedVolids] = useState<Set<string>>(new Set())
+  const [showTemplateBrowser, setShowTemplateBrowser] = useState(false)
   const [showDownloadUrl, setShowDownloadUrl] = useState(false)
   const [dlUrl, setDlUrl] = useState('')
   const [dlFilename, setDlFilename] = useState('')
@@ -249,6 +364,11 @@ export function StorageDetailPage() {
               <Link2 className="size-3.5" /> Download URL
             </Button>
           )}
+          {canUploadTemplate && (
+            <Button size="sm" variant="outline" onClick={() => setShowTemplateBrowser(true)}>
+              <BookOpen className="size-3.5" /> Browse Templates
+            </Button>
+          )}
           {hasBackupContent && (
             <Button
               size="sm"
@@ -279,6 +399,15 @@ export function StorageDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Template browser modal */}
+      {showTemplateBrowser && (
+        <TemplateBrowserModal
+          node={targetNode}
+          storage={storageid!}
+          onClose={() => setShowTemplateBrowser(false)}
+        />
+      )}
 
       {/* Upload dialog */}
       {showUpload && (

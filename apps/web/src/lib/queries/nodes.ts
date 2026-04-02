@@ -550,3 +550,38 @@ export function useNodeZFSScrub(node: string) {
     onError: (err) => toast.error(`Scrub failed — ${err.message}`),
   })
 }
+
+export interface AplTemplate {
+  package: string
+  version?: string
+  type?: string
+  os?: string
+  section?: string
+  description?: string
+  location?: string
+  template?: string
+  headline?: string
+  infopage?: string
+}
+
+export function useNodeAplinfo(node: string) {
+  return useQuery({
+    queryKey: [...nodeKeys.all(node), 'aplinfo'],
+    queryFn: () => api.get<AplTemplate[]>(`nodes/${node}/aplinfo`),
+    enabled: !!node,
+    staleTime: 300_000,
+  })
+}
+
+export function useDownloadNodeTemplate(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ storage, template }: { storage: string; template: string }) =>
+      api.post(`nodes/${node}/aplinfo`, { storage, template }),
+    onSuccess: (_, { template }) => {
+      toast.success(`Template "${template}" download started`)
+      qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'aplinfo'] })
+    },
+    onError: (err) => toast.error(`Download failed — ${err.message}`),
+  })
+}

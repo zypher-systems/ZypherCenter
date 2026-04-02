@@ -1487,6 +1487,7 @@ function VMOptionsTab({ node, vmid }: { node: string; vmid: number }) {
 
   // Text-editable options
   const textOpts: { key: string; label: string }[] = [
+    { key: 'name',        label: 'Name' },
     { key: 'description', label: 'Description' },
     { key: 'tags',        label: 'Tags' },
     { key: 'hookscript',  label: 'Hook script' },
