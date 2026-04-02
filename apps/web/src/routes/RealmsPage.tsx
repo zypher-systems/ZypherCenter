@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useRealms, useCreateRealm, useDeleteRealm } from '@/lib/queries/access'
+import { useRealms, useCreateRealm, useDeleteRealm, useUpdateRealm, useRealmDetails } from '@/lib/queries/access'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   Table,
@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
-import { Plus, Trash2, Globe } from 'lucide-react'
+import { Plus, Trash2, Globe, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 
 const REALM_TYPES = [
@@ -174,14 +174,153 @@ function CreateRealmDialog({ open, onClose }: { open: boolean; onClose: () => vo
   )
 }
 
+function EditRealmDialog({ realmId, realmType, onClose }: { realmId: string; realmType: string; onClose: () => void }) {
+  const { data: details, isLoading } = useRealmDetails(realmId)
+  const updateRealm = useUpdateRealm()
+
+  const d = (details ?? {}) as Record<string, unknown>
+
+  const [comment,      setComment]      = useState('')
+  const [server1,      setServer1]      = useState('')
+  const [baseDn,       setBaseDn]       = useState('')
+  const [userAttr,     setUserAttr]     = useState('uid')
+  const [bindDn,       setBindDn]       = useState('')
+  const [bindPassword, setBindPassword] = useState('')
+  const [port,         setPort]         = useState('')
+  const [issuerUrl,    setIssuerUrl]    = useState('')
+  const [clientId,     setClientId]     = useState('')
+  const [clientKey,    setClientKey]    = useState('')
+  const [initialized,  setInitialized]  = useState(false)
+
+  if (!isLoading && !initialized && details) {
+    setComment((d['comment'] as string) ?? '')
+    setServer1((d['server1'] as string) ?? '')
+    setBaseDn((d['base_dn'] as string) ?? '')
+    setUserAttr((d['user_attr'] as string) ?? 'uid')
+    setBindDn((d['bind_dn'] as string) ?? '')
+    setPort(d['port'] != null ? String(d['port']) : '')
+    setIssuerUrl((d['issuer-url'] as string) ?? '')
+    setClientId((d['client-id'] as string) ?? '')
+    setInitialized(true)
+  }
+
+  const inputCls = 'flex h-9 w-full rounded-md border border-border bg-bg-input px-3 py-1 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-accent [color-scheme:dark]'
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const params: Record<string, unknown> = { comment: comment || undefined }
+    if (realmType === 'ldap' || realmType === 'ad') {
+      params.server1 = server1
+      params.base_dn = baseDn
+      if (realmType === 'ldap') params.user_attr = userAttr || 'uid'
+      if (bindDn) params.bind_dn = bindDn
+      if (bindPassword) params.password = bindPassword
+      if (port) params.port = parseInt(port, 10)
+    } else if (realmType === 'openid') {
+      params['issuer-url'] = issuerUrl
+      params['client-id'] = clientId
+      if (clientKey) params['client-key'] = clientKey
+    }
+    updateRealm.mutate({ realm: realmId, params }, {
+      onSuccess: () => onClose(),
+    })
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Edit Realm — {realmId}</DialogTitle>
+        </DialogHeader>
+        {isLoading ? (
+          <div className="py-8 text-center text-text-muted text-sm">Loading…</div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {(realmType === 'ldap' || realmType === 'ad') && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="er-server1">Server</Label>
+                    <Input id="er-server1" value={server1} onChange={(e) => setServer1(e.target.value)} placeholder="ldap.example.com" required />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="er-port">Port (optional)</Label>
+                    <Input id="er-port" type="number" value={port} onChange={(e) => setPort(e.target.value)} placeholder="389" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="er-base-dn">Base DN</Label>
+                  <Input id="er-base-dn" value={baseDn} onChange={(e) => setBaseDn(e.target.value)} placeholder="dc=example,dc=com" required />
+                </div>
+                {realmType === 'ldap' && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="er-user-attr">User Attribute</Label>
+                    <Input id="er-user-attr" value={userAttr} onChange={(e) => setUserAttr(e.target.value)} placeholder="uid" />
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="er-bind-dn">Bind DN (optional)</Label>
+                    <Input id="er-bind-dn" value={bindDn} onChange={(e) => setBindDn(e.target.value)} placeholder="cn=admin,dc=example,dc=com" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="er-bind-pw">Bind Password (leave blank to keep)</Label>
+                    <Input id="er-bind-pw" type="password" value={bindPassword} onChange={(e) => setBindPassword(e.target.value)} placeholder="unchanged" />
+                  </div>
+                </div>
+              </>
+            )}
+            {realmType === 'openid' && (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="er-issuer">Issuer URL</Label>
+                  <Input id="er-issuer" value={issuerUrl} onChange={(e) => setIssuerUrl(e.target.value)} placeholder="https://sso.example.com/auth/realms/master" required />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="er-client-id">Client ID</Label>
+                    <Input id="er-client-id" value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="proxmox" required />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="er-client-key">Client Secret (leave blank to keep)</Label>
+                    <Input id="er-client-key" type="password" value={clientKey} onChange={(e) => setClientKey(e.target.value)} placeholder="unchanged" />
+                  </div>
+                </div>
+              </>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="er-comment">Comment</Label>
+              <Input id="er-comment" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Optional description" />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={updateRealm.isPending}>
+                {updateRealm.isPending ? 'Saving…' : 'Save Changes'}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function RealmsPage() {
   const { data: realms, isLoading } = useRealms()
   const deleteRealm = useDeleteRealm()
   const [showCreate, setShowCreate] = useState(false)
+  const [editingRealm, setEditingRealm] = useState<{ id: string; type: string } | null>(null)
 
   return (
     <div className="space-y-4">
       <CreateRealmDialog open={showCreate} onClose={() => setShowCreate(false)} />
+      {editingRealm && (
+        <EditRealmDialog
+          realmId={editingRealm.id}
+          realmType={editingRealm.type}
+          onClose={() => setEditingRealm(null)}
+        />
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-text-primary">Authentication Realms</h1>
@@ -242,22 +381,32 @@ export function RealmsPage() {
                       </TableCell>
                       <TableCell>
                         {!builtIn && (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            title="Delete realm"
-                            disabled={deleteRealm.isPending}
-                            onClick={() => {
-                              if (confirm(`Delete realm ${realm.realm}?`)) {
-                                deleteRealm.mutate(realm.realm, {
-                                  onSuccess: () => toast.success(`Realm ${realm.realm} deleted`),
-                                  onError: (err: unknown) => toast.error((err as Error).message ?? 'Failed to delete realm'),
-                                })
-                              }
-                            }}
-                          >
-                            <Trash2 className="size-3.5 text-text-muted hover:text-status-error" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              title="Edit realm"
+                              onClick={() => setEditingRealm({ id: realm.realm, type: realm.type })}
+                            >
+                              <Pencil className="size-3.5 text-text-muted hover:text-text-primary" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              title="Delete realm"
+                              disabled={deleteRealm.isPending}
+                              onClick={() => {
+                                if (confirm(`Delete realm ${realm.realm}?`)) {
+                                  deleteRealm.mutate(realm.realm, {
+                                    onSuccess: () => toast.success(`Realm ${realm.realm} deleted`),
+                                    onError: (err: unknown) => toast.error((err as Error).message ?? 'Failed to delete realm'),
+                                  })
+                                }
+                              }}
+                            >
+                              <Trash2 className="size-3.5 text-text-muted hover:text-status-error" />
+                            </Button>
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>

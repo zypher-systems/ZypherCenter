@@ -135,11 +135,32 @@ export function useCreateRealm() {
   })
 }
 
+export function useRealmDetails(realm: string) {
+  return useQuery({
+    queryKey: [...accessKeys.realms, realm],
+    queryFn: () => api.get<Record<string, unknown>>(`access/domains/${encodeURIComponent(realm)}`),
+    enabled: !!realm,
+  })
+}
+
 export function useDeleteRealm() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (realm: string) => api.del(`access/domains/${encodeURIComponent(realm)}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: accessKeys.realms }),
+  })
+}
+
+export function useUpdateRealm() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ realm, params }: { realm: string; params: Record<string, unknown> }) =>
+      api.put(`access/domains/${encodeURIComponent(realm)}`, params),
+    onSuccess: () => {
+      toast.success('Realm updated')
+      qc.invalidateQueries({ queryKey: accessKeys.realms })
+    },
+    onError: (err) => toast.error(`Update failed — ${err.message}`),
   })
 }
 
