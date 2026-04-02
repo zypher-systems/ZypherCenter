@@ -250,6 +250,49 @@ function LXCFirewallTab({ node, vmid }: { node: string; vmid: number }) {
   const enabled = options?.enable === 1
   const inp = 'w-full rounded border border-border-subtle bg-bg-input px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent [color-scheme:dark]'
 
+  // Edit rule state
+  const [editingPos,  setEditingPos]  = useState<number | null>(null)
+  const [editDir,     setEditDir]     = useState('in')
+  const [editAction,  setEditAction]  = useState('ACCEPT')
+  const [editMacro,   setEditMacro]   = useState('')
+  const [editProto,   setEditProto]   = useState('')
+  const [editSrc,     setEditSrc]     = useState('')
+  const [editDest,    setEditDest]    = useState('')
+  const [editDport,   setEditDport]   = useState('')
+  const [editComment, setEditComment] = useState('')
+
+  function startEditRule(rule: import('@zyphercenter/proxmox-types').FirewallRule) {
+    setEditingPos(rule.pos)
+    setEditDir(rule.type)
+    setEditAction(rule.action)
+    setEditMacro(rule.macro ?? '')
+    setEditProto(rule.proto ?? '')
+    setEditSrc(rule.source ?? '')
+    setEditDest(rule.dest ?? '')
+    setEditDport(rule.dport ?? rule.sport ?? '')
+    setEditComment(rule.comment ?? '')
+  }
+
+  function submitEditRule() {
+    if (editingPos === null) return
+    updateRule.mutate(
+      {
+        pos: editingPos,
+        params: {
+          type: editDir,
+          action: editAction,
+          macro: editMacro || undefined,
+          proto: editProto || undefined,
+          source: editSrc || undefined,
+          dest: editDest || undefined,
+          dport: editDport || undefined,
+          comment: editComment || undefined,
+        },
+      },
+      { onSuccess: () => setEditingPos(null) },
+    )
+  }
+
   function submitRule() {
     createRule.mutate(
       { type: dir, action, macro: macro || undefined, proto: proto || undefined, source: src || undefined, dest: dest || undefined, dport: dport || undefined, enable: 1 },
@@ -311,6 +354,67 @@ function LXCFirewallTab({ node, vmid }: { node: string; vmid: number }) {
               <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}>Cancel</Button>
               <Button size="sm" onClick={submitRule} disabled={createRule.isPending}>
                 <Plus className="size-3.5 mr-1" />{createRule.isPending ? 'Adding…' : 'Add Rule'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingPos !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setEditingPos(null)}>
+          <div
+            className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-md p-6 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-base font-semibold text-text-primary">Edit Firewall Rule #{editingPos}</h2>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Direction</label>
+                <select value={editDir} onChange={(e) => setEditDir(e.target.value)} className={inp}>
+                  <option value="in">IN</option><option value="out">OUT</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Action</label>
+                <select value={editAction} onChange={(e) => setEditAction(e.target.value)} className={inp}>
+                  <option>ACCEPT</option><option>DROP</option><option>REJECT</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">Macro (optional)</label>
+              <input value={editMacro} onChange={(e) => setEditMacro(e.target.value)} placeholder="SSH, HTTP, HTTPS…" className={inp} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Source</label>
+                <input value={editSrc} onChange={(e) => setEditSrc(e.target.value)} placeholder="any" className={inp} />
+              </div>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Dest</label>
+                <input value={editDest} onChange={(e) => setEditDest(e.target.value)} placeholder="any" className={inp} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Protocol</label>
+                <select value={editProto} onChange={(e) => setEditProto(e.target.value)} className={inp}>
+                  <option value="">any</option><option value="tcp">tcp</option><option value="udp">udp</option><option value="icmp">icmp</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">Dest Port</label>
+                <input value={editDport} onChange={(e) => setEditDport(e.target.value)} placeholder="80,443" className={inp} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">Comment</label>
+              <input value={editComment} onChange={(e) => setEditComment(e.target.value)} className={inp} />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setEditingPos(null)}>Cancel</Button>
+              <Button size="sm" onClick={submitEditRule} disabled={updateRule.isPending}>
+                {updateRule.isPending ? 'Saving…' : 'Save Changes'}
               </Button>
             </div>
           </div>
@@ -417,13 +521,21 @@ function LXCFirewallTab({ node, vmid }: { node: string; vmid: number }) {
                       </button>
                     </TableCell>
                     <TableCell className="text-right">
-                      <button
-                        onClick={() => { if (confirm(`Delete rule #${rule.pos}?`)) deleteRule.mutate(rule.pos) }}
-                        disabled={deleteRule.isPending}
-                        className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
-                      >
-                        <Trash2 className="size-3" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => startEditRule(rule)}
+                          className="inline-flex items-center gap-1 rounded border border-border-subtle px-2 py-0.5 text-xs text-text-muted hover:text-text-primary hover:bg-bg-elevated"
+                        >
+                          <Pencil className="size-3" />
+                        </button>
+                        <button
+                          onClick={() => { if (confirm(`Delete rule #${rule.pos}?`)) deleteRule.mutate(rule.pos) }}
+                          disabled={deleteRule.isPending}
+                          className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                        >
+                          <Trash2 className="size-3" />
+                        </button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
