@@ -1,6 +1,6 @@
 # ZypherCenter — Project Build State
 
-> Last updated: April 2, 2026 — commit `6233cec`
+> Last updated: April 2, 2026 — commit `1a47bf4`
 
 ---
 
@@ -274,7 +274,7 @@ The build plan is to cover all major Proxmox functionality surface areas in orde
 ### High Availability (`/ha`) — 2 tabs
 | Tab | Features |
 |-----|---------|
-| **Resources** | HA-managed VMs/CTs (SID, group, state, max-restart, max-relocate); status panel per manager/LRM service; Add/Edit/Delete resource |
+| **Resources** | HA-managed VMs/CTs (SID, group, state, max-restart, max-relocate); status panel per manager/LRM service; Add/Edit/Delete resource. **Add dialog** shows dropdown of all cluster VMs/CTs as `(VMID) — name [node]` instead of free-text input |
 | **Groups** | HA groups (ID, nodes, nofailback, restricted, comment); Create/Edit/Delete group |
 
 ---
@@ -283,7 +283,7 @@ The build plan is to cover all major Proxmox functionality surface areas in orde
 | Tab | Features |
 |-----|----------|
 | **Status** | Cluster health (HEALTH_OK/WARN/ERR with checks), capacity gauge, IOPS and throughput sparkline charts, daemon counts (OSDs, Monitors, MDS, MGR) |
-| **OSDs** | OSD tree: per-OSD row (ID, host, status up/down/in/out with badges, device class, weight, capacity usage bar); Create OSD (device, WAL/DB device, node, encryption); Destroy OSD; Mark in/out |
+| **OSDs** | OSD tree: per-OSD row (ID, host, status up/down/in/out with badges, device class, weight, capacity usage bar); Create OSD (device, WAL/DB device, node, encryption); Destroy OSD; Mark in/out. **Fixed:** now correctly uses flat `nodes` array (children are integer IDs) |
 | **Pools** | Pool list (name, type, size, PGs, used%, available); Create pool (name, type, size, PGs, autoscale mode, application); Edit pool; Delete pool. **Fixed:** correct endpoint `/ceph/pool` (singular), pool `type` now string enum |
 | **Monitors** | Monitor list (name, node, address, status, quorum rank); Create monitor (node selection); Destroy monitor |
 | **MDS** | MDS daemon list (name, node, state, rank); Create MDS (node, name); Destroy MDS |
@@ -303,6 +303,12 @@ The build plan is to cover all major Proxmox functionality surface areas in orde
 ---
 
 ## Not Yet Implemented
+
+### Recent Bug Fixes (commit `1a47bf4`)
+- **Ceph OSD display** — fixed: Proxmox API returns a flat `nodes` array (children are integer IDs, not nested objects); prior recursive walk found zero OSDs across all 15 devices
+- **Global dropdown color** — added `select { color-scheme: dark }` to globals.css; all native `<select>` popups now render with dark background
+- **HA Add Resource** — replaced free-text SID input with a dropdown listing all cluster VMs/CTs as `(VMID) — name [node]`
+- **Sidebar** — renamed ambiguous "Pools" nav item to "Resource Pools" to distinguish from Ceph pools
 
 ### High Priority
 - **VM/LXC tags — inline create/delete** — the tag chips display but editing tags inline (add new tag, remove tag) is not wired up in the detail pages
