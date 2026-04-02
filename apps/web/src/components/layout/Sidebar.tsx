@@ -244,6 +244,9 @@ export function Sidebar() {
     { label: 'HA', to: '/cluster/ha', icon: <ShieldCheck /> },
     { label: 'SDN', to: '/cluster/sdn', icon: <Network /> },
     { label: 'Firewall', to: '/cluster/firewall', icon: <Shield /> },
+    { label: 'Metrics', to: '/cluster/metrics', icon: <BarChart3 /> },
+    { label: 'Notifications', to: '/cluster/notifications', icon: <BellRing /> },
+    { label: 'ACME', to: '/cluster/acme', icon: <KeyRound /> },
     { label: 'Options', to: '/cluster/options', icon: <Settings /> },
   ]
 

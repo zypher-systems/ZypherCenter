@@ -1001,6 +1001,7 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
   const [editNetBridge, setEditNetBridge] = useState('')
   const [editNetTag, setEditNetTag] = useState('')
   const [editNetRate, setEditNetRate] = useState('')
+  const [editNetLinkDown, setEditNetLinkDown] = useState(false)
   const [showAddUSB, setShowAddUSB] = useState(false)
   const [addUSBId, setAddUSBId] = useState('')
   const { data: nodeUSBDevices } = useNodeHardwareUSB(node)
@@ -1075,6 +1076,7 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
     setEditNetBridge(parsed.bridge ?? '')
     setEditNetTag(parsed.tag ?? '')
     setEditNetRate(parsed.rate ?? '')
+    setEditNetLinkDown(parsed.link_down === '1')
   }
 
   function saveNetEdit(key: string, rawVal: string) {
@@ -1084,6 +1086,7 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
     if (editNetBridge) updated['bridge'] = editNetBridge; else delete updated['bridge']
     if (editNetTag) updated['tag'] = editNetTag; else delete updated['tag']
     if (editNetRate) updated['rate'] = editNetRate; else delete updated['rate']
+    if (editNetLinkDown) updated['link_down'] = '1'; else delete updated['link_down']
     const newVal = Object.entries(updated).map(([k, v]) => v ? `${k}=${v}` : k).join(',')
     updateConfig.mutate(
       { [key]: newVal },
@@ -1299,6 +1302,14 @@ function ConfigTab({ node, vmid }: { node: string; vmid: number }) {
                           <label className="block text-xs text-text-muted mb-0.5">Rate (MB/s)</label>
                           <input value={editNetRate} onChange={(e) => setEditNetRate(e.target.value)} placeholder="Unlimited"
                             className="w-24 rounded border border-border-subtle bg-bg-input px-2 py-1 text-xs text-text-primary outline-none focus:border-accent" />
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <label className="text-xs text-text-muted">Link State</label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={editNetLinkDown} onChange={(e) => setEditNetLinkDown(e.target.checked)}
+                              className="accent-status-error" />
+                            <span className="text-xs text-text-muted">Disconnected</span>
+                          </label>
                         </div>
                         <div className="flex items-center gap-2">
                           <Button size="sm" disabled={updateConfig.isPending} onClick={() => saveNetEdit(k, rawVal)}>

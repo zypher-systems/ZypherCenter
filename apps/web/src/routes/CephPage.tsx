@@ -65,7 +65,8 @@ import {
 
 // ── Constants & helpers ───────────────────────────────────────────────────────
 
-const POOL_TYPES: Record<number, string> = { 1: 'replicated', 3: 'erasure' }
+// API now returns type as string enum ('replicated' | 'erasure' | 'unknown'), not a number
+const POOL_TYPE_LABELS: Record<string, string> = { replicated: 'replicated', erasure: 'erasure', unknown: 'unknown' }
 const POOL_APPS = ['rbd', 'cephfs', 'rgw', '']
 
 const TIP_STYLE: React.CSSProperties = {
@@ -457,7 +458,7 @@ function CreateOSDDialog({ node, onClose }: { node: string; onClose: () => void 
 }
 
 function OSDsTab({ node }: { node: string }) {
-  const { data: raw, isLoading, isError } = useCephOSDs(node)
+  const { data: raw, isLoading, isError, error } = useCephOSDs(node)
   const destroyOSD = useDestroyOSD(node)
   const osdInOut = useOSDInOut(node)
   const [showCreate, setShowCreate] = useState(false)
@@ -465,7 +466,11 @@ function OSDsTab({ node }: { node: string }) {
   if (isLoading) return <SkeletonCard />
   if (isError) return (
     <div className="flex flex-col items-center justify-center h-32 text-center gap-2">
-      <p className="text-sm text-status-error">Failed to load OSD data. Check that Ceph is configured and accessible on this node.</p>
+      <p className="text-sm text-status-error">Failed to load OSD data.</p>
+      {error instanceof Error && (
+        <p className="text-xs text-text-muted font-mono">{error.message}</p>
+      )}
+      <p className="text-xs text-text-disabled">Ensure Ceph is configured and this node has OSD services running.</p>
     </div>
   )
 
@@ -750,7 +755,7 @@ function EditPoolDialog({ pool, node, onClose }: { pool: CephPool; node: string;
 }
 
 function PoolsTab({ node }: { node: string }) {
-  const { data: pools, isLoading, isError } = useCephPools(node)
+  const { data: pools, isLoading, isError, error } = useCephPools(node)
   const deletePool = useDeleteCephPool(node)
   const [showCreate, setShowCreate] = useState(false)
   const [editingPool, setEditingPool] = useState<CephPool | null>(null)
@@ -758,7 +763,11 @@ function PoolsTab({ node }: { node: string }) {
   if (isLoading) return <SkeletonCard />
   if (isError) return (
     <div className="flex flex-col items-center justify-center h-32 text-center gap-2">
-      <p className="text-sm text-status-error">Failed to load pool data. Check that Ceph is configured and accessible on this node.</p>
+      <p className="text-sm text-status-error">Failed to load pool data.</p>
+      {error instanceof Error && (
+        <p className="text-xs text-text-muted font-mono">{error.message}</p>
+      )}
+      <p className="text-xs text-text-disabled">Ensure Ceph is configured and accessible on this node.</p>
     </div>
   )
 
@@ -807,7 +816,7 @@ function PoolsTab({ node }: { node: string }) {
                       </TableCell>
                       <TableCell>
                         <span className="text-xs uppercase tracking-wide bg-bg-elevated text-text-muted px-1.5 py-0.5 rounded">
-                          {POOL_TYPES[pool.type] ?? `type ${pool.type}`}
+                          {POOL_TYPE_LABELS[pool.type] ?? pool.type}
                         </span>
                       </TableCell>
                       <TableCell className="text-text-secondary text-sm">
@@ -817,7 +826,9 @@ function PoolsTab({ node }: { node: string }) {
                         {pool.pg_num ?? '—'}
                       </TableCell>
                       <TableCell className="text-sm text-text-muted">
-                        {pool.application || '—'}
+                        {pool.application_metadata
+                          ? Object.keys(pool.application_metadata).join(', ') || '—'
+                          : (pool.application || '—')}
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">

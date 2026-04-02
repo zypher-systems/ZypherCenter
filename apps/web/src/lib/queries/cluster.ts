@@ -7,6 +7,72 @@ import type {
   Pool,
 } from '@zyphercenter/proxmox-types'
 
+// ── Metric Server types ──────────────────────────────────────────────────────
+
+export interface MetricServer {
+  id: string
+  type: 'influxdb' | 'graphite'
+  server: string
+  port: number
+  disable?: number
+  mtu?: number
+  // InfluxDB v2 fields
+  bucket?: string
+  token?: string
+  organization?: string
+  influxdbproto?: 'https' | 'http' | 'udp'
+  'api-path-prefix'?: string
+  // Graphite field
+  path?: string
+  proto?: 'tcp' | 'udp'
+}
+
+// ── Notification endpoint types ──────────────────────────────────────────────
+
+export interface NotificationEndpointSmtp {
+  name: string
+  server: string
+  port?: number
+  mode?: 'tls' | 'starttls' | 'insecure'
+  username?: string
+  password?: string
+  'from-address': string
+  'to-address': string[]
+  mailto?: string[]
+  'mailto-user'?: string[]
+  comment?: string
+  disable?: number
+}
+
+export interface NotificationEndpointGotify {
+  name: string
+  server: string
+  token: string
+  comment?: string
+  disable?: number
+}
+
+export interface NotificationEndpointSendmail {
+  name: string
+  'from-address'?: string
+  'to-address'?: string[]
+  'mailto'?: string[]
+  'mailto-user'?: string[]
+  comment?: string
+  disable?: number
+}
+
+export interface NotificationMatcher {
+  name: string
+  'match-severity'?: string[]
+  'match-field'?: string[]
+  'target'?: string[]
+  comment?: string
+  disable?: number
+  mode?: 'all' | 'any'
+  'invert-match'?: number
+}
+
 export const clusterKeys = {
   all: ['cluster'] as const,
   status: () => [...clusterKeys.all, 'status'] as const,
@@ -15,6 +81,8 @@ export const clusterKeys = {
   backup: () => [...clusterKeys.all, 'backup'] as const,
   replication: () => [...clusterKeys.all, 'replication'] as const,
   tasks: () => [...clusterKeys.all, 'tasks'] as const,
+  metrics: () => [...clusterKeys.all, 'metrics'] as const,
+  notifications: () => [...clusterKeys.all, 'notifications'] as const,
 }
 
 export function useClusterStatus() {
@@ -608,6 +676,230 @@ export function useAddPoolMembers() {
       qc.invalidateQueries({ queryKey: poolKeys.detail(vars.poolid) })
     },
     onError: (err) => toast.error(`Failed to add member — ${err.message}`),
+  })
+}
+
+// ── Metrics Servers ──────────────────────────────────────────────────────────
+
+export function useMetricServers() {
+  return useQuery({
+    queryKey: clusterKeys.metrics(),
+    queryFn: () => api.get<MetricServer[]>('cluster/metrics/server'),
+    retry: false,
+  })
+}
+
+export function useCreateMetricServer() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...params }: MetricServer) =>
+      api.post(`cluster/metrics/server/${encodeURIComponent(id)}`, params),
+    onSuccess: (_, vars) => {
+      toast.success(`Metric server "${vars.id}" created`)
+      qc.invalidateQueries({ queryKey: clusterKeys.metrics() })
+    },
+    onError: (err) => toast.error(`Failed to create metric server — ${err.message}`),
+  })
+}
+
+export function useUpdateMetricServer() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...params }: Partial<MetricServer> & { id: string }) =>
+      api.put(`cluster/metrics/server/${encodeURIComponent(id)}`, params),
+    onSuccess: (_, vars) => {
+      toast.success(`Metric server "${vars.id}" updated`)
+      qc.invalidateQueries({ queryKey: clusterKeys.metrics() })
+    },
+    onError: (err) => toast.error(`Failed to update metric server — ${err.message}`),
+  })
+}
+
+export function useDeleteMetricServer() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.del(`cluster/metrics/server/${encodeURIComponent(id)}`),
+    onSuccess: (_, id) => {
+      toast.success(`Metric server "${id}" deleted`)
+      qc.invalidateQueries({ queryKey: clusterKeys.metrics() })
+    },
+    onError: (err) => toast.error(`Failed to delete metric server — ${err.message}`),
+  })
+}
+
+// ── Notifications ────────────────────────────────────────────────────────────
+
+export function useNotificationEndpoints() {
+  return useQuery({
+    queryKey: [...clusterKeys.notifications(), 'endpoints'],
+    queryFn: async () => {
+      // Try the combined list endpoint (PVE 8.1+), fall back to per-type
+      try {
+        return await api.get<(NotificationEndpointSmtp | NotificationEndpointGotify | NotificationEndpointSendmail)[]>(
+          'cluster/notifications/endpoints',
+        )
+      } catch {
+        return [] as (NotificationEndpointSmtp | NotificationEndpointGotify | NotificationEndpointSendmail)[]
+      }
+    },
+    retry: false,
+  })
+}
+
+export function useNotificationMatchers() {
+  return useQuery({
+    queryKey: [...clusterKeys.notifications(), 'matchers'],
+    queryFn: () => api.get<NotificationMatcher[]>('cluster/notifications/matchers'),
+    retry: false,
+  })
+}
+
+export function useCreateNotificationEndpointSmtp() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, ...params }: NotificationEndpointSmtp) =>
+      api.post(`cluster/notifications/endpoints/smtp`, { name, ...params }),
+    onSuccess: (_, vars) => {
+      toast.success(`SMTP endpoint "${vars.name}" created`)
+      qc.invalidateQueries({ queryKey: [...clusterKeys.notifications(), 'endpoints'] })
+    },
+    onError: (err) => toast.error(`Failed to create SMTP endpoint — ${err.message}`),
+  })
+}
+
+export function useUpdateNotificationEndpointSmtp() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, ...params }: Partial<NotificationEndpointSmtp> & { name: string }) =>
+      api.put(`cluster/notifications/endpoints/smtp/${encodeURIComponent(name)}`, params),
+    onSuccess: (_, vars) => {
+      toast.success(`SMTP endpoint "${vars.name}" updated`)
+      qc.invalidateQueries({ queryKey: [...clusterKeys.notifications(), 'endpoints'] })
+    },
+    onError: (err) => toast.error(`Failed to update SMTP endpoint — ${err.message}`),
+  })
+}
+
+export function useDeleteNotificationEndpoint() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ type, name }: { type: 'smtp' | 'gotify' | 'sendmail'; name: string }) =>
+      api.del(`cluster/notifications/endpoints/${type}/${encodeURIComponent(name)}`),
+    onSuccess: (_, { name }) => {
+      toast.success(`Endpoint "${name}" deleted`)
+      qc.invalidateQueries({ queryKey: [...clusterKeys.notifications(), 'endpoints'] })
+    },
+    onError: (err) => toast.error(`Failed to delete endpoint — ${err.message}`),
+  })
+}
+
+export function useCreateNotificationEndpointGotify() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, ...params }: NotificationEndpointGotify) =>
+      api.post('cluster/notifications/endpoints/gotify', { name, ...params }),
+    onSuccess: (_, vars) => {
+      toast.success(`Gotify endpoint "${vars.name}" created`)
+      qc.invalidateQueries({ queryKey: [...clusterKeys.notifications(), 'endpoints'] })
+    },
+    onError: (err) => toast.error(`Failed to create Gotify endpoint — ${err.message}`),
+  })
+}
+
+export function useCreateNotificationMatcher() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, ...params }: NotificationMatcher) =>
+      api.post('cluster/notifications/matchers', { name, ...params }),
+    onSuccess: (_, vars) => {
+      toast.success(`Matcher "${vars.name}" created`)
+      qc.invalidateQueries({ queryKey: [...clusterKeys.notifications(), 'matchers'] })
+    },
+    onError: (err) => toast.error(`Failed to create matcher — ${err.message}`),
+  })
+}
+
+export function useUpdateNotificationMatcher() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, ...params }: Partial<NotificationMatcher> & { name: string }) =>
+      api.put(`cluster/notifications/matchers/${encodeURIComponent(name)}`, params),
+    onSuccess: (_, vars) => {
+      toast.success(`Matcher "${vars.name}" updated`)
+      qc.invalidateQueries({ queryKey: [...clusterKeys.notifications(), 'matchers'] })
+    },
+    onError: (err) => toast.error(`Failed to update matcher — ${err.message}`),
+  })
+}
+
+export function useDeleteNotificationMatcher() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) =>
+      api.del(`cluster/notifications/matchers/${encodeURIComponent(name)}`),
+    onSuccess: (_, name) => {
+      toast.success(`Matcher "${name}" deleted`)
+      qc.invalidateQueries({ queryKey: [...clusterKeys.notifications(), 'matchers'] })
+    },
+    onError: (err) => toast.error(`Failed to delete matcher — ${err.message}`),
+  })
+}
+
+// ── ACME Plugins ─────────────────────────────────────────────────────────────
+
+export interface ACMEPlugin {
+  plugin: string
+  type: 'standalone' | 'dns'
+  api?: string
+  data?: string
+  nodes?: string
+  disable?: number
+}
+
+export function useACMEPlugins() {
+  return useQuery({
+    queryKey: ['acme', 'plugins'],
+    queryFn: () => api.get<ACMEPlugin[]>('cluster/acme/plugins'),
+    retry: false,
+  })
+}
+
+export function useCreateACMEPlugin() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ plugin, ...params }: ACMEPlugin) =>
+      api.post('cluster/acme/plugins', { id: plugin, ...params }),
+    onSuccess: (_, vars) => {
+      toast.success(`ACME plugin "${vars.plugin}" created`)
+      qc.invalidateQueries({ queryKey: ['acme', 'plugins'] })
+    },
+    onError: (err) => toast.error(`Failed to create ACME plugin — ${err.message}`),
+  })
+}
+
+export function useUpdateACMEPlugin() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ plugin, ...params }: Partial<ACMEPlugin> & { plugin: string }) =>
+      api.put(`cluster/acme/plugins/${encodeURIComponent(plugin)}`, params),
+    onSuccess: (_, vars) => {
+      toast.success(`ACME plugin "${vars.plugin}" updated`)
+      qc.invalidateQueries({ queryKey: ['acme', 'plugins'] })
+    },
+    onError: (err) => toast.error(`Failed to update ACME plugin — ${err.message}`),
+  })
+}
+
+export function useDeleteACMEPlugin() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (plugin: string) =>
+      api.del(`cluster/acme/plugins/${encodeURIComponent(plugin)}`),
+    onSuccess: (_, plugin) => {
+      toast.success(`ACME plugin "${plugin}" deleted`)
+      qc.invalidateQueries({ queryKey: ['acme', 'plugins'] })
+    },
+    onError: (err) => toast.error(`Failed to delete ACME plugin — ${err.message}`),
   })
 }
 

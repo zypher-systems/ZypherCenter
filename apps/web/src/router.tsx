@@ -49,6 +49,9 @@ import { ClusterFirewallPage } from '@/routes/ClusterFirewallPage'
 import { ClusterOptionsPage } from '@/routes/ClusterOptionsPage'
 import { CephPage } from '@/routes/CephPage'
 import { PoolsPage } from '@/routes/PoolsPage'
+import { ClusterMetricsPage } from '@/routes/ClusterMetricsPage'
+import { ClusterNotificationsPage } from '@/routes/ClusterNotificationsPage'
+import { ClusterACMEPage } from '@/routes/ClusterACMEPage'
 
 // Access
 import { AccessUsersPage } from '@/routes/AccessUsersPage'
@@ -123,6 +126,9 @@ export const router = createBrowserRouter([
       { path: 'cluster/options', element: <ClusterOptionsPage /> },
       { path: 'cluster/ceph', element: <CephPage /> },
       { path: 'cluster/pools', element: <PoolsPage /> },
+      { path: 'cluster/metrics', element: <ClusterMetricsPage /> },
+      { path: 'cluster/notifications', element: <ClusterNotificationsPage /> },
+      { path: 'cluster/acme', element: <ClusterACMEPage /> },
 
       // Access management
       { path: 'access/users', element: <AccessUsersPage /> },

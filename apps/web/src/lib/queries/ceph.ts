@@ -87,15 +87,20 @@ export interface CephOSD {
 export interface CephPool {
   pool: number
   pool_name: string
-  type: number   // 1 = replicated, 3 = erasure
+  type: string   // 'replicated' | 'erasure' | 'unknown'
   size?: number
   min_size?: number
   pg_num?: number
   bytes_used?: number
   percent_used?: number
-  max_avail?: number
-  application?: string
+  max_avail?: number   // may be present from ceph df stats even though not in formal schema
+  crush_rule?: number
+  crush_rule_name?: string
+  application_metadata?: Record<string, unknown>
   pg_autoscale_mode?: string
+  autoscale_status?: Record<string, unknown>
+  // derive application string from metadata
+  application?: string
 }
 
 export interface CephMon {
@@ -182,7 +187,8 @@ export function useCephOSDs(node: string) {
 export function useCephPools(node: string) {
   return useQuery({
     queryKey: cephKeys.pools(node),
-    queryFn: () => api.get<CephPool[]>(`nodes/${node}/ceph/pools?detail=1`),
+    // Correct Proxmox endpoint is /ceph/pool (singular) — bytes_used/percent_used are always included
+    queryFn: () => api.get<CephPool[]>(`nodes/${node}/ceph/pool`),
     enabled: !!node,
     refetchInterval: 15_000,
     retry: 1,
