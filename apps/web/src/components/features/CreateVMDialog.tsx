@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { PlusCircle } from 'lucide-react'
 import { useClusterResources } from '@/lib/queries/cluster'
-import { useNodeStorage } from '@/lib/queries/nodes'
+import { useNodeStorage, useNodeNetwork } from '@/lib/queries/nodes'
 import { useCreateVM, useNextVMId } from '@/lib/queries/vms'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -20,11 +20,15 @@ interface FormValues {
   vmid: string
   name: string
   ostype: string
+  cpuType: string
   cores: string
   memory: string
   diskSize: string
   storage: string
   bridge: string
+  vlan: string
+  diskDiscard: boolean
+  diskSSD: boolean
 }
 
 const OS_TYPES = [
@@ -34,6 +38,19 @@ const OS_TYPES = [
   { value: 'win10', label: 'Windows 10 / Server 2016' },
   { value: 'win2019', label: 'Windows Server 2019' },
   { value: 'other', label: 'Other' },
+]
+
+const CPU_TYPES = [
+  { value: 'kvm64',         label: 'kvm64 (default)' },
+  { value: 'host',          label: 'host (pass-through)' },
+  { value: 'x86-64-v2-AES', label: 'x86-64-v2-AES' },
+  { value: 'x86-64-v3',    label: 'x86-64-v3' },
+  { value: 'x86-64-v4',    label: 'x86-64-v4' },
+  { value: 'Haswell',       label: 'Haswell' },
+  { value: 'Broadwell',     label: 'Broadwell' },
+  { value: 'SandyBridge',   label: 'Sandy Bridge' },
+  { value: 'IvyBridge',     label: 'Ivy Bridge' },
+  { value: 'qemu64',        label: 'qemu64' },
 ]
 
 // ── Thin select wrapper ───────────────────────────────────────────────────────
@@ -141,15 +158,21 @@ export function CreateVMDialog({ defaultNode }: { defaultNode?: string } = {}) {
       vmid: '',
       name: '',
       ostype: 'l26',
+      cpuType: 'kvm64',
       cores: '1',
       memory: '2048',
       diskSize: '20',
       storage: '',
-      bridge: 'vmbr0',
+      bridge: '',
+      vlan: '',
+      diskDiscard: true,
+      diskSSD: false,
     },
   })
 
   const selectedNode = watch('node')
+  const { data: networkData } = useNodeNetwork(selectedNode)
+  const bridges = (networkData ?? []).filter((iface) => iface.type === 'bridge' || iface.type === 'OVSBridge')
 
   // Auto-fill next VMID when the dialog opens
   useEffect(() => {
@@ -172,15 +195,17 @@ export function CreateVMDialog({ defaultNode }: { defaultNode?: string } = {}) {
   const onSubmit = handleSubmit(async (values) => {
     const vmid = parseInt(values.vmid, 10)
     const storage = selectedStorage || values.storage
+    const diskFlags = [values.diskDiscard ? 'discard=on' : '', values.diskSSD ? 'ssd=1' : ''].filter(Boolean).join(',')
 
     await createVM.mutateAsync({
       vmid,
       name: values.name,
       ostype: values.ostype,
+      cpu: values.cpuType,
       cores: parseInt(values.cores, 10),
       memory: parseInt(values.memory, 10),
-      scsi0: `${storage}:${values.diskSize},format=raw`,
-      net0: `virtio,bridge=${values.bridge}`,
+      scsi0: `${storage}:${values.diskSize},format=raw${diskFlags ? `,${diskFlags}` : ''}`,
+      net0: `virtio,bridge=${values.bridge || 'vmbr0'}${values.vlan ? `,tag=${values.vlan}` : ''}`,
       boot: 'order=scsi0',
     })
     reset()
@@ -197,7 +222,7 @@ export function CreateVMDialog({ defaultNode }: { defaultNode?: string } = {}) {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Create Virtual Machine</DialogTitle>
         </DialogHeader>
@@ -245,7 +270,12 @@ export function CreateVMDialog({ defaultNode }: { defaultNode?: string } = {}) {
           </div>
 
           {/* CPU / Memory row */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <FieldSelect label="CPU Type" id="vm-cputype" {...register('cpuType')}>
+              {CPU_TYPES.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </FieldSelect>
             <FieldInput
               label="CPU Cores"
               id="vm-cores"
@@ -266,7 +296,7 @@ export function CreateVMDialog({ defaultNode }: { defaultNode?: string } = {}) {
             />
           </div>
 
-          {/* Storage / Disk size row */}
+          {/* Storage / Disk size + disk options */}
           <div className="grid grid-cols-2 gap-3">
             <StorageSelect
               node={selectedNode}
@@ -282,14 +312,47 @@ export function CreateVMDialog({ defaultNode }: { defaultNode?: string } = {}) {
               {...register('diskSize', { required: true, min: 1 })}
             />
           </div>
+          {(selectedStorage || watch('storage')) && (
+            <div className="flex items-center gap-6 pl-1">
+              <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+                <input type="checkbox" {...register('diskDiscard')} className="accent-accent" />
+                Discard (TRIM/UNMAP)
+              </label>
+              <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+                <input type="checkbox" {...register('diskSSD')} className="accent-accent" />
+                SSD emulation
+              </label>
+            </div>
+          )}
 
-          {/* Network bridge */}
-          <FieldInput
-            label="Network Bridge"
-            id="vm-bridge"
-            placeholder="vmbr0"
-            {...register('bridge')}
-          />
+          {/* Network bridge + VLAN */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2 space-y-1.5">
+              <label htmlFor="vm-bridge" className="block text-sm font-medium text-text-secondary">
+                Network Bridge<span className="text-status-error ml-0.5">*</span>
+              </label>
+              <select
+                id="vm-bridge"
+                disabled={!selectedNode}
+                className="w-full rounded-md border border-border bg-bg-elevated px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                {...register('bridge', { required: true })}
+              >
+                <option value="">{!selectedNode ? 'Select a node first' : bridges.length === 0 ? 'No bridges found' : 'Select bridge…'}</option>
+                {bridges.map((b) => (
+                  <option key={b.iface} value={b.iface}>{b.iface}</option>
+                ))}
+              </select>
+            </div>
+            <FieldInput
+              label="VLAN Tag"
+              id="vm-vlan"
+              type="number"
+              min={1}
+              max={4094}
+              placeholder="None"
+              {...register('vlan')}
+            />
+          </div>
 
           {(errors.node || errors.vmid || errors.name) && (
             <p className="text-xs text-status-error">Please fill in all required fields.</p>
