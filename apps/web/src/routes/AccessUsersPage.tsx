@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useUsers, useDeleteUser, useCreateUser, useUpdateUser, useRealms, useChangeUserPassword } from '@/lib/queries/access'
+import { useUsers, useDeleteUser, useCreateUser, useUpdateUser, useRealms, useChangeUserPassword, useGroups } from '@/lib/queries/access'
+import type { User as ProxmoxUser } from '@zyphercenter/proxmox-types'
 import { Card, CardContent } from '@/components/ui/Card'
 import {
   Table,
@@ -20,7 +21,7 @@ import {
 } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
-import { Plus, Trash2, User, KeyRound } from 'lucide-react'
+import { Plus, Trash2, User, KeyRound, Pencil } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -114,12 +115,121 @@ function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => voi
   )
 }
 
+function EditUserDialog({ user, onClose }: { user: ProxmoxUser; onClose: () => void }) {
+  const { data: groups } = useGroups()
+  const updateUser = useUpdateUser()
+
+  const [firstname, setFirstname] = useState(user.firstname ?? '')
+  const [lastname, setLastname] = useState(user.lastname ?? '')
+  const [email, setEmail] = useState(user.email ?? '')
+  const [comment, setComment] = useState(user.comment ?? '')
+  const [enabled, setEnabled] = useState(user.enable !== 0)
+  const [selectedGroups, setSelectedGroups] = useState<string[]>(
+    user.groups ? user.groups.split(',').map((g) => g.trim()).filter(Boolean) : [],
+  )
+  const [expire, setExpire] = useState(
+    user.expire && user.expire > 0
+      ? new Date(user.expire * 1000).toISOString().slice(0, 16)
+      : '',
+  )
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const params: Record<string, unknown> = {
+      firstname: firstname || undefined,
+      lastname: lastname || undefined,
+      email: email || undefined,
+      comment: comment || undefined,
+      enable: enabled ? 1 : 0,
+      groups: selectedGroups.join(','),
+      expire: expire ? Math.floor(new Date(expire).getTime() / 1000) : 0,
+    }
+    updateUser.mutate({ userid: user.userid, params }, {
+      onSuccess: () => { toast.success(`User ${user.userid} updated`); onClose() },
+      onError: (err: unknown) => toast.error((err as Error).message ?? 'Failed to update user'),
+    })
+  }
+
+  function toggleGroup(gid: string) {
+    setSelectedGroups((prev) =>
+      prev.includes(gid) ? prev.filter((g) => g !== gid) : [...prev, gid],
+    )
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit User — {user.userid}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="eu-firstname">First Name</Label>
+              <Input id="eu-firstname" value={firstname} onChange={(e) => setFirstname(e.target.value)} placeholder="Alice" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="eu-lastname">Last Name</Label>
+              <Input id="eu-lastname" value={lastname} onChange={(e) => setLastname(e.target.value)} placeholder="Smith" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="eu-email">Email</Label>
+            <Input id="eu-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="alice@example.com" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="eu-comment">Comment</Label>
+            <Input id="eu-comment" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Optional description" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="eu-expire">Expire</Label>
+            <Input id="eu-expire" type="datetime-local" value={expire} onChange={(e) => setExpire(e.target.value)} className="[color-scheme:dark]" />
+            <p className="text-xs text-text-muted">Leave blank for no expiry</p>
+          </div>
+          {groups && groups.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Groups</Label>
+              <div className="flex flex-wrap gap-2">
+                {groups.map((g) => (
+                  <button
+                    key={g.groupid}
+                    type="button"
+                    onClick={() => toggleGroup(g.groupid)}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                      selectedGroups.includes(g.groupid)
+                        ? 'bg-accent text-white border-accent'
+                        : 'bg-transparent text-text-secondary border-border hover:border-accent'
+                    }`}
+                  >
+                    {g.groupid}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <input id="eu-enabled" type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="size-4 rounded border-border accent-accent" />
+            <Label htmlFor="eu-enabled">Enabled</Label>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={updateUser.isPending}>
+              {updateUser.isPending ? 'Saving…' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function AccessUsersPage() {
   const { data: users, isLoading } = useUsers()
   const deleteUser = useDeleteUser()
   const updateUser = useUpdateUser()
   const changePassword = useChangeUserPassword()
   const [showCreate, setShowCreate] = useState(false)
+  const [editingUser, setEditingUser] = useState<ProxmoxUser | null>(null)
   const [changePwUser, setChangePwUser] = useState<string | null>(null)
   const [newPw, setNewPw] = useState('')
   const [confirmPw, setConfirmPw] = useState('')
@@ -135,6 +245,7 @@ export function AccessUsersPage() {
   return (
     <div className="space-y-4">
       <CreateUserDialog open={showCreate} onClose={() => setShowCreate(false)} />
+      {editingUser && <EditUserDialog user={editingUser} onClose={() => setEditingUser(null)} />}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-text-primary">Users</h1>
@@ -219,6 +330,14 @@ export function AccessUsersPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              title="Edit user"
+                              onClick={() => setEditingUser(user)}
+                            >
+                              <Pencil className="size-3.5 text-text-muted hover:text-text-primary" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon-sm"
