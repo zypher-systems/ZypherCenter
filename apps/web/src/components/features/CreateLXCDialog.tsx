@@ -209,6 +209,13 @@ export function CreateLXCDialog({ defaultNode }: { defaultNode?: string } = {}) 
     if (nodes.length === 1 && !selectedNode) setValue('node', nodes[0] ?? '')
   }, [nodes, selectedNode, setValue])
 
+  // Clear storage/template selections when node changes to prevent stale cross-node selection
+  useEffect(() => {
+    setTemplateStorage('')
+    setRootfsStorage('')
+    setTemplate('')
+  }, [selectedNode])
+
   const createLXC = useCreateLXC(selectedNode)
 
   const onSubmit = handleSubmit(async (values) => {

@@ -127,6 +127,7 @@ function StorageSelect({
     >
       {!node && <option value="">Select a node first</option>}
       {node && isLoading && <option value="">Loading…</option>}
+      {node && !isLoading && <option value="">Select storage…</option>}
       {diskStorages.map((s) => (
         <option key={s.storage} value={s.storage}>
           {s.storage} ({s.type})
@@ -187,6 +188,11 @@ export function CreateVMDialog({ defaultNode }: { defaultNode?: string } = {}) {
       setValue('node', nodes[0] ?? '')
     }
   }, [nodes, selectedNode, setValue])
+
+  // Clear storage selection when node changes to prevent stale cross-node selection
+  useEffect(() => {
+    setSelectedStorage('')
+  }, [selectedNode])
 
   const [selectedStorage, setSelectedStorage] = useState('')
 
