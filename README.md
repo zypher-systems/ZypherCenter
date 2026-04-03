@@ -1,6 +1,6 @@
 # ZypherCenter — Project Build State
 
-> Last updated: April 2, 2026 — commit `0b9eb80`
+> Last updated: April 3, 2026 — commit `2a4b4af`
 
 ---
 
@@ -13,6 +13,109 @@ ZypherCenter is a modern, self-hosted web UI for Proxmox VE — built as a repla
 - **Backend proxy:** Fastify (Node.js) — auth injection, session management, proxying to Proxmox API
 - **Monorepo:** pnpm workspaces — `apps/web` (frontend), `apps/api` (Fastify proxy), `packages/proxmox-types` (shared Zod-validated type schemas)
 - **Deployment:** Docker / docker-compose
+
+---
+
+## Quick Deploy (Docker Hub)
+
+Pre-built images are published to Docker Hub. No source checkout or build tooling required.
+
+### 1. Prerequisites
+- Docker Engine 24+ and Docker Compose v2
+- A running Proxmox VE cluster (v7 or v8)
+
+### 2. Download the compose file and env template
+
+```bash
+curl -O https://raw.githubusercontent.com/zypher-systems/ZypherCenter/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/zypher-systems/ZypherCenter/main/.env.example
+cp .env.example .env
+```
+
+### 3. Edit `.env`
+
+```bash
+# Minimum required settings:
+PROXMOX_HOST=https://YOUR_PROXMOX_IP:8006
+PROXMOX_TLS_VERIFY=false          # set true if you have a valid TLS cert
+SESSION_SECRET=$(openssl rand -hex 32)
+HTTP_PORT=80
+```
+
+### 4. Start
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Open `http://YOUR_SERVER_IP` in a browser. Log in with your Proxmox credentials.
+
+### Updating
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+### Configuration reference
+
+| Variable | Default | Description |
+|---|---|---|
+| `PROXMOX_HOST` | _(empty)_ | Proxmox URL, e.g. `https://192.168.1.100:8006`. If blank, users enter it on the login page. |
+| `PROXMOX_TLS_VERIFY` | `false` | Set `true` to enforce valid TLS certs on the Proxmox connection. |
+| `SESSION_SECRET` | _(random)_ | Cookie signing secret — at least 32 chars. If empty a random secret is generated on start (sessions reset on restart). |
+| `COOKIE_SECURE` | `false` | Set `true` when serving over HTTPS. |
+| `HTTP_PORT` | `80` | Host port the web UI binds to. |
+| `LOG_LEVEL` | `info` | API log verbosity: `error` \| `warn` \| `info` \| `debug`. |
+| `IMAGE_TAG` | `latest` | Pin to a specific release, e.g. `0.1.0`. |
+
+---
+
+## Building & Publishing Your Own Images
+
+If you want to build the images yourself (e.g. to publish to your own registry):
+
+### Prerequisites
+- Docker Engine 24+, pnpm 9+, Node.js 22+
+- Logged in to your registry: `docker login`
+
+### Build and push
+
+```bash
+# Clone the repo
+git clone https://codevault.sh/zypher-systems/ZypherCenter.git
+cd ZypherCenter
+
+# Make the release script executable
+chmod +x scripts/release.sh
+
+# Set your Docker Hub username (or full registry prefix)
+export DOCKER_USER=yourdockerhubusername
+
+# Build and push :latest
+./scripts/release.sh
+
+# Build and push a versioned tag (also tags :latest)
+VERSION=0.1.0 ./scripts/release.sh
+
+# Build locally without pushing (for testing)
+PUSH=false ./scripts/release.sh
+```
+
+The script builds `linux/amd64` images from the two Dockerfiles:
+- `apps/api/Dockerfile` → `${DOCKER_USER}/zyphercenter-api`
+- `apps/web/Dockerfile` → `${DOCKER_USER}/zyphercenter-web`
+
+Then update `docker-compose.yml` to point `IMAGE_REGISTRY` at your username.
+
+### Development (run from source)
+
+```bash
+pnpm install
+cp .env.example .env    # edit with your Proxmox host
+pnpm dev                # starts API on :3001 and Vite dev server on :5173
+```
 
 ---
 

@@ -35,3 +35,7 @@ Thumbs.db
 
 # TypeScript
 *.tsbuildinfo
+
+# Docker
+*.tar           # docker save output
+.dockerignore   # tracked separately at root
