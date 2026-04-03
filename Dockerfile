@@ -31,6 +31,8 @@ COPY tsconfig.base.json ./
 COPY packages/proxmox-types ./packages/proxmox-types
 COPY apps/web ./apps/web
 
+# Must build proxmox-types first so its dist/ exists for the web TypeScript compiler
+RUN pnpm --filter @zyphercenter/proxmox-types build
 RUN pnpm --filter @zyphercenter/web build
 
 # ── Stage 3: Production runtime ───────────────────────────────────────────────
