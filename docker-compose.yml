@@ -1,60 +1,44 @@
 # ── ZypherCenter — Deployment Compose ────────────────────────────────────────
-# Pre-built images from Docker Hub. No source checkout required.
+# Single pre-built image from GHCR. No source checkout or build tools required.
 #
 # Quick start:
 #   1. Copy this file and .env.example to your server
-#   2. cp .env.example .env  &&  edit .env with your settings
+#   2. cp .env.example .env  &&  edit .env (set PROXMOX_HOST + SESSION_SECRET)
 #   3. docker compose pull
 #   4. docker compose up -d
 #
-# Default image source: docker.io/zyphersystems/
-# Override: IMAGE_REGISTRY=myregistry docker compose up -d
+# Or without compose (single docker run):
+#   docker run -d -p 80:80 \
+#     -e PROXMOX_HOST=https://YOUR_PROXMOX:8006 \
+#     -e SESSION_SECRET=$(openssl rand -hex 32) \
+#     --name zyphercenter --restart unless-stopped \
+#     ghcr.io/zypher-systems/zyphercenter:latest
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
-  api:
-    image: ${IMAGE_REGISTRY:-zyphersystems}/zyphercenter-api:${IMAGE_TAG:-latest}
+  zyphercenter:
+    image: ghcr.io/zypher-systems/zyphercenter:${IMAGE_TAG:-latest}
+    ports:
+      - "${HTTP_PORT:-80}:80"
     environment:
-      NODE_ENV: production
-      API_PORT: "3001"
-
       # ── Proxmox connection ─────────────────────────────────────────────────
       # Full URL to your Proxmox host, including port 8006.
       # If omitted, users enter the host URL on the login page.
       PROXMOX_HOST: ${PROXMOX_HOST:-}
 
-      # Set to "false" to accept self-signed certificates (common in home labs).
+      # Set to "false" to allow self-signed certificates (common in home labs).
       PROXMOX_TLS_VERIFY: ${PROXMOX_TLS_VERIFY:-false}
 
       # ── Session security ───────────────────────────────────────────────────
       # Must be at least 32 characters. Generate: openssl rand -hex 32
-      # If left empty, a random secret is generated on each container start
-      # (sessions reset on restart — fine for testing, not ideal for production).
+      # If left empty, a random secret is generated at startup
+      # (sessions reset on container restart — fine for testing).
       SESSION_SECRET: ${SESSION_SECRET:-}
 
       # ── Cookie security ────────────────────────────────────────────────────
-      # Set to "true" only if you are serving ZypherCenter over HTTPS.
+      # Set to "true" only if serving ZypherCenter over HTTPS.
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
 
-      # ── Internal ──────────────────────────────────────────────────────────
-      # nginx proxies /api/* from the web container so browsers never hit 3001
-      # directly. This CORS_ORIGIN value is for direct API access only.
-      CORS_ORIGIN: "http://web"
       LOG_LEVEL: ${LOG_LEVEL:-info}
 
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-
-  web:
-    image: ${IMAGE_REGISTRY:-zyphersystems}/zyphercenter-web:${IMAGE_TAG:-latest}
-    ports:
-      - "${HTTP_PORT:-80}:80"
-    depends_on:
-      api:
-        condition: service_healthy
     restart: unless-stopped
