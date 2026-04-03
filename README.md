@@ -32,6 +32,9 @@ curl -O https://raw.githubusercontent.com/zypher-systems/ZypherCenter/main/.env.
 cp .env.example .env
 ```
 
+> **Note:** These URLs require the repo to be public on GitHub (`github.com/zypher-systems/ZypherCenter`).
+> Alternatively, download the two files directly from the [GitHub releases page](https://github.com/zypher-systems/ZypherCenter/releases) or copy them from the repository.
+
 ### 3. Edit `.env`
 
 ```bash
@@ -84,7 +87,7 @@ If you want to build the images yourself (e.g. to publish to your own registry):
 
 ```bash
 # Clone the repo
-git clone https://codevault.sh/zypher-systems/ZypherCenter.git
+git clone https://github.com/zypher-systems/ZypherCenter.git
 cd ZypherCenter
 
 # Make the release script executable
