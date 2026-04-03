@@ -8,11 +8,19 @@
 
 ZypherCenter is a modern, self-hosted web UI for Proxmox VE — built as a replacement for the stock Proxmox web interface. It connects to Proxmox clusters via a Fastify proxy backend (which handles auth, never exposing credentials to the browser) and presents a clean, fast React + TypeScript frontend styled with Tailwind CSS.
 
+This is still a work in progress but fully functional.
+
 **Tech stack:**
 - **Frontend:** React, TypeScript, Vite, TanStack Query (data fetching/caching), Tailwind CSS, Recharts (performance charts), sonner (toast notifications), lucide-react (icons)
 - **Backend proxy:** Fastify (Node.js) — auth injection, session management, proxying to Proxmox API
 - **Monorepo:** pnpm workspaces — `apps/web` (frontend), `apps/api` (Fastify proxy), `packages/proxmox-types` (shared Zod-validated type schemas)
 - **Deployment:** Docker / docker-compose
+
+![Dashboard](screenshots/dashboard.png)
+
+![VM Dashboard](screenshots/vm_details.png)
+
+![Ceph Dashboard](screenshots/Ceph_Dashboard.png)
 
 ---
 
