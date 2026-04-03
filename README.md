@@ -44,13 +44,44 @@ curl -O https://raw.githubusercontent.com/zypher-systems/ZypherCenter/main/.env.
 cp .env.example .env
 ```
 
-Edit `.env` — minimum required settings:
+Create `.env` — minimum required settings:
+```bash
+nano .env
+```
+Add the follwing contents into your .env
 
 ```bash
-PROXMOX_HOST=https://YOUR_PROXMOX_IP:8006
-PROXMOX_TLS_VERIFY=false
-SESSION_SECRET=    # leave blank for auto-generated, or: openssl rand -hex 32
+PROXMOX_HOST=https://YOUR_PROXMOX_IP:8006 # this must be filled out
+PROXMOX_TLS_VERIFY=false # leave this false if using self signed cert
+SESSION_SECRET=    # run "openssl rand -hex 32" and put content here
 ```
+
+Now create your docker-compose.yaml
+```bash
+nano docker-compose.yaml
+```
+
+Paste the below config into your docker-compose.yaml file:
+```yaml
+services:
+  zyphercenter:
+    image: ghcr.io/zypher-systems/zyphercenter:latest
+    container_name: zyphercenter
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      - PROXMOX_HOST=${ZC_PROXMOX_HOST}
+      - PROXMOX_TLS_VERIFY=${ZC_PROXMOX_TLS_VERIFY}
+      - SESSION_SECRET=${ZC_SESSION_SECRET}
+    # Optional: ensure logs don't eat your drive space
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+
 
 ```bash
 docker compose pull
@@ -73,9 +104,9 @@ docker compose pull && docker compose up -d
 
 | Variable | Default | Description |
 |---|---|---|
-| `PROXMOX_HOST` | _(empty)_ | Proxmox URL, e.g. `https://192.168.1.100:8006`. If blank, users enter it on the login page. |
+| `PROXMOX_HOST` | _(empty)_ | Proxmox URL, e.g. `https://192.168.1.100:8006`. Please add this to your .env file |
 | `PROXMOX_TLS_VERIFY` | `false` | Set `true` to enforce valid TLS certs on the Proxmox connection. |
-| `SESSION_SECRET` | _(random)_ | Cookie signing secret — at least 32 chars. If empty, a random secret is generated on start (sessions reset on restart). |
+| `SESSION_SECRET` | _(random)_ | Cookie signing secret — at least 32 chars. Please enter this withing your .env file. Can generate with "openssl rand -hex 32" |
 | `COOKIE_SECURE` | `false` | Set `true` when serving over HTTPS. |
 | `HTTP_PORT` | `80` | Host port to bind (compose only). |
 | `LOG_LEVEL` | `info` | API log verbosity: `error` \| `warn` \| `info` \| `debug`. |
