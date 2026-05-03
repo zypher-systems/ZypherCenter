@@ -21,6 +21,8 @@ import { formatBytes, formatUptime, formatPercent, cn } from '@/lib/utils'
 import { NodeResourceCharts } from '@/components/features/ResourceCharts'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
+import { NodeUpdatesCard } from '@/components/features/NodeUpdatesCard'
+
 export function NodeSummaryPage() {
   const { node } = useParams<{ node: string }>()
   const { data: status, isLoading } = useNodeStatus(node!)
@@ -37,8 +39,8 @@ export function NodeSummaryPage() {
 
   if (isLoading) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {[...Array(5)].map((_, i) => <SkeletonCard key={i} />)}
       </div>
     )
   }
@@ -105,14 +107,14 @@ export function NodeSummaryPage() {
       />
 
       {/* Resource summary cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Card>
           <CardContent className="pt-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs text-text-muted font-medium">CPU</p>
               <Cpu className="size-4 text-text-muted" />
             </div>
-            <p className="text-2xl font-semibold tabular-nums">{formatPercent(cpuPct)}</p>
+            <p className="text-xl font-bold tracking-tight tabular-nums sm:text-2xl">{formatPercent(cpuPct)}</p>
             <p className="text-xs text-text-muted mt-0.5">
               {status.cpuinfo?.cores} cores · {status.cpuinfo?.sockets} socket{status.cpuinfo?.sockets !== 1 ? 's' : ''}
             </p>
@@ -125,7 +127,9 @@ export function NodeSummaryPage() {
               <p className="text-xs text-text-muted font-medium">Memory</p>
               <MemoryStick className="size-4 text-text-muted" />
             </div>
-            <p className="text-2xl font-semibold tabular-nums">{formatBytes(status.memory.used)}</p>
+            <p className="text-xl font-bold tracking-tight tabular-nums sm:text-2xl truncate" title={formatBytes(status.memory.used)}>
+              {formatBytes(status.memory.used)}
+            </p>
             <p className="text-xs text-text-muted mt-0.5">of {formatBytes(status.memory.total)}</p>
           </CardContent>
         </Card>
@@ -136,7 +140,9 @@ export function NodeSummaryPage() {
               <p className="text-xs text-text-muted font-medium">Root FS</p>
               <HardDrive className="size-4 text-text-muted" />
             </div>
-            <p className="text-2xl font-semibold tabular-nums">{formatBytes(status.rootfs.used)}</p>
+            <p className="text-xl font-bold tracking-tight tabular-nums sm:text-2xl truncate" title={formatBytes(status.rootfs.used)}>
+              {formatBytes(status.rootfs.used)}
+            </p>
             <p className="text-xs text-text-muted mt-0.5">of {formatBytes(status.rootfs.total)}</p>
           </CardContent>
         </Card>
@@ -147,13 +153,16 @@ export function NodeSummaryPage() {
               <p className="text-xs text-text-muted font-medium">Uptime</p>
               <Clock className="size-4 text-text-muted" />
             </div>
-            <p className="text-2xl font-semibold">{formatUptime(status.uptime)}</p>
+            <p className="text-xl font-bold tracking-tight sm:text-2xl truncate" title={formatUptime(status.uptime)}>{formatUptime(status.uptime)}</p>
             <p className="text-xs text-text-muted mt-0.5">
               Load: {status.loadavg.join(' · ')}
             </p>
           </CardContent>
         </Card>
+
+        <NodeUpdatesCard node={node!} />
       </div>
+
 
       {/* Resource gauges + guest summary */}
       <div className="grid gap-4 lg:grid-cols-2">

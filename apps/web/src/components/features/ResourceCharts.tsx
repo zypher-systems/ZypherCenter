@@ -179,7 +179,7 @@ export function ResourceCharts({
           {/* CPU */}
           <ChartCard title="CPU Usage">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={cpuPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <AreaChart data={cpuPts} margin={{ top: 4, right: 4, left: 10, bottom: 0 }}>
                 <defs>
                   <linearGradient id={`gCPU-${uid}`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor={C.cpu} stopOpacity={0.25} />
@@ -208,7 +208,7 @@ export function ResourceCharts({
             legend={[{ color: C.memUsed, label: 'Used' }, { color: C.memTotal, label: 'Total' }]}
           >
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={memPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <AreaChart data={memPts} margin={{ top: 4, right: 4, left: 10, bottom: 0 }}>
                 <defs>
                   <linearGradient id={`gMEM-${uid}`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor={C.memUsed} stopOpacity={0.25} />
@@ -234,7 +234,7 @@ export function ResourceCharts({
             legend={[{ color: C.diskRead, label: 'Read' }, { color: C.diskWrite, label: 'Write' }]}
           >
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={diskPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <AreaChart data={diskPts} margin={{ top: 4, right: 4, left: 10, bottom: 0 }}>
                 <defs>
                   <linearGradient id={`gDR-${uid}`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor={C.diskRead}  stopOpacity={0.2} />
@@ -264,7 +264,7 @@ export function ResourceCharts({
             legend={[{ color: C.netIn, label: 'In' }, { color: C.netOut, label: 'Out' }]}
           >
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={netPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <AreaChart data={netPts} margin={{ top: 4, right: 4, left: 10, bottom: 0 }}>
                 <defs>
                   <linearGradient id={`gNI-${uid}`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor={C.netIn}  stopOpacity={0.2} />
@@ -345,7 +345,7 @@ export function NodeResourceCharts({ node }: { node: string }) {
           {/* CPU */}
           <ChartCard title="CPU Usage">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={cpuPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <AreaChart data={cpuPts} margin={{ top: 4, right: 4, left: 10, bottom: 0 }}>
                 <defs>
                   <linearGradient id={`gCPU-${uid}`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor={C.cpu} stopOpacity={0.25} />
@@ -374,7 +374,7 @@ export function NodeResourceCharts({ node }: { node: string }) {
             legend={[{ color: C.memUsed, label: 'Used' }, { color: C.memTotal, label: 'Total' }]}
           >
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={memPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <AreaChart data={memPts} margin={{ top: 4, right: 4, left: 10, bottom: 0 }}>
                 <defs>
                   <linearGradient id={`gMEM-${uid}`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor={C.memUsed} stopOpacity={0.25} />
@@ -400,7 +400,7 @@ export function NodeResourceCharts({ node }: { node: string }) {
             legend={[{ color: C.netIn, label: 'In' }, { color: C.netOut, label: 'Out' }]}
           >
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={netPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <AreaChart data={netPts} margin={{ top: 4, right: 4, left: 10, bottom: 0 }}>
                 <defs>
                   <linearGradient id={`gNI-${uid}`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor={C.netIn}  stopOpacity={0.2} />

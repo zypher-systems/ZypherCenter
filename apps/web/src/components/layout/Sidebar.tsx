@@ -156,7 +156,7 @@ function NodeTree({
             { label: 'Network', to: `/nodes/${nodeName}/network`, icon: <Wifi /> },
             { label: 'Disks', to: `/nodes/${nodeName}/disks`, icon: <HardDrive /> },
             { label: 'Storage', to: `/nodes/${nodeName}/storage`, icon: <Database /> },
-            { label: 'Updates', to: `/nodes/${nodeName}/updates`, icon: <RefreshCw /> },
+            { label: 'Patching', to: `/nodes/${nodeName}/updates`, icon: <ShieldCheck /> },
             { label: 'DNS', to: `/nodes/${nodeName}/dns`, icon: <Globe /> },
             { label: 'Time', to: `/nodes/${nodeName}/time`, icon: <Timer /> },
             { label: 'Services', to: `/nodes/${nodeName}/services`, icon: <Cog /> },
@@ -247,6 +247,7 @@ export function Sidebar() {
     { label: 'Metrics', to: '/cluster/metrics', icon: <BarChart3 /> },
     { label: 'Notifications', to: '/cluster/notifications', icon: <BellRing /> },
     { label: 'ACME', to: '/cluster/acme', icon: <KeyRound /> },
+    { label: 'Patching', to: '/cluster/updates', icon: <ShieldCheck /> },
     { label: 'Options', to: '/cluster/options', icon: <Settings /> },
   ]
 
@@ -294,6 +295,10 @@ export function Sidebar() {
         />
 
         <SectionLabel label="Nodes" collapsed={sidebarCollapsed} />
+        <NavLink
+          item={{ label: 'All Nodes', to: '/nodes', icon: <Server />, exact: true }}
+          collapsed={sidebarCollapsed}
+        />
         {nodes.map((node) => (
           <NodeTree
             key={node.id}

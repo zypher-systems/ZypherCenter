@@ -64,6 +64,9 @@ import { AccessTokensPage } from '@/routes/AccessTokensPage'
 // Tasks
 import { GlobalTasksPage } from '@/routes/GlobalTasksPage'
 
+import { ClusterUpdatesPage } from '@/routes/ClusterUpdatesPage'
+import { NodeListPage } from '@/routes/NodeListPage'
+
 // 404
 import { NotFoundPage } from '@/routes/NotFoundPage'
 
@@ -112,6 +115,9 @@ export const router = createBrowserRouter([
       // Dashboard
       { index: true, element: <DashboardPage /> },
 
+      // Nodes
+      { path: 'nodes', element: <NodeListPage /> },
+
       // Cluster-wide VM and LXC lists
       { path: 'vms', element: <AllVMsPage /> },
       { path: 'lxc', element: <AllLXCPage /> },
@@ -131,6 +137,7 @@ export const router = createBrowserRouter([
       { path: 'cluster/pools', element: <PoolsPage /> },
       { path: 'cluster/metrics', element: <ClusterMetricsPage /> },
       { path: 'cluster/notifications', element: <ClusterNotificationsPage /> },
+      { path: 'cluster/updates', element: <ClusterUpdatesPage /> },
       { path: 'cluster/acme', element: <ClusterACMEPage /> },
 
       // Access management

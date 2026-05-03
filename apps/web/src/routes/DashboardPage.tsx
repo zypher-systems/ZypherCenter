@@ -28,7 +28,7 @@ function StatCard({ label, value, icon, sub, to }: {
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs text-text-muted font-medium">{label}</p>
-          <p className="mt-1 text-2xl font-semibold text-text-primary tabular-nums">{value}</p>
+          <p className="mt-1 text-xl font-bold tracking-tight text-text-primary tabular-nums sm:text-2xl">{value}</p>
           {sub && <p className="text-xs text-text-muted mt-0.5">{sub}</p>}
         </div>
         <span className="text-text-muted [&_svg]:size-5">{icon}</span>
@@ -382,7 +382,7 @@ function ClusterPerfCharts({ nodeNames }: { nodeNames: string[] }) {
             <CardContent>
               <div className="h-32">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={aggPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                  <AreaChart data={aggPts} margin={{ top: 4, right: 4, left: 10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="clGCPU" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%"  stopColor="rgb(234 88 12)"  stopOpacity={0.25} />
@@ -414,7 +414,7 @@ function ClusterPerfCharts({ nodeNames }: { nodeNames: string[] }) {
             <CardContent>
               <div className="h-32">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={aggPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                  <AreaChart data={aggPts} margin={{ top: 4, right: 4, left: 10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="clGMEM" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%"  stopColor="rgb(56 189 248)" stopOpacity={0.25} />
@@ -447,7 +447,7 @@ function ClusterPerfCharts({ nodeNames }: { nodeNames: string[] }) {
             <CardContent>
               <div className="h-32">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={aggPts} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                  <AreaChart data={aggPts} margin={{ top: 4, right: 4, left: 10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="clGNI" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%"  stopColor="rgb(99 102 241)"  stopOpacity={0.2} />
@@ -517,6 +517,7 @@ export function DashboardPage() {
           value={nodes.length}
           icon={<Server />}
           sub={`${nodes.filter(n => n.status !== 'offline').length} online`}
+          to="/nodes"
         />
         <StatCard
           label="Virtual Machines"

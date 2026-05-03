@@ -26,9 +26,9 @@ export function ResourceGauge({ label, used, total, format = 'bytes', className 
 
   return (
     <div className={cn('space-y-1', className)}>
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-text-secondary font-medium">{label}</span>
-        <span className="text-text-muted tabular-nums">
+      <div className="flex items-center justify-between text-[11px] sm:text-xs">
+        <span className="text-text-secondary font-medium truncate pr-2">{label}</span>
+        <span className="text-text-muted tabular-nums whitespace-nowrap flex-shrink-0">
           {formatValue(used)}
           {total > 0 && (
             <>
