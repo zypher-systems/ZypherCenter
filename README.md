@@ -117,7 +117,7 @@ docker run -d \
   -e SESSION_SECRET=$(openssl rand -hex 32) \
   --name zyphercenter \
   --restart unless-stopped \
-  ghcr.io/zypher-systems/zyphercenter:latest
+  codevault.sh/zypher-systems/zyphercenter:${IMAGE_TAG:-v0.7.0}
 ```
 
 - Open `http://YOUR_SERVER_IP` and log in with your Proxmox credentials.
@@ -126,8 +126,8 @@ docker run -d \
 
 1. **Download the compose file and env template**
    ```bash
-   curl -O https://raw.githubusercontent.com/zypher-systems/ZypherCenter/main/docker-compose.yml
-   curl -O https://raw.githubusercontent.com/zypher-systems/ZypherCenter/main/.env.example
+   curl -O https://codevault.sh/zypher-systems/ZypherCenter/raw/branch/main/docker-compose.yml
+   curl -O https://codevault.sh/zypher-systems/ZypherCenter/raw/branch/main/.env.example
    cp .env.example .env
    ```
 2. **Edit `.env`** – at minimum provide the following:
@@ -146,7 +146,7 @@ docker run -d \
 
 ```bash
 # Docker run users
-docker pull ghcr.io/zypher-systems/zyphercenter:latest
+docker pull codevault.sh/zypher-systems/zyphercenter:${IMAGE_TAG:-v0.7.0}
 docker rm -f zyphercenter && docker run …   # same command as before
 
 # Docker‑compose users
@@ -166,55 +166,22 @@ docker compose pull && docker compose up -d
 | `HTTP_PORT` | `80` | Host port for the container (compose only). |
 | `LOG_LEVEL` | `info` | API log verbosity (`error`, `warn`, `info`, `debug`). |
 | `IMAGE_TAG` | `latest` | Pin a specific image tag when using compose. |
+| `IMAGE_REGISTRY` | `codevault.sh/zypher-systems` | Registry prefix for the Docker image. |
 
 ---
+## Screenshots
 
-## Building & Publishing Your Own Image
+![ZypherCenter Dashboard](screenshots/dashboard.png)
 
-### Prerequisites
-- Docker Engine ≥ 24
-- pnpm ≥ 9
-- Node.js ≥ 22
-- Access to a GitHub token with `write:packages` permission.
+*ZypherCenter dashboard after successful deployment.*
 
-### Build & Push
-```bash
-git clone https://github.com/zypher-systems/ZypherCenter.git
-cd ZypherCenter
-chmod +x scripts/release.sh
-# Build and push the `latest` tag
-./scripts/release.sh
-# Build and push a versioned tag (also updates `latest`)
-VERSION=0.1.0 ./scripts/release.sh
-# Build locally without pushing (for testing)
-PUSH=false ./scripts/release.sh
-```
+![VM Details View](screenshots/vm_details.png)
+
+*Example VM details page.*
 
 ---
-
-## Development (Run From Source)
-
-```bash
-pnpm install            # install workspace dependencies
-cp .env.example .env    # edit PROXMOX_HOST, CORS_ORIGIN, etc.
-pnpm dev                # API on :3001, Vite dev server on :5173
-```
 
 The backend proxy runs at `http://localhost:3001` and the UI at `http://localhost:5173`. CORS is pre‑configured for local development.
-
----
-
-## Contributing
-
-We welcome contributions! Please follow these steps:
-1. **Fork the repository** and clone your fork.
-2. Create a **feature branch** (`git checkout -b feat/awesome-feature`).
-3. Run the development environment (see above) and ensure the UI builds.
-4. Add tests or UI snapshots where applicable.
-5. Submit a **Pull Request** with a clear description of your changes.
-6. All PRs must pass CI (lint, TypeScript checks, Jest unit tests).
-
-Read our full `CONTRIBUTING.md` for coding standards, commit message conventions, and release workflow.
 
 ---
 
