@@ -33,6 +33,23 @@ export const wsProxyPlugin = fp(
         return
       }
 
+      // SEC-04: Validate that the path matches a known Proxmox console endpoint pattern.
+      // This prevents path traversal to unintended Proxmox API endpoints.
+      const ALLOWED_PATH_PATTERNS = [
+        /^\/nodes\/[^/]+\/qemu\/\d+\/vncwebsocket$/,
+        /^\/nodes\/[^/]+\/lxc\/\d+\/vncwebsocket$/,
+        /^\/nodes\/[^/]+\/vncwebsocket$/,
+        /^\/nodes\/[^/]+\/qemu\/\d+\/spiceproxy$/,
+        /^\/nodes\/[^/]+\/lxc\/\d+\/spiceproxy$/,
+        /^\/nodes\/[^/]+\/termproxy$/,
+      ]
+      const isAllowedPath = ALLOWED_PATH_PATTERNS.some((pattern) => pattern.test(proxyPath))
+      if (!isAllowedPath) {
+        fastify.log.warn({ proxyPath }, 'SEC-04: Rejected disallowed WS proxy path')
+        socket.close(1002, 'Invalid path — only Proxmox console paths are permitted')
+        return
+      }
+
       // Remove `path` from forwarded params, keep everything else (port, vncticket, etc.)
       params.delete('path')
       const forwardedQuery = params.toString()

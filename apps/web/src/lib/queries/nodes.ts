@@ -89,7 +89,7 @@ export function useCreateNodeNetworkInterface(node: string) {
 export function useDeleteNodeNetworkInterface(node: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (iface: string) => api.del(`nodes/${node}/network/${iface}`),
+    mutationFn: (iface: string) => api.del(`nodes/${node}/network/${encodeURIComponent(iface)}`),
     onSuccess: (_, iface) => {
       toast.success(`Interface "${iface}" removed — click Apply to activate`)
       qc.invalidateQueries({ queryKey: nodeKeys.network(node) })
@@ -288,7 +288,14 @@ export function useNodeServiceAction(node: string) {
     mutationFn: ({ service, action }: { service: string; action: 'start' | 'stop' | 'restart' | 'reload' }) =>
       api.post(`nodes/${node}/services/${service}/${action}`, {}),
     onSuccess: (_, { service, action }) => {
-      toast.success(`Service ${service} ${action}ed`)
+      // BUG-08: Use a lookup table for correct past tense (e.g. "stop" → "stopped", not "stoped")
+      const pastTense: Record<string, string> = {
+        start: 'started',
+        stop: 'stopped',
+        restart: 'restarted',
+        reload: 'reloaded',
+      }
+      toast.success(`Service ${service} ${pastTense[action] ?? `${action}ed`}`)
       qc.invalidateQueries({ queryKey: [...nodeKeys.all(node), 'services'] })
     },
     onError: (err) => toast.error(`Service action failed — ${err.message}`),
@@ -636,6 +643,7 @@ export function useNodeLVM(node: string) {
   return useQuery({
     queryKey: [...nodeKeys.all(node), 'disks', 'lvm'],
     queryFn: () => api.get<LVMVolumeGroup[]>(`nodes/${node}/disks/lvm`),
+    enabled: !!node,
   })
 }
 
@@ -678,6 +686,7 @@ export function useNodeLVMThin(node: string) {
   return useQuery({
     queryKey: [...nodeKeys.all(node), 'disks', 'lvmthin'],
     queryFn: () => api.get<LVMThinPool[]>(`nodes/${node}/disks/lvmthin`),
+    enabled: !!node,
   })
 }
 

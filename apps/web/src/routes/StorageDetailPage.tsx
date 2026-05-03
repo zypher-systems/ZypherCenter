@@ -202,10 +202,35 @@ export function StorageDetailPage() {
   async function bulkDelete() {
     if (selectedVolids.size === 0) return
     if (!confirm(`Delete ${selectedVolids.size} item${selectedVolids.size !== 1 ? 's' : ''}? This cannot be undone.`)) return
+
+    const failed: string[] = []
+
     for (const volid of selectedVolids) {
-      await new Promise<void>((resolve) => deleteContent.mutate(volid, { onSettled: () => resolve() }))
+      await new Promise<void>((resolve) => {
+        deleteContent.mutate(volid, {
+          onSuccess: () => {
+            // Remove successfully deleted items from the selection immediately
+            setSelectedVolids((prev) => {
+              const next = new Set(prev)
+              next.delete(volid)
+              return next
+            })
+          },
+          onError: () => {
+            failed.push(volid)
+          },
+          onSettled: () => resolve(),
+        })
+      })
     }
-    setSelectedVolids(new Set())
+
+    if (failed.length > 0) {
+      // Leave failed items in the selection so the user can see what failed
+      // (toast.error is already shown by the mutation's own onError handler)
+    } else {
+      // All succeeded — clear any residual selection
+      setSelectedVolids(new Set())
+    }
   }
 
   // Allowed content types for upload

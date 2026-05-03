@@ -42,6 +42,10 @@ FROM node:22-alpine AS runtime
 
 RUN apk add --no-cache nginx
 
+# CQ-01: Create a non-root user/group to run the application.
+# This follows the principle of least privilege and reduces container attack surface.
+RUN addgroup -S zyphercenter && adduser -S -G zyphercenter zyphercenter
+
 # Install production-only API deps
 RUN corepack enable pnpm
 WORKDIR /app
@@ -66,6 +70,11 @@ COPY docker/nginx.single.conf /etc/nginx/http.d/default.conf
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# CQ-01: Set ownership so the non-root user can write nginx temp files and logs
+RUN chown -R zyphercenter:zyphercenter /var/lib/nginx /var/log/nginx /run/nginx \
+    && chown -R zyphercenter:zyphercenter /usr/share/nginx/html \
+    && chown -R zyphercenter:zyphercenter /app
+
 ENV NODE_ENV=production
 # CORS is irrelevant in single-container mode (same origin through nginx)
 # but set a default so the env schema doesn't warn.
@@ -73,7 +82,11 @@ ENV CORS_ORIGIN=http://localhost
 
 EXPOSE 80
 
+# CQ-01: Switch to non-root user for runtime
+USER zyphercenter
+
 HEALTHCHECK --interval=15s --timeout=5s --start-period=25s --retries=5 \
   CMD node -e "fetch('http://localhost:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["/entrypoint.sh"]
+

@@ -2,6 +2,8 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import cookie from '@fastify/cookie'
 import session from '@fastify/session'
+import rateLimit from '@fastify/rate-limit'
+import helmet from '@fastify/helmet'
 import { envPlugin } from './plugins/env.js'
 import { proxmoxAgentPlugin } from './plugins/proxmox-agent.js'
 import { authPlugin } from './plugins/auth.js'
@@ -16,6 +18,9 @@ const fastify = Fastify({
         ? { target: 'pino-pretty', options: { colorize: true, translateTime: 'SYS:HH:MM:ss' } }
         : undefined,
   },
+  // CQ-09: Set an explicit body size limit to prevent DoS via large request bodies.
+  // 100 MiB allows ISO upload metadata while remaining restrictive for regular API calls.
+  bodyLimit: 100 * 1024 * 1024,
 })
 
 // ── Plugins in dependency order ───────────────────────────────────────────────
@@ -38,6 +43,20 @@ await fastify.register(session, {
     maxAge: 7200 * 1000, // 2 hours — matches Proxmox ticket lifetime
   },
   saveUninitialized: false,
+})
+
+// SEC-02: Global rate limiter — generous default (200 req/min), login overrides to 10 req/min
+await fastify.register(rateLimit, {
+  global: true,
+  max: 200,
+  timeWindow: '1 minute',
+})
+
+// CQ-09: Helmet sets sensible security headers on all API responses
+await fastify.register(helmet, {
+  // Content-Security-Policy is managed by nginx for the SPA; disable it here
+  // to avoid conflicts with API JSON responses.
+  contentSecurityPolicy: false,
 })
 
 await fastify.register(proxmoxAgentPlugin)

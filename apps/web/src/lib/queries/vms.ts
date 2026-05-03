@@ -107,7 +107,7 @@ export function useDeleteVMSnapshot(node: string, vmid: number) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (snapname: string) =>
-      api.del<string>(`nodes/${node}/qemu/${vmid}/snapshot/${snapname}`),
+      api.del<string>(`nodes/${node}/qemu/${vmid}/snapshot/${encodeURIComponent(snapname)}`),
     onSuccess: (_, snapname) => {
       toast.success(`Snapshot "${snapname}" delete task started`)
       qc.invalidateQueries({ queryKey: vmKeys.snapshots(node, vmid) })
@@ -120,7 +120,7 @@ export function useRollbackVMSnapshot(node: string, vmid: number) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (snapname: string) =>
-      api.post<string>(`nodes/${node}/qemu/${vmid}/snapshot/${snapname}/rollback`),
+      api.post<string>(`nodes/${node}/qemu/${vmid}/snapshot/${encodeURIComponent(snapname)}/rollback`),
     onSuccess: (_, snapname) => {
       toast.success(`Rollback to "${snapname}" task started`)
       qc.invalidateQueries({ queryKey: vmKeys.status(node, vmid) })

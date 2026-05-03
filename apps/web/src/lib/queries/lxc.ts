@@ -103,7 +103,7 @@ export function useDeleteLXCSnapshot(node: string, vmid: number) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (snapname: string) =>
-      api.del<string>(`nodes/${node}/lxc/${vmid}/snapshot/${snapname}`),
+      api.del<string>(`nodes/${node}/lxc/${vmid}/snapshot/${encodeURIComponent(snapname)}`),
     onSuccess: (_, snapname) => {
       toast.success(`Snapshot "${snapname}" delete task started`)
       qc.invalidateQueries({ queryKey: lxcKeys.snapshots(node, vmid) })

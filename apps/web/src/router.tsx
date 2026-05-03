@@ -64,6 +64,9 @@ import { AccessTokensPage } from '@/routes/AccessTokensPage'
 // Tasks
 import { GlobalTasksPage } from '@/routes/GlobalTasksPage'
 
+// 404
+import { NotFoundPage } from '@/routes/NotFoundPage'
+
 export const router = createBrowserRouter([
   // ── Public route ────────────────────────────────────────────────────────────
   {
@@ -162,6 +165,9 @@ export const router = createBrowserRouter([
       // LXC routes
       { path: 'nodes/:node/lxc', element: <LXCListPage /> },
       { path: 'nodes/:node/lxc/:vmid', element: <LXCDetailPage /> },
+
+      // CQ-07: Catch-all 404 route — must be last so it only fires for unmatched paths
+      { path: '*', element: <NotFoundPage /> },
     ],
   },
 ])

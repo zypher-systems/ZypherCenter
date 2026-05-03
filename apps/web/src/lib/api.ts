@@ -51,7 +51,15 @@ async function request<T>(
     )
   }
 
-  const json = (await response.json()) as { data: T }
+  // CQ-08: Wrap success JSON parse in try-catch — Proxmox may return 200
+  // with non-JSON content for stream/download endpoints.
+  let json: { data: T }
+  try {
+    json = (await response.json()) as { data: T }
+  } catch {
+    // Non-JSON 200 response — return undefined cast to T (callers should guard)
+    return undefined as unknown as T
+  }
   return json.data
 }
 

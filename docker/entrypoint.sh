@@ -6,5 +6,12 @@ set -e
 echo "[zyphercenter] Starting API server..."
 node /app/apps/api/dist/index.js &
 
-echo "[zyphercenter] Starting nginx..."
+# BUG-03: Wait for the API to be ready before starting nginx.
+# Without this, nginx may return 502 during the ~1-3s API startup window.
+echo "[zyphercenter] Waiting for API to be ready..."
+until node -e "fetch('http://localhost:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; do
+  sleep 0.5
+done
+
+echo "[zyphercenter] API is ready. Starting nginx..."
 exec nginx -g 'daemon off;'

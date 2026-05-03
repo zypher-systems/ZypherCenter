@@ -6,12 +6,12 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
  *
  * - Strips the /api/proxmox prefix and prepends /api2/json
  * - Injects PVEAuthCookie from the server-side session (never exposed to browser)
- * - Injects CSRFPreventionToken for state-changing requests (POST/PUT/DELETE)
- * - Forwards query params and request body as-is
+ * - Injects CSRFPreventionToken for state-changing requests (POST/PUT/PATCH/DELETE)
+ * - Forwards query params and request body, preserving the original Content-Type (SEC-05)
  */
 export const proxyPlugin = fp(
   async (fastify) => {
-    const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'DELETE'])
+    const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
     async function proxyRequest(request: FastifyRequest, reply: FastifyReply) {
       if (!request.session.authenticated || !request.session.ticket) {
@@ -39,10 +39,18 @@ export const proxyPlugin = fp(
         headers['CSRFPreventionToken'] = request.session.csrf
       }
 
+      // SEC-05: Preserve the original Content-Type when serializing the body.
+      // Use URLSearchParams for form-encoded bodies, JSON for everything else.
       let body: string | undefined
       if (STATE_CHANGING_METHODS.has(method) && request.body) {
-        body = JSON.stringify(request.body)
-        headers['Content-Type'] = 'application/json'
+        const incomingContentType = request.headers['content-type'] ?? ''
+        if (incomingContentType.includes('application/x-www-form-urlencoded')) {
+          body = new URLSearchParams(request.body as Record<string, string>).toString()
+          headers['Content-Type'] = 'application/x-www-form-urlencoded'
+        } else {
+          body = JSON.stringify(request.body)
+          headers['Content-Type'] = 'application/json'
+        }
       }
 
       let upstream: Response
@@ -66,10 +74,11 @@ export const proxyPlugin = fp(
       return reply.send(Buffer.from(buf))
     }
 
-    // Register catch-all proxy routes for all HTTP methods
+    // Register catch-all proxy routes for all HTTP methods (CQ-02: includes PATCH)
     fastify.get('/api/proxmox/*', proxyRequest)
     fastify.post('/api/proxmox/*', proxyRequest)
     fastify.put('/api/proxmox/*', proxyRequest)
+    fastify.patch('/api/proxmox/*', proxyRequest)
     fastify.delete('/api/proxmox/*', proxyRequest)
   },
   { name: 'proxy', dependencies: ['env', 'proxmox-agent', 'auth'] },

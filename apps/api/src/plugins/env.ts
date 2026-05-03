@@ -19,7 +19,10 @@ const EnvSchema = z.object({
    * generated at startup — sessions will be invalidated on container restart,
    * which is fine for local/test usage.
    */
-  SESSION_SECRET: z.string().optional(),
+  SESSION_SECRET: z
+    .string()
+    .min(32, 'SESSION_SECRET must be at least 32 characters when provided')
+    .optional(),
   /**
    * Set to "true" only when serving over HTTPS. Defaults to false so that
    * plain HTTP Docker deployments (the common case) work without extra config.
