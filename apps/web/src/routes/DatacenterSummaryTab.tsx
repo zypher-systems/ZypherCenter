@@ -1,48 +1,70 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router'
 import { Server, Monitor, Box, Database, CheckCircle, AlertCircle, Activity, Cpu, MemoryStick, HardDrive, TrendingUp } from 'lucide-react'
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useQueries } from '@tanstack/react-query'
-import { useClusterResources, useClusterStatus } from '@/lib/queries/cluster'
+import { useClusterResources, useClusterStatus, useClusterOptions, useUpdateClusterOptions } from '@/lib/queries/cluster'
 import { useClusterTasks } from '@/lib/queries/tasks'
 import { useNodeRrdData } from '@/lib/queries/nodes'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { ResourceGauge } from '@/components/ui/ResourceGauge'
+import { NotesPanel } from '@/components/features/NotesPanel'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import { formatBytes, formatPercent, formatTimestamp, cn } from '@/lib/utils'
 import type { ClusterResource } from '@zyphercenter/proxmox-types'
 
 // ── Summary stat card ─────────────────────────────────────────────────────────
 
-function StatCard({ label, value, icon, sub, to }: {
+function StatCard({ label, value, icon, sub, to, onClick }: {
   label: string
   value: string | number
   icon: React.ReactNode
   sub?: string
   to?: string
+  onClick?: () => void
 }) {
   const inner = (
-    <CardContent className="pt-5">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs text-text-muted font-medium">{label}</p>
-          <p className="mt-1 text-xl font-bold tracking-tight text-text-primary tabular-nums sm:text-2xl">{value}</p>
-          {sub && <p className="text-xs text-text-muted mt-0.5">{sub}</p>}
+    <CardContent className="p-5">
+      <div className="flex items-center justify-between">
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-text-muted uppercase tracking-wider">{label}</p>
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-2xl font-bold tracking-tight text-text-primary tabular-nums sm:text-3xl">
+              {value}
+            </h3>
+            {sub && <span className="text-[10px] font-medium text-text-disabled uppercase">{sub.split(' · ')[0]}</span>}
+          </div>
+          {sub && sub.includes(' · ') && (
+            <p className="text-[11px] text-text-muted font-medium">
+              {sub.split(' · ').slice(1).join(' · ')}
+            </p>
+          )}
         </div>
-        <span className="text-text-muted [&_svg]:size-5">{icon}</span>
+        <div className="rounded-lg bg-accent/10 p-2.5 text-accent group-hover:bg-accent group-hover:text-white transition-colors [&_svg]:size-5">
+          {icon}
+        </div>
       </div>
     </CardContent>
   )
+  
+  if (onClick) {
+    return (
+      <button onClick={onClick} className="block group w-full text-left outline-none h-full">
+        <Card className="transition-colors hover:border-accent/40 h-full flex flex-col justify-center">{inner}</Card>
+      </button>
+    )
+  }
+
   if (to) {
     return (
-      <Link to={to} className="block group">
-        <Card className="transition-colors hover:border-accent/40">{inner}</Card>
+      <Link to={to} className="block group h-full">
+        <Card className="transition-colors hover:border-accent/40 h-full flex flex-col justify-center">{inner}</Card>
       </Link>
     )
   }
-  return <Card>{inner}</Card>
+  return <Card className="h-full flex flex-col justify-center">{inner}</Card>
 }
 
 // ── Node chart sparkline ──────────────────────────────────────────────────────
@@ -476,10 +498,12 @@ function ClusterPerfCharts({ nodeNames }: { nodeNames: string[] }) {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-export function DashboardPage() {
+export function DatacenterSummaryTab({ onTabChange }: { onTabChange?: (val: string) => void }) {
   const { data: resources, isLoading: resLoading } = useClusterResources()
   const { data: status, isLoading: statusLoading } = useClusterStatus()
   const { data: tasks } = useClusterTasks()
+  const { data: options } = useClusterOptions()
+  const updateOptions = useUpdateClusterOptions()
 
   const nodes    = resources?.filter((r) => r.type === 'node')    ?? []
   const vms      = resources?.filter((r) => r.type === 'qemu')    ?? []
@@ -510,36 +534,45 @@ export function DashboardPage() {
         </p>
       </div>
 
-      {/* Summary stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard
-          label="Nodes"
-          value={nodes.length}
-          icon={<Server />}
-          sub={`${nodes.filter(n => n.status !== 'offline').length} online`}
-          to="/nodes"
-        />
-        <StatCard
-          label="Virtual Machines"
-          value={vms.length}
-          icon={<Monitor />}
-          sub={`${runningVMs} running · ${stoppedVMs} stopped`}
-          to="/vms"
-        />
-        <StatCard
-          label="Containers"
-          value={lxcs.length}
-          icon={<Box />}
-          sub={`${runningLXCs} running · ${stoppedLXCs} stopped`}
-          to="/lxc"
-        />
-        <StatCard
-          label="Storage Pools"
-          value={storages.length}
-          icon={<Database />}
-          sub={`${storages.filter(s => s.status === 'available').length} available`}
-          to="/storage"
-        />
+      {/* Summary stats & Notes */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Nodes"
+            value={nodes.length}
+            icon={<Server />}
+            sub={`${nodes.filter(n => n.status !== 'offline').length} online`}
+            to="/nodes"
+          />
+          <StatCard
+            label="Virtual Machines"
+            value={vms.length}
+            icon={<Monitor />}
+            sub={`${runningVMs} running · ${stoppedVMs} stopped`}
+            onClick={() => onTabChange?.('vms')}
+          />
+          <StatCard
+            label="LXCs"
+            value={lxcs.length}
+            icon={<Box />}
+            sub={`${runningLXCs} running · ${stoppedLXCs} stopped`}
+            onClick={() => onTabChange?.('lxc')}
+          />
+          <StatCard
+            label="Storage Pools"
+            value={storages.length}
+            icon={<Database />}
+            sub={`${storages.filter(s => s.status === 'available').length} available`}
+            to="/storage"
+          />
+        </div>
+        <div className="xl:col-span-1">
+          <NotesPanel
+            notes={options?.description as string}
+            onSave={(description) => updateOptions.mutate({ description })}
+            isPending={updateOptions.isPending}
+          />
+        </div>
       </div>
 
       {/* Cluster aggregate */}

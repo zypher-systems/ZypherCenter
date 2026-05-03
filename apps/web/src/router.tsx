@@ -7,65 +7,30 @@ import { Shell } from '@/components/layout/Shell'
 import { LoginPage } from '@/routes/LoginPage'
 
 // Authenticated pages
-import { DashboardPage } from '@/routes/DashboardPage'
+// Authenticated pages
+import { DatacenterDetailPage } from '@/routes/DatacenterDetailPage'
 
 // Node pages
-import { NodeSummaryPage } from '@/routes/NodeSummaryPage'
+import { NodeDetailPage } from '@/routes/NodeDetailPage'
 import { NodeShellPage } from '@/routes/NodeShellPage'
-import { NodeNetworkPage } from '@/routes/NodeNetworkPage'
-import { NodeDisksPage } from '@/routes/NodeDisksPage'
-import { NodeStoragePage } from '@/routes/NodeStoragePage'
-import { NodeUpdatesPage } from '@/routes/NodeUpdatesPage'
-import { NodeSyslogPage } from '@/routes/NodeSyslogPage'
-import { NodeTasksPage } from '@/routes/NodeTasksPage'
-import { NodeDNSPage } from '@/routes/NodeDNSPage'
-import { NodeTimePage } from '@/routes/NodeTimePage'
-import { NodeServicesPage } from '@/routes/NodeServicesPage'
-import { NodeFirewallPage } from '@/routes/NodeFirewallPage'
-import { NodeCertificatesPage } from '@/routes/NodeCertificatesPage'
+import { NodeListPage } from '@/routes/NodeListPage'
 
 // VM pages
 import { VMListPage } from '@/routes/VMListPage'
 import { VMDetailPage } from '@/routes/VMDetailPage'
 import { VMConsolePage } from '@/routes/VMConsolePage'
-import { AllVMsPage } from '@/routes/AllVMsPage'
 
 // LXC pages
 import { LXCListPage } from '@/routes/LXCListPage'
 import { LXCDetailPage } from '@/routes/LXCDetailPage'
 import { LXCConsolePage } from '@/routes/LXCConsolePage'
-import { AllLXCPage } from '@/routes/AllLXCPage'
 
 // Storage
 import { StorageListPage } from '@/routes/StorageListPage'
 import { StorageDetailPage } from '@/routes/StorageDetailPage'
 
-// Cluster
-import { ClusterBackupPage } from '@/routes/ClusterBackupPage'
-import { ClusterReplicationPage } from '@/routes/ClusterReplicationPage'
-import { HAPage } from '@/routes/HAPage'
-import { SDNPage } from '@/routes/SDNPage'
-import { ClusterFirewallPage } from '@/routes/ClusterFirewallPage'
-import { ClusterOptionsPage } from '@/routes/ClusterOptionsPage'
-import { CephPage } from '@/routes/CephPage'
-import { PoolsPage } from '@/routes/PoolsPage'
-import { ClusterMetricsPage } from '@/routes/ClusterMetricsPage'
-import { ClusterNotificationsPage } from '@/routes/ClusterNotificationsPage'
-import { ClusterACMEPage } from '@/routes/ClusterACMEPage'
-
-// Access
-import { AccessUsersPage } from '@/routes/AccessUsersPage'
-import { AccessGroupsPage } from '@/routes/AccessGroupsPage'
-import { AccessRolesPage } from '@/routes/AccessRolesPage'
-import { ACLPage } from '@/routes/ACLPage'
-import { RealmsPage } from '@/routes/RealmsPage'
-import { AccessTokensPage } from '@/routes/AccessTokensPage'
-
-// Tasks
+// Global tasks
 import { GlobalTasksPage } from '@/routes/GlobalTasksPage'
-
-import { ClusterUpdatesPage } from '@/routes/ClusterUpdatesPage'
-import { NodeListPage } from '@/routes/NodeListPage'
 
 // 404
 import { NotFoundPage } from '@/routes/NotFoundPage'
@@ -112,58 +77,21 @@ export const router = createBrowserRouter([
       </AuthGuard>
     ),
     children: [
-      // Dashboard
-      { index: true, element: <DashboardPage /> },
+      // Datacenter
+      { index: true, element: <DatacenterDetailPage /> },
 
       // Nodes
       { path: 'nodes', element: <NodeListPage /> },
-
-      // Cluster-wide VM and LXC lists
-      { path: 'vms', element: <AllVMsPage /> },
-      { path: 'lxc', element: <AllLXCPage /> },
 
       // Storage
       { path: 'storage', element: <StorageListPage /> },
       { path: 'storage/:storageid', element: <StorageDetailPage /> },
 
-      // Cluster sub-features
-      { path: 'cluster/backup', element: <ClusterBackupPage /> },
-      { path: 'cluster/replication', element: <ClusterReplicationPage /> },
-      { path: 'cluster/ha', element: <HAPage /> },
-      { path: 'cluster/sdn', element: <SDNPage /> },
-      { path: 'cluster/firewall', element: <ClusterFirewallPage /> },
-      { path: 'cluster/options', element: <ClusterOptionsPage /> },
-      { path: 'cluster/ceph', element: <CephPage /> },
-      { path: 'cluster/pools', element: <PoolsPage /> },
-      { path: 'cluster/metrics', element: <ClusterMetricsPage /> },
-      { path: 'cluster/notifications', element: <ClusterNotificationsPage /> },
-      { path: 'cluster/updates', element: <ClusterUpdatesPage /> },
-      { path: 'cluster/acme', element: <ClusterACMEPage /> },
-
-      // Access management
-      { path: 'access/users', element: <AccessUsersPage /> },
-      { path: 'access/groups', element: <AccessGroupsPage /> },
-      { path: 'access/roles', element: <AccessRolesPage /> },
-      { path: 'access/acl', element: <ACLPage /> },
-      { path: 'access/realms', element: <RealmsPage /> },
-      { path: 'access/tokens', element: <AccessTokensPage /> },
-
       // Global tasks
       { path: 'tasks', element: <GlobalTasksPage /> },
 
       // Node routes
-      { path: 'nodes/:node', element: <NodeSummaryPage /> },
-      { path: 'nodes/:node/network', element: <NodeNetworkPage /> },
-      { path: 'nodes/:node/disks', element: <NodeDisksPage /> },
-      { path: 'nodes/:node/storage', element: <NodeStoragePage /> },
-      { path: 'nodes/:node/updates', element: <NodeUpdatesPage /> },
-      { path: 'nodes/:node/syslog', element: <NodeSyslogPage /> },
-      { path: 'nodes/:node/tasks', element: <NodeTasksPage /> },
-      { path: 'nodes/:node/dns', element: <NodeDNSPage /> },
-      { path: 'nodes/:node/time', element: <NodeTimePage /> },
-      { path: 'nodes/:node/services', element: <NodeServicesPage /> },
-      { path: 'nodes/:node/firewall', element: <NodeFirewallPage /> },
-      { path: 'nodes/:node/certificates', element: <NodeCertificatesPage /> },
+      { path: 'nodes/:node', element: <NodeDetailPage /> },
 
       // VM routes (list per-node or global)
       { path: 'nodes/:node/vms', element: <VMListPage /> },

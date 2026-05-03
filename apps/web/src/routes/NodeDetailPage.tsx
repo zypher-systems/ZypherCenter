@@ -10,7 +10,7 @@ import {
   Power,
   RefreshCw,
 } from 'lucide-react'
-import { useNodeStatus, useNodePower, useNodeSubscription, useNodeHardwarePCI, useNodeZFSPools, useNodeDisks, useNodeStorage, useNodeTasks } from '@/lib/queries/nodes'
+import { useNodeStatus, useNodePower, useNodeConfig, useUpdateNodeConfig, useNodeSubscription, useNodeHardwarePCI, useNodeZFSPools, useNodeDisks, useNodeStorage, useNodeTasks } from '@/lib/queries/nodes'
 import { useVMs } from '@/lib/queries/vms'
 import { useLXCs } from '@/lib/queries/lxc'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -20,92 +20,33 @@ import { SkeletonCard } from '@/components/ui/Skeleton'
 import { formatBytes, formatUptime, formatPercent, cn } from '@/lib/utils'
 import { NodeResourceCharts } from '@/components/features/ResourceCharts'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { NotesPanel } from '@/components/features/NotesPanel'
 
 import { NodeUpdatesCard } from '@/components/features/NodeUpdatesCard'
 
-export function NodeSummaryPage() {
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
+import { NodeShellPage } from './NodeShellPage'
+import { NodeNetworkPage } from './NodeNetworkPage'
+import { NodeDisksPage } from './NodeDisksPage'
+import { NodeStoragePage } from './NodeStoragePage'
+import { NodeUpdatesPage } from './NodeUpdatesPage'
+import { NodeSyslogPage } from './NodeSyslogPage'
+import { NodeTasksPage } from './NodeTasksPage'
+import { NodeDNSPage } from './NodeDNSPage'
+import { NodeTimePage } from './NodeTimePage'
+import { NodeServicesPage } from './NodeServicesPage'
+import { NodeFirewallPage } from './NodeFirewallPage'
+import { NodeCertificatesPage } from './NodeCertificatesPage'
+import { NodeCephPage } from './CephPage'
+import { NodePCIPage } from './NodePCIPage'
+
+function SummaryTab({ status, cpuPct, totalVMs, runningVMs, totalLXCs, runningLXCs, sub, tasks }: any) {
   const { node } = useParams<{ node: string }>()
-  const { data: status, isLoading } = useNodeStatus(node!)
-  const { data: vms } = useVMs(node!)
-  const { data: lxcs } = useLXCs(node!)
-  const nodePower = useNodePower(node!)
-  const { data: sub } = useNodeSubscription(node!)
-  const { data: pciDevices } = useNodeHardwarePCI(node!)
-  const { data: zfsPools } = useNodeZFSPools(node!)
-  const { data: nodeDisks } = useNodeDisks(node!)
-  const { data: nodeStorage } = useNodeStorage(node!)
-  const { data: tasks } = useNodeTasks(node!)
-  const [confirmAction, setConfirmAction] = useState<'reboot' | 'shutdown' | null>(null)
-
-  if (isLoading) {
-    return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {[...Array(5)].map((_, i) => <SkeletonCard key={i} />)}
-      </div>
-    )
-  }
-
-  if (!status) {
-    return (
-      <div className="flex h-64 items-center justify-center rounded-xl border border-border bg-bg-card">
-        <p className="text-text-muted">No data available for node <strong>{node}</strong></p>
-      </div>
-    )
-  }
-
-  const cpuPct = status.cpu
-  const totalVMs = vms?.length ?? 0
-  const runningVMs = vms?.filter((v) => v.status === 'running').length ?? 0
-  const totalLXCs = lxcs?.length ?? 0
-  const runningLXCs = lxcs?.filter((l) => l.status === 'running').length ?? 0
+  const { data: config } = useNodeConfig(node!)
+  const updateConfig = useUpdateNodeConfig(node!)
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="flex size-10 items-center justify-center rounded-lg bg-bg-card border border-border">
-          <Server className="size-5 text-text-muted" />
-        </div>
-        <div>
-          <h1 className="text-xl font-semibold text-text-primary">{node}</h1>
-          <p className="text-sm text-text-muted">
-            {status.cpuinfo?.model ?? 'Unknown CPU'} · {status.pveversion ?? ''}
-          </p>
-        </div>
-        <StatusBadge status="running" label="Online" className="ml-auto" />
-        <button
-          type="button"
-          disabled={nodePower.isPending}
-          onClick={() => setConfirmAction('reboot')}
-          className="inline-flex items-center gap-1.5 rounded border border-border-subtle px-2.5 py-1.5 text-xs text-text-secondary hover:border-accent/50 hover:text-text-primary disabled:opacity-50"
-        >
-          <RefreshCw className="size-3.5" />
-          Reboot
-        </button>
-        <button
-          type="button"
-          disabled={nodePower.isPending}
-          onClick={() => setConfirmAction('shutdown')}
-          className="inline-flex items-center gap-1.5 rounded border border-status-error/40 px-2.5 py-1.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
-        >
-          <Power className="size-3.5" />
-          Shutdown
-        </button>
-      </div>
-      
-      <ConfirmDialog
-        open={confirmAction !== null}
-        onOpenChange={(open) => { if (!open) setConfirmAction(null) }}
-        title={confirmAction === 'reboot' ? `Reboot node ${node}?` : `Shutdown node ${node}?`}
-        description={confirmAction === 'shutdown' ? 'This will stop all guests.' : 'Are you sure you want to reboot this node?'}
-        variant={confirmAction === 'shutdown' ? 'destructive' : 'default'}
-        onConfirm={() => {
-          if (confirmAction) {
-            nodePower.mutate(confirmAction)
-            setConfirmAction(null)
-          }
-        }}
-      />
-
       {/* Resource summary cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Card>
@@ -176,7 +117,13 @@ export function NodeSummaryPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <NotesPanel
+          notes={config?.description as string}
+          onSave={(description) => updateConfig.mutate({ description })}
+          isPending={updateConfig.isPending}
+        />
+
+        <Card className="lg:col-span-2 xl:col-span-1">
           <CardHeader><CardTitle>Guests</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
@@ -285,141 +232,6 @@ export function NodeSummaryPage() {
       {/* Performance history */}
       <NodeResourceCharts node={node!} />
 
-      {/* Node Storage */}
-      {nodeStorage && nodeStorage.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Storage ({nodeStorage.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-border-muted">
-              {nodeStorage.map((s) => {
-                const pct = s.used_fraction != null ? s.used_fraction : (s.total && s.used != null ? s.used / s.total : null)
-                const barColor = pct == null ? 'bg-accent' : pct > 0.9 ? 'bg-status-error' : pct > 0.7 ? 'bg-status-warning' : 'bg-accent'
-                const isActive = s.active === 1 && s.enabled !== 0
-                return (
-                  <div key={s.storage} className="px-4 py-2.5 space-y-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className={`size-1.5 rounded-full shrink-0 ${isActive ? 'bg-status-running' : 'bg-text-disabled'}`} />
-                        <span className="text-sm font-medium text-text-primary truncate">{s.storage}</span>
-                        <span className="text-xs text-text-muted bg-bg-elevated border border-border-muted rounded px-1.5 py-0.5 shrink-0">{s.type}</span>
-                      </div>
-                      <span className="text-xs text-text-muted shrink-0">
-                        {s.total != null ? `${formatBytes(s.used ?? 0)} / ${formatBytes(s.total)}` : '—'}
-                      </span>
-                    </div>
-                    {pct != null && (
-                      <div className="w-full h-1.5 rounded-full bg-bg-elevated overflow-hidden">
-                        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(100, pct * 100).toFixed(1)}%` }} />
-                      </div>
-                    )}
-                    {s.content && (
-                      <p className="text-xs text-text-muted truncate">{s.content.split(',').map((c) => c.trim()).join(' · ')}</p>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ZFS Pools */}
-      {zfsPools && zfsPools.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">ZFS Pools ({zfsPools.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-border-muted">
-              {zfsPools.map((pool) => {
-                const healthColor =
-                  pool.health === 'ONLINE' || pool.state === 'ONLINE' ? 'text-status-running'
-                  : pool.health === 'DEGRADED' || pool.state === 'DEGRADED' ? 'text-status-warning'
-                  : 'text-status-error'
-                const used = pool.alloc && pool.size ? pool.alloc / pool.size : null
-                return (
-                  <div key={pool.name} className="flex items-center gap-4 px-4 py-2.5">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-text-primary">{pool.name}</span>
-                        <span className={cn('text-xs font-medium', healthColor)}>
-                          {pool.health ?? pool.state ?? '—'}
-                        </span>
-                      </div>
-                      {(pool.size != null) && (
-                        <div className="flex items-center gap-3 mt-0.5">
-                          <span className="text-xs text-text-muted">
-                            {formatBytes(pool.alloc ?? 0)} used / {formatBytes(pool.size)}
-                          </span>
-                          {used != null && (
-                            <div className="flex-1 max-w-32 h-1.5 rounded-full bg-bg-hover overflow-hidden">
-                              <div
-                                className={cn('h-full rounded-full', used > 0.9 ? 'bg-status-error' : used > 0.7 ? 'bg-status-warning' : 'bg-accent')}
-                                style={{ width: `${Math.min(100, used * 100).toFixed(1)}%` }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    {pool.scan && (
-                      <span className="text-xs text-text-muted shrink-0">{pool.scan}</span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Physical Disks */}
-      {nodeDisks && nodeDisks.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Physical Disks ({nodeDisks.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-border-muted">
-              {nodeDisks.map((disk) => {
-                const h = disk.health?.toUpperCase()
-                const healthColor = (h === 'PASSED' || h === 'OK') ? 'text-status-running'
-                  : (h === 'WARNING') ? 'text-status-warning'
-                  : disk.health ? 'text-status-error'
-                  : 'text-text-muted'
-                return (
-                  <div key={disk.devpath} className="flex items-center gap-3 px-4 py-2.5">
-                    <HardDrive className="size-3.5 text-text-muted shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono text-text-primary">{disk.devpath}</span>
-                        <span className="text-xs text-text-muted">{disk.model ?? ''}</span>
-                      </div>
-                      <div className="flex items-center gap-3 mt-0.5">
-                        <span className="text-xs text-text-muted">{formatBytes(disk.size)}</span>
-                        {disk.type && <span className="text-xs text-text-muted">{disk.type.toUpperCase()}</span>}
-                        {disk.serial && <span className="text-xs text-text-muted font-mono">{disk.serial}</span>}
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      {disk.health && (
-                        <span className={cn('text-xs font-medium', healthColor)}>{disk.health}</span>
-                      )}
-                      {disk.wearout != null && String(disk.wearout) !== 'N/A' && (
-                        <p className="text-xs text-text-muted">Wear: {disk.wearout}%</p>
-                      )}
-                      {disk.used && <p className="text-xs text-text-muted">{disk.used}</p>}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Recent Tasks */}
       {tasks && tasks.length > 0 && (() => {
         const taskList = tasks as Record<string, unknown>[]
@@ -447,7 +259,7 @@ export function NodeSummaryPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-border-muted">
-                {recent.map((t) => {
+                {recent.map((t: any) => {
                   const upid = t['upid'] as string
                   const type = t['type'] as string
                   const exitstatus = t['exitstatus'] as string | undefined
@@ -489,35 +301,142 @@ export function NodeSummaryPage() {
         )
       })()}
 
-      {/* PCI devices */}
-      {pciDevices && pciDevices.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">PCI Devices ({pciDevices.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-border-muted">
-              {pciDevices.map((dev) => (
-                <div key={dev.id} className="flex items-start gap-3 px-4 py-2.5">
-                  <span className="font-mono text-xs text-text-muted pt-0.5 shrink-0 w-24">{dev.id}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-text-primary truncate">
-                      {dev.device_name ?? dev.device ?? '—'}
-                    </p>
-                    <p className="text-xs text-text-muted truncate">
-                      {dev.vendor_name ?? dev.vendor ?? ''}{dev.iommugroup != null ? ` · IOMMU group ${dev.iommugroup}` : ''}{dev.mdev ? ' · mdev' : ''}
-                    </p>
-                  </div>
-                  <span className="text-xs text-text-muted font-mono shrink-0">{dev.class}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
 
 
     </div>
   )
 }
+
+export function NodeDetailPage() {
+  const { node } = useParams<{ node: string }>()
+  const { data: status, isLoading } = useNodeStatus(node!)
+  const { data: vms } = useVMs(node!)
+  const { data: lxcs } = useLXCs(node!)
+  const nodePower = useNodePower(node!)
+  const { data: sub } = useNodeSubscription(node!)
+  const { data: tasks } = useNodeTasks(node!)
+  
+  const [confirmAction, setConfirmAction] = useState<'reboot' | 'shutdown' | null>(null)
+  const [currentTab, setCurrentTab] = useState('summary')
+
+  if (isLoading) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {[...Array(5)].map((_, i) => <SkeletonCard key={i} />)}
+      </div>
+    )
+  }
+
+  if (!status) {
+    return (
+      <div className="flex h-64 items-center justify-center rounded-xl border border-border bg-bg-card">
+        <p className="text-text-muted">No data available for node <strong>{node}</strong></p>
+      </div>
+    )
+  }
+
+  const cpuPct = status.cpu
+  const totalVMs = vms?.length ?? 0
+  const runningVMs = vms?.filter((v) => v.status === 'running').length ?? 0
+  const totalLXCs = lxcs?.length ?? 0
+  const runningLXCs = lxcs?.filter((l) => l.status === 'running').length ?? 0
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="flex size-10 items-center justify-center rounded-lg bg-bg-card border border-border">
+          <Server className="size-5 text-text-muted" />
+        </div>
+        <div>
+          <h1 className="text-xl font-semibold text-text-primary">{node}</h1>
+          <p className="text-sm text-text-muted">
+            {status.cpuinfo?.model ?? 'Unknown CPU'} · {status.pveversion ?? ''}
+          </p>
+        </div>
+        <StatusBadge status="running" label="Online" className="ml-auto" />
+        <button
+          type="button"
+          disabled={nodePower.isPending}
+          onClick={() => setConfirmAction('reboot')}
+          className="inline-flex items-center gap-1.5 rounded border border-border-subtle px-2.5 py-1.5 text-xs text-text-secondary hover:border-accent/50 hover:text-text-primary disabled:opacity-50"
+        >
+          <RefreshCw className="size-3.5" />
+          Reboot
+        </button>
+        <button
+          type="button"
+          disabled={nodePower.isPending}
+          onClick={() => setConfirmAction('shutdown')}
+          className="inline-flex items-center gap-1.5 rounded border border-status-error/40 px-2.5 py-1.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+        >
+          <Power className="size-3.5" />
+          Shutdown
+        </button>
+      </div>
+
+      <ConfirmDialog
+        open={confirmAction !== null}
+        onOpenChange={(open) => { if (!open) setConfirmAction(null) }}
+        title={confirmAction === 'reboot' ? `Reboot node ${node}?` : `Shutdown node ${node}?`}
+        description={confirmAction === 'shutdown' ? 'This will stop all guests.' : 'Are you sure you want to reboot this node?'}
+        variant={confirmAction === 'shutdown' ? 'destructive' : 'default'}
+        onConfirm={() => {
+          if (confirmAction) {
+            nodePower.mutate(confirmAction)
+            setConfirmAction(null)
+          }
+        }}
+      />
+
+      <Tabs defaultValue="summary" value={currentTab} onValueChange={setCurrentTab} orientation="vertical" className="w-full flex flex-row gap-6">
+        <TabsList className="bg-transparent p-0 flex-shrink-0">
+          <TabsTrigger value="summary">Summary</TabsTrigger>
+          <TabsTrigger value="shell">Shell</TabsTrigger>
+          <TabsTrigger value="network">Network</TabsTrigger>
+          <TabsTrigger value="disks">Disks</TabsTrigger>
+          <TabsTrigger value="storage">Storage</TabsTrigger>
+          <TabsTrigger value="pci">PCIe</TabsTrigger>
+          <TabsTrigger value="ceph">Ceph</TabsTrigger>
+          <TabsTrigger value="updates">Updates</TabsTrigger>
+          <TabsTrigger value="firewall">Firewall</TabsTrigger>
+          <TabsTrigger value="certificates">Certificates</TabsTrigger>
+          <TabsTrigger value="syslog">Syslog</TabsTrigger>
+          <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          <TabsTrigger value="dns">DNS</TabsTrigger>
+          <TabsTrigger value="time">Time</TabsTrigger>
+          <TabsTrigger value="services">Services</TabsTrigger>
+        </TabsList>
+        <div className="flex-1 min-w-0 overflow-y-auto">
+          <TabsContent value="summary">
+            <SummaryTab
+              status={status}
+              cpuPct={cpuPct}
+              totalVMs={totalVMs}
+              runningVMs={runningVMs}
+              totalLXCs={totalLXCs}
+              runningLXCs={runningLXCs}
+              sub={sub}
+              tasks={tasks}
+            />
+          </TabsContent>
+          <TabsContent value="shell"><NodeShellPage /></TabsContent>
+          <TabsContent value="network"><NodeNetworkPage /></TabsContent>
+          <TabsContent value="disks"><NodeDisksPage /></TabsContent>
+          <TabsContent value="storage"><NodeStoragePage /></TabsContent>
+          <TabsContent value="pci"><NodePCIPage /></TabsContent>
+          <TabsContent value="ceph"><NodeCephPage /></TabsContent>
+          <TabsContent value="updates"><NodeUpdatesPage /></TabsContent>
+          <TabsContent value="firewall"><NodeFirewallPage /></TabsContent>
+          <TabsContent value="certificates"><NodeCertificatesPage /></TabsContent>
+          <TabsContent value="syslog"><NodeSyslogPage /></TabsContent>
+          <TabsContent value="tasks"><NodeTasksPage /></TabsContent>
+          <TabsContent value="dns"><NodeDNSPage /></TabsContent>
+          <TabsContent value="time"><NodeTimePage /></TabsContent>
+          <TabsContent value="services"><NodeServicesPage /></TabsContent>
+        </div>
+      </Tabs>
+    </div>
+  )
+}
+

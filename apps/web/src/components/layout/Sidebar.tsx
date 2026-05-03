@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import {
   Server,
   Monitor,
@@ -34,7 +34,20 @@ import {
   FlameKindling,
   Columns3,
   KeyRound,
+  Play,
+  Square,
+  Power,
 } from 'lucide-react'
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from '@/components/ui/ContextMenu'
+import { useNodePower } from '@/lib/queries/nodes'
+import { useVMStart, useVMStop, useVMShutdown } from '@/lib/queries/vms'
+import { useLXCStart, useLXCStop, useLXCShutdown } from '@/lib/queries/lxc'
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/stores/ui'
 import { useClusterResources } from '@/lib/queries/cluster'
@@ -87,10 +100,12 @@ function SectionLabel({ label, collapsed }: { label: string; collapsed: boolean 
 function NodeTree({
   node,
   guests,
+  storages,
   collapsed,
 }: {
   node: ClusterResource
   guests: ClusterResource[]
+  storages: ClusterResource[]
   collapsed: boolean
 }) {
   const { expandedNodes, toggleNodeExpanded } = useUIStore()
@@ -101,13 +116,19 @@ function NodeTree({
 
   const vms = guests.filter((g) => g.type === 'qemu' && g.node === nodeName)
   const lxcs = guests.filter((g) => g.type === 'lxc' && g.node === nodeName)
+  // Include storage that is either bound to this node OR is available cluster-wide (node is missing/empty)
+  const nodeStorages = storages.filter((r) => !r.node || r.node === nodeName)
 
   const nodeOnline = (node.status ?? '') !== 'offline'
+  const nodePower = useNodePower(nodeName)
+  const navigate = useNavigate()
 
   return (
     <div>
       {/* Node row */}
-      <div
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div
         className={cn(
           'flex items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors cursor-pointer',
           'hover:bg-bg-hover',
@@ -146,27 +167,25 @@ function NodeTree({
           </button>
         )}
       </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={() => navigate(`/nodes/${nodeName}/shell`)}>
+            <Terminal className="size-4 mr-2" /> Shell
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem onClick={() => nodePower.mutate('reboot')}>
+            <RefreshCw className="size-4 mr-2 text-status-warning" /> Reboot
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => nodePower.mutate('shutdown')}>
+            <Power className="size-4 mr-2 text-status-error" /> Shutdown
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
       {/* Node sub-pages + guests */}
       {isExpanded && !collapsed && (
         <div className="ml-4 border-l border-border-muted pl-2 space-y-0.5">
-          {[
-            { label: 'Summary', to: `/nodes/${nodeName}`, icon: <BarChart3 />, exact: true },
-            { label: 'Shell', to: `/nodes/${nodeName}/shell`, icon: <Terminal /> },
-            { label: 'Network', to: `/nodes/${nodeName}/network`, icon: <Wifi /> },
-            { label: 'Disks', to: `/nodes/${nodeName}/disks`, icon: <HardDrive /> },
-            { label: 'Storage', to: `/nodes/${nodeName}/storage`, icon: <Database /> },
-            { label: 'Patching', to: `/nodes/${nodeName}/updates`, icon: <ShieldCheck /> },
-            { label: 'DNS', to: `/nodes/${nodeName}/dns`, icon: <Globe /> },
-            { label: 'Time', to: `/nodes/${nodeName}/time`, icon: <Timer /> },
-            { label: 'Services', to: `/nodes/${nodeName}/services`, icon: <Cog /> },
-            { label: 'Firewall', to: `/nodes/${nodeName}/firewall`, icon: <FlameKindling /> },
-            { label: 'Certificates', to: `/nodes/${nodeName}/certificates`, icon: <ShieldCheck /> },
-            { label: 'Syslog', to: `/nodes/${nodeName}/syslog`, icon: <ScrollText /> },
-            { label: 'Tasks', to: `/nodes/${nodeName}/tasks`, icon: <Clock /> },
-          ].map((item) => (
-            <NavLink key={item.to} item={item} collapsed={false} />
-          ))}
+          {/* Node sub-pages have been moved to tabs on the main node page */}
 
           {/* VMs */}
           {vms.length > 0 && (
@@ -191,6 +210,18 @@ function NodeTree({
               ))}
             </>
           )}
+
+          {/* Storage */}
+          {nodeStorages.length > 0 && (
+            <>
+              <p className="px-2.5 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-text-disabled">
+                Storage
+              </p>
+              {nodeStorages.map((storage) => (
+                <StorageLink key={storage.id} storage={storage} />
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -204,10 +235,21 @@ function GuestLink({ guest, type }: { guest: ClusterResource; type: 'vm' | 'lxc'
   const basePath = type === 'vm' ? `/nodes/${nodeName}/vms/${vmid}` : `/nodes/${nodeName}/lxc/${vmid}`
   const isActive = pathname.startsWith(basePath)
   const status = (guest.status ?? 'unknown') as string
+  const navigate = useNavigate()
+
+  const vmStart = useVMStart(nodeName, vmid)
+  const vmStop = useVMStop(nodeName, vmid)
+  const vmShutdown = useVMShutdown(nodeName, vmid)
+  
+  const lxcStart = useLXCStart(nodeName, vmid)
+  const lxcStop = useLXCStop(nodeName, vmid)
+  const lxcShutdown = useLXCShutdown(nodeName, vmid)
 
   return (
-    <Link
-      to={basePath}
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <Link
+          to={basePath}
       className={cn(
         'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs transition-colors',
         'hover:bg-bg-hover hover:text-text-primary',
@@ -219,6 +261,44 @@ function GuestLink({ guest, type }: { guest: ClusterResource; type: 'vm' | 'lxc'
         {vmid} {guest.name ? `· ${guest.name}` : ''}
       </span>
       <StatusBadge status={status} dotOnly size="sm" />
+        </Link>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={() => (type === 'vm' ? vmStart.mutate() : lxcStart.mutate())}>
+          <Play className="size-4 mr-2 text-status-running" /> Start
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => (type === 'vm' ? vmShutdown.mutate() : lxcShutdown.mutate())}>
+          <Power className="size-4 mr-2 text-status-warning" /> Shutdown
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => (type === 'vm' ? vmStop.mutate() : lxcStop.mutate())}>
+          <Square className="size-4 mr-2 text-status-error" /> Stop
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => navigate(basePath + '/console')}>
+          <Terminal className="size-4 mr-2" /> Console
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  )
+}
+
+function StorageLink({ storage }: { storage: ClusterResource }) {
+  const { pathname } = useLocation()
+  const storageId = storage.storage ?? storage.id.replace('storage/', '')
+  const basePath = `/storage/${storageId}`
+  const isActive = pathname.startsWith(basePath)
+
+  return (
+    <Link
+      to={basePath}
+      className={cn(
+        'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs transition-colors',
+        'hover:bg-bg-hover hover:text-text-primary',
+        isActive ? 'bg-accent-muted text-text-primary font-medium' : 'text-text-secondary',
+      )}
+    >
+      <Database className="size-3.5 shrink-0" />
+      <span className="truncate flex-1">{storageId}</span>
     </Link>
   )
 }
@@ -231,34 +311,7 @@ export function Sidebar() {
 
   const nodes = resources?.filter((r) => r.type === 'node') ?? []
   const guests = resources?.filter((r) => r.type === 'qemu' || r.type === 'lxc') ?? []
-
-  const datacenterNav: NavItem[] = [
-    { label: 'Dashboard', to: '/', icon: <Layers />, exact: true },
-    { label: 'Virtual Machines', to: '/vms', icon: <Monitor /> },
-    { label: 'Containers', to: '/lxc', icon: <Box /> },
-    { label: 'Storage',     to: '/storage',              icon: <Database /> },
-    { label: 'Ceph',           to: '/cluster/ceph',         icon: <CircleDot /> },
-    { label: 'Resource Pools', to: '/cluster/pools',        icon: <Columns3 /> },
-    { label: 'Backup Jobs', to: '/cluster/backup',       icon: <HardDrive /> },
-    { label: 'Replication', to: '/cluster/replication', icon: <GitFork /> },
-    { label: 'HA', to: '/cluster/ha', icon: <ShieldCheck /> },
-    { label: 'SDN', to: '/cluster/sdn', icon: <Network /> },
-    { label: 'Firewall', to: '/cluster/firewall', icon: <Shield /> },
-    { label: 'Metrics', to: '/cluster/metrics', icon: <BarChart3 /> },
-    { label: 'Notifications', to: '/cluster/notifications', icon: <BellRing /> },
-    { label: 'ACME', to: '/cluster/acme', icon: <KeyRound /> },
-    { label: 'Patching', to: '/cluster/updates', icon: <ShieldCheck /> },
-    { label: 'Options', to: '/cluster/options', icon: <Settings /> },
-  ]
-
-  const accessNav: NavItem[] = [
-    { label: 'Users', to: '/access/users', icon: <Users /> },
-    { label: 'Groups', to: '/access/groups', icon: <Boxes /> },
-    { label: 'Roles', to: '/access/roles', icon: <ShieldCheck /> },
-    { label: 'Permissions', to: '/access/acl', icon: <Shield /> },
-    { label: 'Realms', to: '/access/realms', icon: <BellRing /> },
-    { label: 'API Tokens', to: '/access/tokens', icon: <KeyRound /> },
-  ]
+  const storages = resources?.filter((r) => r.type === 'storage') ?? []
 
   return (
     <aside
@@ -283,35 +336,22 @@ export function Sidebar() {
 
       {/* Nav content */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-        <SectionLabel label="Datacenter" collapsed={sidebarCollapsed} />
-        {datacenterNav.map((item) => (
-          <NavLink key={item.to} item={item} collapsed={sidebarCollapsed} />
-        ))}
-
-        <SectionLabel label="Tasks" collapsed={sidebarCollapsed} />
         <NavLink
-          item={{ label: 'Task Log', to: '/tasks', icon: <Activity /> }}
+          item={{ label: 'Datacenter', to: '/', icon: <Layers />, exact: true }}
           collapsed={sidebarCollapsed}
         />
-
-        <SectionLabel label="Nodes" collapsed={sidebarCollapsed} />
-        <NavLink
-          item={{ label: 'All Nodes', to: '/nodes', icon: <Server />, exact: true }}
-          collapsed={sidebarCollapsed}
-        />
-        {nodes.map((node) => (
-          <NodeTree
-            key={node.id}
-            node={node}
-            guests={guests}
-            collapsed={sidebarCollapsed}
-          />
-        ))}
-
-        <SectionLabel label="Access" collapsed={sidebarCollapsed} />
-        {accessNav.map((item) => (
-          <NavLink key={item.to} item={item} collapsed={sidebarCollapsed} />
-        ))}
+        
+        <div className="mt-2 space-y-0.5 pl-2 border-l-2 border-transparent ml-2">
+          {nodes.map((node) => (
+            <NodeTree
+              key={node.id}
+              node={node}
+              guests={guests}
+              storages={storages}
+              collapsed={sidebarCollapsed}
+            />
+          ))}
+        </div>
       </nav>
 
       {/* Collapse toggle */}

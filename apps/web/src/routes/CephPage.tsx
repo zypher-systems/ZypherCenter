@@ -1076,77 +1076,43 @@ function MDSTab({ node }: { node: string }) {
   )
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ── Main Component ─────────────────────────────────────────────────────────────────
 
-export function CephPage() {
-  const { data: clusterNodes } = useClusterResources('node')
-  const nodeList = (clusterNodes ?? []).map((n) => n.node ?? n.name ?? '').filter(Boolean)
-  const [selectedNode, setSelectedNode] = useState<string>('')
+import { useParams } from 'react-router'
+
+export function NodeCephPage() {
+  const { node } = useParams<{ node: string }>()
   const [tab, setTab] = useState('status')
 
-  // Use first available node as default
-  const node = selectedNode || nodeList[0] || ''
+  if (!node) return null
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Cpu className="size-5 text-accent" />
-            <h1 className="text-xl font-semibold text-text-primary">Ceph Storage</h1>
-          </div>
-          <p className="text-sm text-text-muted mt-0.5">
-            Distributed storage cluster — pools, OSDs, monitors
-          </p>
-        </div>
-        {nodeList.length > 1 && (
-          <div className="flex items-center gap-2 shrink-0">
-            <label className="text-xs text-text-muted">Query via node:</label>
-            <select
-              value={node}
-              onChange={(e) => setSelectedNode(e.target.value)}
-              className="rounded border border-border-subtle bg-bg-input px-2 py-1 text-sm text-text-primary outline-none focus:border-accent"
-            >
-              {nodeList.map((n) => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
+    <div className="space-y-4 mt-2">
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="mb-4 h-auto w-full justify-start overflow-x-auto rounded-none border-b border-border bg-transparent p-0">
+          <TabsTrigger value="status" className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 pb-3 pt-2 font-medium text-text-muted hover:text-text-primary data-[state=active]:border-accent data-[state=active]:text-text-primary data-[state=active]:shadow-none">
+            <Activity className="size-3.5 mr-1.5" />Status
+          </TabsTrigger>
+          <TabsTrigger value="osds" className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 pb-3 pt-2 font-medium text-text-muted hover:text-text-primary data-[state=active]:border-accent data-[state=active]:text-text-primary data-[state=active]:shadow-none">
+            <HardDrive className="size-3.5 mr-1.5" />OSDs
+          </TabsTrigger>
+          <TabsTrigger value="pools" className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 pb-3 pt-2 font-medium text-text-muted hover:text-text-primary data-[state=active]:border-accent data-[state=active]:text-text-primary data-[state=active]:shadow-none">
+            <Database className="size-3.5 mr-1.5" />Pools
+          </TabsTrigger>
+          <TabsTrigger value="monitors" className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 pb-3 pt-2 font-medium text-text-muted hover:text-text-primary data-[state=active]:border-accent data-[state=active]:text-text-primary data-[state=active]:shadow-none">
+            <Server className="size-3.5 mr-1.5" />Monitors
+          </TabsTrigger>
+          <TabsTrigger value="mds" className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 pb-3 pt-2 font-medium text-text-muted hover:text-text-primary data-[state=active]:border-accent data-[state=active]:text-text-primary data-[state=active]:shadow-none">
+            <Layers className="size-3.5 mr-1.5" />MDS
+          </TabsTrigger>
+        </TabsList>
 
-      {!node ? (
-        <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-border">
-          <p className="text-text-muted text-sm">No cluster nodes available</p>
-        </div>
-      ) : (
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList>
-            <TabsTrigger value="status">
-              <Activity className="size-3.5 mr-1.5" />Status
-            </TabsTrigger>
-            <TabsTrigger value="osds">
-              <HardDrive className="size-3.5 mr-1.5" />OSDs
-            </TabsTrigger>
-            <TabsTrigger value="pools">
-              <Database className="size-3.5 mr-1.5" />Pools
-            </TabsTrigger>
-            <TabsTrigger value="monitors">
-              <Server className="size-3.5 mr-1.5" />Monitors
-            </TabsTrigger>
-            <TabsTrigger value="mds">
-              <Layers className="size-3.5 mr-1.5" />MDS
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="status">   <StatusTab  node={node} /></TabsContent>
-          <TabsContent value="osds">    <OSDsTab    node={node} /></TabsContent>
-          <TabsContent value="pools">   <PoolsTab   node={node} /></TabsContent>
-          <TabsContent value="monitors"><MonsTab    node={node} /></TabsContent>
-          <TabsContent value="mds">     <MDSTab     node={node} /></TabsContent>
-        </Tabs>
-      )}
+        <TabsContent value="status"><StatusTab node={node} /></TabsContent>
+        <TabsContent value="osds"><OSDsTab node={node} /></TabsContent>
+        <TabsContent value="pools"><PoolsTab node={node} /></TabsContent>
+        <TabsContent value="monitors"><MonsTab node={node} /></TabsContent>
+        <TabsContent value="mds"><MDSTab node={node} /></TabsContent>
+      </Tabs>
     </div>
   )
 }

@@ -1,41 +1,43 @@
 import { useState, useEffect } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { X, ChevronRight, ChevronLeft, Monitor, CheckCircle, HardDrive, Cpu, Database } from 'lucide-react'
+import { X, ChevronRight, ChevronLeft, Box, CheckCircle, HardDrive, Cpu, Database } from 'lucide-react'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useClusterResources } from '@/lib/queries/cluster'
-import { useNextVMId, useCreateVM } from '@/lib/queries/vms'
+import { useNextVMId } from '@/lib/queries/vms'
+import { useCreateLXC } from '@/lib/queries/lxc'
 import { useStorageContent } from '@/lib/queries/storage'
 import { useNodeNetwork } from '@/lib/queries/nodes'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 
-const vmSchema = z.object({
+const ctSchema = z.object({
   node: z.string().min(1, 'Target node is required'),
-  vmid: z.number().min(100, 'VM ID must be >= 100'),
-  name: z.string().min(1, 'Name is required').regex(/^[a-zA-Z0-9-]+$/, 'Invalid characters in name'),
-  ostype: z.string().default('l26'),
-  isoStorage: z.string().optional(),
-  cdrom: z.string().optional(),
+  vmid: z.number().min(100, 'CT ID must be >= 100'),
+  hostname: z.string().min(1, 'Hostname is required').regex(/^[a-zA-Z0-9-]+$/, 'Invalid characters in hostname'),
+  password: z.string().min(5, 'Password must be at least 5 characters'),
+  templateStorage: z.string().min(1, 'Template storage is required'),
+  ostemplate: z.string().min(1, 'Template is required'),
   diskStorage: z.string().min(1, 'Target storage is required'),
   diskSize: z.number().min(1, 'Disk size must be >= 1GB'),
   cores: z.number().min(1).max(128).default(1),
-  memory: z.number().min(512).max(65536).default(2048),
+  memory: z.number().min(256).max(65536).default(512),
+  swap: z.number().min(0).max(65536).default(512),
   bridge: z.string().default('vmbr0'),
 })
 
-type VMFormData = z.infer<typeof vmSchema>
+type CTFormData = z.infer<typeof ctSchema>
 
 const STEPS = [
-  { id: 'general', title: 'General', icon: <Monitor className="size-4" /> },
-  { id: 'os', title: 'OS', icon: <Database className="size-4" /> },
+  { id: 'general', title: 'General', icon: <Box className="size-4" /> },
+  { id: 'template', title: 'Template', icon: <Database className="size-4" /> },
   { id: 'disk', title: 'Disks', icon: <HardDrive className="size-4" /> },
   { id: 'compute', title: 'Compute', icon: <Cpu className="size-4" /> },
   { id: 'confirm', title: 'Confirm', icon: <CheckCircle className="size-4" /> },
 ]
 
-export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function CreateCTDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [step, setStep] = useState(0)
 
   const { data: resources } = useClusterResources()
@@ -44,26 +46,27 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const nodes = resources?.filter((r) => r.type === 'node') ?? []
   const storages = resources?.filter((r) => r.type === 'storage') ?? []
 
-  const { control, handleSubmit, watch, setValue, trigger, reset, formState: { errors } } = useForm<VMFormData>({
-    resolver: zodResolver(vmSchema),
+  const { control, handleSubmit, watch, setValue, trigger, reset, formState: { errors } } = useForm<CTFormData>({
+    resolver: zodResolver(ctSchema),
     defaultValues: {
       node: '',
-      name: '',
-      ostype: 'l26',
-      isoStorage: '',
-      cdrom: '',
+      hostname: '',
+      password: '',
+      templateStorage: '',
+      ostemplate: '',
       diskStorage: '',
-      diskSize: 32,
-      cores: 2,
-      memory: 2048,
+      diskSize: 8,
+      cores: 1,
+      memory: 512,
+      swap: 512,
       bridge: 'vmbr0',
     },
   })
 
   const selectedNode = watch('node')
-  const selectedIsoStorage = watch('isoStorage')
+  const selectedTemplateStorage = watch('templateStorage')
   
-  // Update default VM ID when fetched
+  // Update default CT ID when fetched
   useEffect(() => {
     if (open && nextId) setValue('vmid', Number(nextId))
   }, [open, nextId, setValue])
@@ -73,8 +76,8 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     if (open && nodes.length > 0 && !selectedNode) setValue('node', nodes[0]?.node || '')
   }, [open, nodes, selectedNode, setValue])
 
-  const { data: isoContents } = useStorageContent(selectedNode, selectedIsoStorage || '')
-  const isos = isoContents?.filter((c) => c.volid.endsWith('.iso')) ?? []
+  const { data: templateContents } = useStorageContent(selectedNode, selectedTemplateStorage || '')
+  const templates = templateContents?.filter((c) => c.volid.includes('vztmpl/')) ?? []
 
   const { data: networkData } = useNodeNetwork(selectedNode)
   const bridges = (networkData ?? []).filter((iface) => iface.type === 'bridge' || iface.type === 'OVSBridge')
@@ -86,14 +89,14 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     }
   }, [bridges, setValue, watch])
 
-  const createVM = useCreateVM(selectedNode)
+  const createCT = useCreateLXC(selectedNode)
 
   async function nextStep() {
     const fieldsToValidate = (() => {
-      if (step === 0) return ['node', 'vmid', 'name'] as const
-      if (step === 1) return ['ostype', 'cdrom'] as const
+      if (step === 0) return ['node', 'vmid', 'hostname', 'password'] as const
+      if (step === 1) return ['templateStorage', 'ostemplate'] as const
       if (step === 2) return ['diskStorage', 'diskSize'] as const
-      if (step === 3) return ['cores', 'memory', 'bridge'] as const
+      if (step === 3) return ['cores', 'memory', 'swap', 'bridge'] as const
       return []
     })()
     
@@ -105,27 +108,21 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     setStep((s) => Math.max(0, s - 1))
   }
 
-  function onSubmit(data: VMFormData) {
+  function onSubmit(data: CTFormData) {
     const params: any = {
       vmid: data.vmid,
-      name: data.name,
+      hostname: data.hostname,
+      password: data.password,
       memory: data.memory,
+      swap: data.swap,
       cores: data.cores,
-      ostype: data.ostype,
-      net0: `virtio,bridge=${data.bridge}`,
-    }
-    
-    if (data.cdrom) {
-      params.cdrom = data.cdrom
-    } else {
-      params.cdrom = 'none'
-    }
-    
-    if (data.diskStorage && data.diskSize) {
-      params.scsi0 = `${data.diskStorage}:${data.diskSize}`
+      ostemplate: data.ostemplate,
+      rootfs: `${data.diskStorage}:${data.diskSize}`,
+      net0: `name=eth0,bridge=${data.bridge},ip=dhcp`, // Default to DHCP for simplicity
+      unprivileged: 1, // Default to unprivileged for security
     }
 
-    createVM.mutate(params, {
+    createCT.mutate(params, {
       onSuccess: () => {
         onOpenChange(false)
         setStep(0)
@@ -146,8 +143,8 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
           
           <div className="flex items-center justify-between px-6 py-4 border-b border-border-muted bg-bg-base/50 rounded-t-xl">
             <DialogPrimitive.Title className="text-lg font-semibold text-text-primary flex items-center gap-2">
-              <Monitor className="size-5 text-accent" />
-              Create Virtual Machine
+              <Box className="size-5 text-accent" />
+              Create LXC Container
             </DialogPrimitive.Title>
             <DialogPrimitive.Close className="rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-accent text-text-muted hover:text-text-primary transition-colors">
               <X className="size-5" />
@@ -185,13 +182,13 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
             {/* Form Content */}
             <div className="flex-1 overflow-y-auto p-8 bg-bg-elevated relative">
-              <form id="create-vm-form" onSubmit={handleSubmit(onSubmit)} className="max-w-xl">
+              <form id="create-ct-form" onSubmit={handleSubmit(onSubmit)} className="max-w-xl">
                 
                 {SType === 'general' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                     <div>
                       <h2 className="text-xl font-semibold text-text-primary">General Configuration</h2>
-                      <p className="text-sm text-text-muted mt-1">Basic identification for your new virtual machine.</p>
+                      <p className="text-sm text-text-muted mt-1">Basic identification and security for your container.</p>
                     </div>
                     
                     <div className="space-y-4 pt-2">
@@ -212,7 +209,7 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <label className="text-sm font-medium text-text-primary">VM ID <span className="text-status-error">*</span></label>
+                          <label className="text-sm font-medium text-text-primary">CT ID <span className="text-status-error">*</span></label>
                           <Controller
                             name="vmid"
                             control={control}
@@ -223,76 +220,74 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           {errors.vmid && <p className="text-xs text-status-error">{errors.vmid.message}</p>}
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-sm font-medium text-text-primary">Name <span className="text-status-error">*</span></label>
+                          <label className="text-sm font-medium text-text-primary">Hostname <span className="text-status-error">*</span></label>
                           <Controller
-                            name="name"
+                            name="hostname"
                             control={control}
                             render={({ field }) => (
                               <input {...field} placeholder="e.g. web-server-01" className="w-full rounded-md border border-border bg-bg-input px-3 py-2.5 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent shadow-sm" />
                             )}
                           />
-                          {errors.name && <p className="text-xs text-status-error">{errors.name.message}</p>}
+                          {errors.hostname && <p className="text-xs text-status-error">{errors.hostname.message}</p>}
                         </div>
+                      </div>
+
+                      <div className="space-y-1.5 pt-2 border-t border-border/50">
+                        <label className="text-sm font-medium text-text-primary">Root Password <span className="text-status-error">*</span></label>
+                        <Controller
+                          name="password"
+                          control={control}
+                          render={({ field }) => (
+                            <input type="password" {...field} placeholder="Enter a strong password" className="w-full rounded-md border border-border bg-bg-input px-3 py-2.5 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent shadow-sm" />
+                          )}
+                        />
+                        {errors.password && <p className="text-xs text-status-error">{errors.password.message}</p>}
                       </div>
                     </div>
                   </div>
                 )}
 
-                {SType === 'os' && (
+                {SType === 'template' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                     <div>
-                      <h2 className="text-xl font-semibold text-text-primary">Operating System</h2>
-                      <p className="text-sm text-text-muted mt-1">Select the guest OS type and installation media.</p>
+                      <h2 className="text-xl font-semibold text-text-primary">OS Template</h2>
+                      <p className="text-sm text-text-muted mt-1">Select the container template to install.</p>
                     </div>
 
                     <div className="space-y-4 pt-2">
                       <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-text-primary">OS Type</label>
+                        <label className="text-sm font-medium text-text-primary">Template Storage <span className="text-status-error">*</span></label>
                         <Controller
-                          name="ostype"
+                          name="templateStorage"
                           control={control}
                           render={({ field }) => (
                             <select {...field} className="w-full rounded-md border border-border bg-bg-input px-3 py-2.5 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent shadow-sm">
-                              <option value="l26">Linux (2.6+ Kernel)</option>
-                              <option value="win11">Windows 11 / Server 2022</option>
-                              <option value="win10">Windows 10 / Server 2016-2019</option>
-                              <option value="other">Other</option>
-                            </select>
-                          )}
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-text-primary">ISO Image Storage</label>
-                        <Controller
-                          name="isoStorage"
-                          control={control}
-                          render={({ field }) => (
-                            <select {...field} className="w-full rounded-md border border-border bg-bg-input px-3 py-2.5 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent shadow-sm">
-                              <option value="">Do not use any media</option>
+                              <option value="">Select storage with templates...</option>
                               {storages.filter(s => s.node === selectedNode).map(s => (
                                 <option key={s.id} value={s.storage}>{s.storage}</option>
                               ))}
                             </select>
                           )}
                         />
+                        {errors.templateStorage && <p className="text-xs text-status-error">{errors.templateStorage.message}</p>}
                       </div>
 
-                      {selectedIsoStorage && (
+                      {selectedTemplateStorage && (
                         <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2">
-                          <label className="text-sm font-medium text-text-primary">ISO Image</label>
+                          <label className="text-sm font-medium text-text-primary">Template <span className="text-status-error">*</span></label>
                           <Controller
-                            name="cdrom"
+                            name="ostemplate"
                             control={control}
                             render={({ field }) => (
                               <select {...field} className="w-full rounded-md border border-border bg-bg-input px-3 py-2.5 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent shadow-sm">
-                                <option value="">Select an ISO...</option>
-                                {isos.map(iso => (
-                                  <option key={iso.volid} value={iso.volid}>{iso.volid.split('/').pop()}</option>
+                                <option value="">Select a template...</option>
+                                {templates.map(t => (
+                                  <option key={t.volid} value={t.volid}>{t.volid.split('/').pop()}</option>
                                 ))}
                               </select>
                             )}
                           />
+                          {errors.ostemplate && <p className="text-xs text-status-error">{errors.ostemplate.message}</p>}
                         </div>
                       )}
                     </div>
@@ -302,8 +297,8 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 {SType === 'disk' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                     <div>
-                      <h2 className="text-xl font-semibold text-text-primary">Virtual Disk</h2>
-                      <p className="text-sm text-text-muted mt-1">Configure the primary storage for your VM.</p>
+                      <h2 className="text-xl font-semibold text-text-primary">Root Disk</h2>
+                      <p className="text-sm text-text-muted mt-1">Configure the primary storage volume.</p>
                     </div>
 
                     <div className="space-y-6 pt-2">
@@ -371,21 +366,33 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                         </div>
                       </div>
 
-                      <div className="space-y-3 p-4 border border-border rounded-lg bg-bg-base/30">
-                        <div className="flex justify-between items-center">
-                          <label className="text-sm font-medium text-text-primary">Memory (MiB)</label>
-                          <span className="text-lg text-accent font-bold font-mono">{watch('memory')} MiB</span>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-3 p-4 border border-border rounded-lg bg-bg-base/30">
+                          <div className="flex justify-between items-center">
+                            <label className="text-sm font-medium text-text-primary">Memory (MiB)</label>
+                            <span className="text-sm text-accent font-bold font-mono">{watch('memory')}</span>
+                          </div>
+                          <Controller
+                            name="memory"
+                            control={control}
+                            render={({ field }) => (
+                              <input type="range" min="256" max="16384" step="256" {...field} onChange={e => field.onChange(parseInt(e.target.value))} className="w-full accent-accent h-2 bg-border rounded-lg appearance-none cursor-pointer" />
+                            )}
+                          />
                         </div>
-                        <Controller
-                          name="memory"
-                          control={control}
-                          render={({ field }) => (
-                            <input type="range" min="512" max="32768" step="512" {...field} onChange={e => field.onChange(parseInt(e.target.value))} className="w-full accent-accent h-2 bg-border rounded-lg appearance-none cursor-pointer" />
-                          )}
-                        />
-                        <div className="flex justify-between text-xs text-text-muted mt-1">
-                          <span>512 MiB</span>
-                          <span>32 GiB</span>
+
+                        <div className="space-y-3 p-4 border border-border rounded-lg bg-bg-base/30">
+                          <div className="flex justify-between items-center">
+                            <label className="text-sm font-medium text-text-primary">Swap (MiB)</label>
+                            <span className="text-sm text-accent font-bold font-mono">{watch('swap')}</span>
+                          </div>
+                          <Controller
+                            name="swap"
+                            control={control}
+                            render={({ field }) => (
+                              <input type="range" min="0" max="16384" step="256" {...field} onChange={e => field.onChange(parseInt(e.target.value))} className="w-full accent-accent h-2 bg-border rounded-lg appearance-none cursor-pointer" />
+                            )}
+                          />
                         </div>
                       </div>
 
@@ -409,18 +416,17 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                     <div>
                       <h2 className="text-xl font-semibold text-text-primary">Review Configuration</h2>
-                      <p className="text-sm text-text-muted mt-1">Almost done! Review the settings for your new VM.</p>
+                      <p className="text-sm text-text-muted mt-1">Almost done! Review the settings for your new Container.</p>
                     </div>
 
                     <div className="rounded-lg border border-border-muted bg-bg-muted/30 p-5 space-y-3 text-sm">
                       <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">Target Node</span><span className="font-medium">{watch('node')}</span></div>
-                      <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">VM ID</span><span className="font-medium font-mono bg-accent/10 text-accent px-1.5 rounded">{watch('vmid')}</span></div>
-                      <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">Name</span><span className="font-medium">{watch('name')}</span></div>
-                      <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">OS Type</span><span className="font-medium">{watch('ostype')}</span></div>
-                      <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">ISO Media</span><span className="font-medium text-xs max-w-[250px] truncate" title={watch('cdrom') || 'None'}>{watch('cdrom') || 'None'}</span></div>
-                      <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">Primary Disk</span><span className="font-medium">{watch('diskSize')} GiB on <span className="text-accent">{watch('diskStorage')}</span></span></div>
-                      <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">Compute</span><span className="font-medium">{watch('cores')} Cores, {watch('memory')} MiB RAM</span></div>
-                      <div className="flex justify-between pb-1"><span className="text-text-muted">Network</span><span className="font-medium">{watch('bridge')}</span></div>
+                      <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">CT ID</span><span className="font-medium font-mono bg-accent/10 text-accent px-1.5 rounded">{watch('vmid')}</span></div>
+                      <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">Hostname</span><span className="font-medium">{watch('hostname')}</span></div>
+                      <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">Template</span><span className="font-medium text-xs max-w-[250px] truncate" title={watch('ostemplate') || 'None'}>{watch('ostemplate') || 'None'}</span></div>
+                      <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">Root Disk</span><span className="font-medium">{watch('diskSize')} GiB on <span className="text-accent">{watch('diskStorage')}</span></span></div>
+                      <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">Compute</span><span className="font-medium">{watch('cores')} Cores, {watch('memory')} MiB RAM, {watch('swap')} MiB Swap</span></div>
+                      <div className="flex justify-between pb-1"><span className="text-text-muted">Network</span><span className="font-medium">{watch('bridge')} (DHCP)</span></div>
                     </div>
                   </div>
                 )}
@@ -442,8 +448,8 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                   Next <ChevronRight className="size-4 ml-1" />
                 </Button>
               ) : (
-                <Button type="submit" form="create-vm-form" className="bg-status-running text-white hover:bg-status-running/90 shadow-lg shadow-status-running/20" disabled={createVM.isPending}>
-                  {createVM.isPending ? 'Creating VM...' : 'Complete & Create VM'}
+                <Button type="submit" form="create-ct-form" className="bg-status-running text-white hover:bg-status-running/90 shadow-lg shadow-status-running/20" disabled={createCT.isPending}>
+                  {createCT.isPending ? 'Creating Container...' : 'Complete & Create Container'}
                 </Button>
               )}
             </div>

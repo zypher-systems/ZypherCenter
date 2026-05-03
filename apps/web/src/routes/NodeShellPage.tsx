@@ -125,14 +125,9 @@ export function NodeShellPage() {
   }
 
   return (
-    <div className="fixed inset-0 bg-black flex flex-col z-50">
+    <div className="flex flex-col bg-black rounded-lg overflow-hidden border border-border h-[600px] shadow-sm relative">
       <div className="flex items-center justify-between px-4 h-10 bg-bg-sidebar border-b border-border shrink-0">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon-sm" asChild>
-            <Link to={`/nodes/${node}`}>
-              <ArrowLeft className="size-4" />
-            </Link>
-          </Button>
           <span className="text-sm text-text-secondary">
             Shell · <span className="text-text-primary font-medium">{node}</span>
           </span>

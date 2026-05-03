@@ -71,6 +71,12 @@ export const ClusterOptionsSchema = z.object({
   language: z.string().optional(),
   max_workers: z.number().int().optional(),
   migration_unsecure: z.number().int().optional(),
+  mac_prefix: z.string().optional(),
+  http_proxy: z.string().optional(),
+  next_id: z.union([z.number().int(), z.string()]).optional(),
+  description: z.string().optional(),
+  crs: z.any().optional(),
+  fencing: z.enum(['watchdog', 'hardware']).optional(),
   ha: z
     .object({
       shutdown_policy: z.string().optional(),

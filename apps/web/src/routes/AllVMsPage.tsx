@@ -7,7 +7,6 @@ import { clusterKeys } from '@/lib/queries/cluster'
 import { useVMStart, useVMStop, useVMShutdown, useVMReboot, useDeleteVM } from '@/lib/queries/vms'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
-import { CreateVMDialog } from '@/components/features/CreateVMDialog'
 import { Card, CardContent } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -227,7 +226,7 @@ export function AllVMsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <CreateVMDialog />
+
           {allTags.length > 0 && (
             <select
               value={tagFilter}

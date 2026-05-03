@@ -77,85 +77,10 @@ import {
 } from '@/components/ui/Table'
 import { formatBytes, formatPercent, formatUptime, formatTimestamp, cn } from '@/lib/utils'
 import { ResourceCharts } from '@/components/features/ResourceCharts'
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
+import { NotesPanel } from '@/components/features/NotesPanel'
 
 // ── Summary tab ───────────────────────────────────────────────────────────────
 
-function NotesCard({ node, vmid }: { node: string; vmid: number }) {
-  const { data: config } = useVMConfig(node, vmid)
-  const updateConfig = useUpdateVMConfig(node, vmid)
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('')
-
-  const notes = (config?.description as string | undefined) ?? ''
-
-  function startEdit() { setDraft(notes); setEditing(true) }
-  function cancel() { setEditing(false) }
-  function save() {
-    updateConfig.mutate({ description: draft }, { onSuccess: () => setEditing(false) })
-  }
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium">Notes</CardTitle>
-          {!editing ? (
-            <button
-              onClick={startEdit}
-              className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-accent"
-            >
-              <Pencil className="size-3" />Edit
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button onClick={cancel} className="text-xs text-text-muted hover:text-text-secondary"><X className="size-3.5" /></button>
-              <button onClick={save} disabled={updateConfig.isPending} className="inline-flex items-center gap-1 text-xs text-accent hover:text-accent-hover disabled:opacity-50">
-                <Check className="size-3" />{updateConfig.isPending ? 'Saving…' : 'Save'}
-              </button>
-            </div>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        {editing ? (
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            rows={5}
-            className="w-full rounded border border-border-subtle bg-bg-input px-3 py-2 text-sm text-text-primary outline-none focus:border-accent resize-y font-mono"
-            placeholder="Add notes…"
-            autoFocus
-          />
-        ) : notes ? (
-          <div
-            className="prose prose-sm prose-invert max-w-none text-text-secondary [&_a]:text-accent [&_a]:underline [&_pre]:bg-bg-elevated [&_code]:bg-bg-elevated [&_code]:px-1 [&_code]:rounded [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_li]:my-0.5 [&_ul]:my-1 [&_ol]:my-1"
-            dangerouslySetInnerHTML={{
-              __html: (() => {
-                // SEC-07: Use synchronous marked parsing (async: false) to avoid the Promise<string> cast issue.
-                // Add rel="noopener noreferrer" to all links via DOMPurify AFTER_SANITIZE_EACH hook
-                // to mitigate phishing risks from user-controlled note content.
-                const purify = DOMPurify
-                purify.addHook('afterSanitizeAttributes', (node) => {
-                  if (node.tagName === 'A') {
-                    node.setAttribute('rel', 'noopener noreferrer')
-                    node.setAttribute('target', '_blank')
-                  }
-                })
-                const html = purify.sanitize(marked.parse(notes, { async: false }) as string)
-                purify.removeHooks('afterSanitizeAttributes')
-                return html
-              })(),
-            }}
-          />
-        ) : (
-          <p className="text-sm text-text-disabled italic">No notes — click Edit to add</p>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
 
 function SummaryTab({ node, vmid }: { node: string; vmid: number }) {
   const { data: status } = useVMStatus(node, vmid)
@@ -275,7 +200,11 @@ function SummaryTab({ node, vmid }: { node: string; vmid: number }) {
             </div>
           </CardContent>
         </Card>
-        <NotesCard node={node} vmid={vmid} />
+        <NotesPanel
+          notes={config?.description as string}
+          onSave={(description) => updateConfig.mutate({ description })}
+          isPending={updateConfig.isPending}
+        />
       </div>
       <ResourceCharts node={node} vmid={vmid} type="qemu" />
     </div>
@@ -2807,8 +2736,8 @@ export function VMDetailPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+      <Tabs value={tab} onValueChange={setTab} orientation="vertical" className="flex flex-row gap-6 mt-6 items-start">
+        <TabsList className="bg-transparent p-0 flex-shrink-0 sticky top-0">
           <TabsTrigger value="summary">Summary</TabsTrigger>
           <TabsTrigger value="hardware"><HardDrive className="size-3.5" /> Hardware</TabsTrigger>
           <TabsTrigger value="options"><Settings className="size-3.5" /> Options</TabsTrigger>
@@ -2819,15 +2748,17 @@ export function VMDetailPage() {
           <TabsTrigger value="firewall"><Shield className="size-3.5" /> Firewall</TabsTrigger>
           <TabsTrigger value="tasks"><ClipboardList className="size-3.5" /> Tasks</TabsTrigger>
         </TabsList>
-        <TabsContent value="summary"><SummaryTab node={node!} vmid={vmid} /></TabsContent>
-        <TabsContent value="hardware"><HardwareTab node={node!} vmid={vmid} /></TabsContent>
-        <TabsContent value="options"><VMOptionsTab node={node!} vmid={vmid} /></TabsContent>
-        <TabsContent value="cloudinit"><CloudInitTab node={node!} vmid={vmid} /></TabsContent>
-        <TabsContent value="agent"><AgentTab node={node!} vmid={vmid} isRunning={isRunning} /></TabsContent>
-        <TabsContent value="snapshots"><SnapshotsTab node={node!} vmid={vmid} /></TabsContent>
-        <TabsContent value="backups"><VMBackupsTab node={node!} vmid={vmid} /></TabsContent>
-        <TabsContent value="firewall"><VMFirewallTab node={node!} vmid={vmid} /></TabsContent>
-        <TabsContent value="tasks"><VMTasksTab node={node!} vmid={vmid} /></TabsContent>
+        <div className="flex-1 min-w-0">
+          <TabsContent value="summary"><SummaryTab node={node!} vmid={vmid} /></TabsContent>
+          <TabsContent value="hardware"><HardwareTab node={node!} vmid={vmid} /></TabsContent>
+          <TabsContent value="options"><VMOptionsTab node={node!} vmid={vmid} /></TabsContent>
+          <TabsContent value="cloudinit"><CloudInitTab node={node!} vmid={vmid} /></TabsContent>
+          <TabsContent value="agent"><AgentTab node={node!} vmid={vmid} isRunning={isRunning} /></TabsContent>
+          <TabsContent value="snapshots"><SnapshotsTab node={node!} vmid={vmid} /></TabsContent>
+          <TabsContent value="backups"><VMBackupsTab node={node!} vmid={vmid} /></TabsContent>
+          <TabsContent value="firewall"><VMFirewallTab node={node!} vmid={vmid} /></TabsContent>
+          <TabsContent value="tasks"><VMTasksTab node={node!} vmid={vmid} /></TabsContent>
+        </div>
       </Tabs>
 
       <ConfirmDialog

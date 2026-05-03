@@ -5,11 +5,13 @@ import { SkeletonCard } from '@/components/ui/Skeleton'
 import { Button } from '@/components/ui/Button'
 import { Pencil, Save, X } from 'lucide-react'
 
-type EditableKey = 'keyboard' | 'language' | 'http_proxy' | 'next_id' | 'description'
+type EditableKey = 'keyboard' | 'language' | 'http_proxy' | 'next_id' | 'description' | 'console' | 'email_from' | 'mac_prefix' | 'migration_unsecure' | 'max_workers' | 'crs' | 'fencing'
 
-const EDITABLE_KEYS: EditableKey[] = ['keyboard', 'language', 'http_proxy', 'next_id', 'description']
+const EDITABLE_KEYS: EditableKey[] = ['keyboard', 'language', 'http_proxy', 'next_id', 'description', 'console', 'email_from', 'mac_prefix', 'migration_unsecure', 'max_workers', 'crs', 'fencing']
 const KEYBOARDS = ['de','de-ch','da','en-gb','en-us','es','fi','fr','fr-be','fr-ch','hu','is','it','ja','lt','mk','nl','no','pl','pt','pt-br','sl','sv','tr']
 const LANGUAGES = ['ca','da','de','en','es','eu','fa','fr','he','it','ja','nb','nn','pl','pt_BR','ru','sl','sv','tr','zh_CN','zh_TW']
+const CONSOLES = ['applet', 'vv', 'html5', 'xtermjs']
+const FENCING = ['watchdog', 'hardware']
 
 function EditOptionsDialog({
   options,
@@ -43,37 +45,67 @@ function EditOptionsDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-text-primary">Edit Cluster Options</h2>
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm text-text-secondary mb-1">Keyboard Layout</label>
-            <select value={values.keyboard ?? ''} onChange={(e) => set('keyboard', e.target.value)} className={inp}>
-              <option value="">— default —</option>
-              {KEYBOARDS.map((k) => <option key={k} value={k}>{k}</option>)}
-            </select>
+      <div className="bg-bg-card border border-border-subtle rounded-xl shadow-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg font-semibold text-text-primary mb-4">Edit Cluster Options</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Keyboard Layout</label>
+              <select value={values.keyboard ?? ''} onChange={(e) => set('keyboard', e.target.value)} className={inp}>
+                <option value="">— default —</option>
+                {KEYBOARDS.map((k) => <option key={k} value={k}>{k}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Language</label>
+              <select value={values.language ?? ''} onChange={(e) => set('language', e.target.value)} className={inp}>
+                <option value="">— default —</option>
+                {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">HTTP Proxy</label>
+              <input value={values.http_proxy ?? ''} onChange={(e) => set('http_proxy', e.target.value)} placeholder="http://proxy:3128" className={inp} />
+            </div>
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Next VM/CT ID</label>
+              <input type="number" value={values.next_id ?? ''} onChange={(e) => set('next_id', e.target.value)} placeholder="100" className={inp} />
+            </div>
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Console Viewer</label>
+              <select value={values.console ?? ''} onChange={(e) => set('console', e.target.value)} className={inp}>
+                <option value="">— default —</option>
+                {CONSOLES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Email From</label>
+              <input value={values.email_from ?? ''} onChange={(e) => set('email_from', e.target.value)} placeholder="proxmox@example.com" className={inp} />
+            </div>
           </div>
-          <div>
-            <label className="block text-sm text-text-secondary mb-1">Language</label>
-            <select value={values.language ?? ''} onChange={(e) => set('language', e.target.value)} className={inp}>
-              <option value="">— default —</option>
-              {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm text-text-secondary mb-1">HTTP Proxy</label>
-            <input value={values.http_proxy ?? ''} onChange={(e) => set('http_proxy', e.target.value)} placeholder="http://proxy:3128" className={inp} />
-          </div>
-          <div>
-            <label className="block text-sm text-text-secondary mb-1">Next VM/CT ID</label>
-            <input type="number" value={values.next_id ?? ''} onChange={(e) => set('next_id', e.target.value)} placeholder="100" className={inp} />
-          </div>
-          <div>
-            <label className="block text-sm text-text-secondary mb-1">Description</label>
-            <textarea value={values.description ?? ''} onChange={(e) => set('description', e.target.value)} rows={3} placeholder="Cluster description" className={inp + ' resize-none'} />
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">MAC Prefix</label>
+              <input value={values.mac_prefix ?? ''} onChange={(e) => set('mac_prefix', e.target.value)} placeholder="BC:24:11" className={inp} />
+            </div>
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Max Workers</label>
+              <input type="number" value={values.max_workers ?? ''} onChange={(e) => set('max_workers', e.target.value)} className={inp} />
+            </div>
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Fencing</label>
+              <select value={values.fencing ?? ''} onChange={(e) => set('fencing', e.target.value)} className={inp}>
+                <option value="">— default —</option>
+                {FENCING.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Description</label>
+              <textarea value={values.description ?? ''} onChange={(e) => set('description', e.target.value)} rows={4} placeholder="Cluster description" className={inp + ' resize-none'} />
+            </div>
           </div>
         </div>
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex justify-end gap-2 pt-6">
           <Button variant="ghost" size="sm" onClick={onClose}><X className="size-3.5 mr-1" />Cancel</Button>
           <Button size="sm" onClick={submit} disabled={update.isPending}>
             <Save className="size-3.5 mr-1" />{update.isPending ? 'Saving…' : 'Save'}

@@ -12,6 +12,10 @@ import {
 } from '@/components/ui/DropdownMenu'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { cn } from '@/lib/utils'
+import { Plus, Monitor, Box } from 'lucide-react'
+import { CreateVMDialog } from '@/components/features/CreateVMDialog'
+import { CreateCTDialog } from '@/components/features/CreateCTDialog'
+import { useState } from 'react'
 
 // ── Breadcrumb ────────────────────────────────────────────────────────────────
 
@@ -88,6 +92,8 @@ export function Topbar() {
   const { pathname } = useLocation()
   const { username, logout } = useAuthStore()
   const crumbs = buildBreadcrumbs(pathname)
+  const [vmDialogOpen, setVmDialogOpen] = useState(false)
+  const [ctDialogOpen, setCtDialogOpen] = useState(false)
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border px-5 bg-bg-sidebar/80 backdrop-blur-sm">
@@ -126,6 +132,26 @@ export function Topbar() {
           <span>Search</span>
           <kbd className="ml-1 font-mono opacity-60">⌘K</kbd>
         </button>
+
+        {/* Create button */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-hover transition-colors shadow-sm">
+              <Plus className="size-3.5" />
+              Create
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => setVmDialogOpen(true)} className="gap-2 cursor-pointer">
+              <Monitor className="size-4 text-blue-400" />
+              Virtual Machine
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setCtDialogOpen(true)} className="gap-2 cursor-pointer">
+              <Box className="size-4 text-purple-400" />
+              LXC Container
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* Theme Toggle */}
         <ThemeToggle />
@@ -171,6 +197,10 @@ export function Topbar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Dialogs */}
+      <CreateVMDialog open={vmDialogOpen} onOpenChange={setVmDialogOpen} />
+      <CreateCTDialog open={ctDialogOpen} onOpenChange={setCtDialogOpen} />
     </header>
   )
 }

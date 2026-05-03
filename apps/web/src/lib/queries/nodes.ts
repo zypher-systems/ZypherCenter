@@ -430,6 +430,14 @@ export function useNodeACMEDomains(node: string) {
   })
 }
 
+export function useNodeConfig(node: string) {
+  return useQuery({
+    queryKey: [...nodeKeys.all(node), 'config'],
+    queryFn: () => api.get<Record<string, unknown>>(`nodes/${node}/config`),
+    enabled: !!node,
+  })
+}
+
 export function useUpdateNodeConfig(node: string) {
   const qc = useQueryClient()
   return useMutation({
