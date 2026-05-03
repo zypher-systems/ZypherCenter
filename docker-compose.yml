@@ -1,42 +1,42 @@
 # ── ZypherCenter — Deployment Compose ────────────────────────────────────────
-# Single pre-built image from GHCR. No source checkout or build tools required.
-#
+# Pre-built image from your local registry: codevault.sh
+# 
 # Quick start:
-#   1. Copy this file and .env.example to your server
-#   2. cp .env.example .env  &&  edit .env (set PROXMOX_HOST + SESSION_SECRET)
+#   1. Copy this file and create a .env file on your server
+#   2. Edit .env (set PROXMOX_HOST + SESSION_SECRET)
 #   3. docker compose pull
 #   4. docker compose up -d
 #
 # Or without compose (single docker run):
 #   docker run -d -p 80:80 \
-#     -e PROXMOX_HOST=https://YOUR_PROXMOX:8006 \
+#     -e PROXMOX_HOST=https://YOUR_PROXMOX_IP:8006 \
 #     -e SESSION_SECRET=$(openssl rand -hex 32) \
 #     --name zyphercenter --restart unless-stopped \
-#     ghcr.io/zypher-systems/zyphercenter:latest
+#     codevault.sh/zypher-systems/zyphercenter:v0.7.0
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
   zyphercenter:
-    image: ghcr.io/zypher-systems/zyphercenter:${IMAGE_TAG:-latest}
+    # Updated to point to your self-hosted registry
+    image: codevault.sh/zypher-systems/zyphercenter:${IMAGE_TAG:-v0.7.0}
+    container_name: zyphercenter
     ports:
       - "${HTTP_PORT:-80}:80"
     environment:
       # ── Proxmox connection ─────────────────────────────────────────────────
-      # Full URL to your Proxmox host, including port 8006.
-      # If omitted, users enter the host URL on the login page.
+      # Full URL to your Proxmox host. 
+      # Since you're on a private mesh, use the internal IP (e.g., 10.0.0.1)
       PROXMOX_HOST: ${PROXMOX_HOST:-}
 
-      # Set to "false" to allow self-signed certificates (common in home labs).
+      # Most local Proxmox setups use self-signed certs; keep this as false.
       PROXMOX_TLS_VERIFY: ${PROXMOX_TLS_VERIFY:-false}
 
       # ── Session security ───────────────────────────────────────────────────
-      # Must be at least 32 characters. Generate: openssl rand -hex 32
-      # If left empty, a random secret is generated at startup
-      # (sessions reset on container restart — fine for testing).
+      # Required for stable logins. Generate with: openssl rand -hex 32
       SESSION_SECRET: ${SESSION_SECRET:-}
 
       # ── Cookie security ────────────────────────────────────────────────────
-      # Set to "true" only if serving ZypherCenter over HTTPS.
+      # Set to "true" only if you've configured Zoraxy or Nginx for HTTPS.
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
 
       LOG_LEVEL: ${LOG_LEVEL:-info}
