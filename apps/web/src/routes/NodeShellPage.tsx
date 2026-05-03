@@ -30,7 +30,7 @@ export function NodeShellPage() {
         const res = await fetch(`/api/proxmox/nodes/${node}/termproxy`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ websocket: 1 }),
+          body: JSON.stringify({}), // Node termproxy does not accept websocket/vmid params
           credentials: 'include',
         })
         if (!res.ok) throw new Error(`Failed to get shell ticket (${res.status})`)
@@ -69,26 +69,85 @@ export function NodeShellPage() {
         const ro = new ResizeObserver(() => fitAddon.fit())
         ro.observe(containerRef.current!)
 
-        // Connect WebSocket
+        // Connect WebSocket — must specify the 'binary' subprotocol, which
+        // Proxmox's vncwebsocket endpoint requires for xterm.js sessions.
         const wsPath = `/nodes/${node}/vncwebsocket`
         const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/api/ws?path=${encodeURIComponent(wsPath)}&port=${data.port}&vncticket=${encodeURIComponent(data.ticket)}`
 
-        ws = new WebSocket(wsUrl)
+        ws = new WebSocket(wsUrl, 'binary')
         ws.binaryType = 'arraybuffer'
 
         ws.onopen = () => {
           if (!mounted) return
-          setStatus('connected')
-          setStatusText('')
-          // xterm <-> websocket bridge
-          term!.onData((d) => ws?.send(new TextEncoder().encode(d)))
+
+          // Proxmox termproxy handshake (from official pve-xtermjs/main.js):
+          // 1. Set up onmessage to wait for the "OK" acknowledgment
+          // 2. Send auth string: "user:ticket\n"
+          // 3. On receiving "OK", transition to connected and attach handlers
+
+          let pingInterval: ReturnType<typeof setInterval> | null = null
+          let authenticated = false
+
           ws!.onmessage = (e) => {
-            if (e.data instanceof ArrayBuffer) {
-              term!.write(new Uint8Array(e.data))
+            const answer = new Uint8Array(e.data instanceof ArrayBuffer ? e.data : new TextEncoder().encode(e.data as string))
+
+            if (!authenticated) {
+              // Check for "OK" (bytes 79, 75)
+              if (answer[0] === 79 && answer[1] === 75) {
+                authenticated = true
+                if (!mounted) return
+                setStatus('connected')
+                setStatusText('')
+
+                // Write any data that came after "OK"
+                if (answer.length > 2) {
+                  term!.write(answer.slice(2))
+                }
+
+                // Attach input handler: Proxmox termproxy input protocol: 0:LENGTH:MSG
+                term!.onData((d) => {
+                  if (ws?.readyState === WebSocket.OPEN) {
+                    // Use unescape(encodeURIComponent()) for correct byte length (matches Proxmox source)
+                    const byteLen = unescape(encodeURIComponent(d)).length
+                    ws.send(`0:${byteLen}:${d}`)
+                  }
+                })
+
+                // Attach resize handler: Proxmox termproxy resize protocol: 1:COLS:ROWS:
+                term!.onResize(({ cols, rows }) => {
+                  if (ws?.readyState === WebSocket.OPEN) {
+                    ws.send(`1:${cols}:${rows}:`)
+                  }
+                })
+
+                // Send initial resize after next frame (matches Proxmox timing)
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                  term!.focus()
+                  fitAddon.fit()
+                }))
+
+                // Start keepalive pings: Proxmox termproxy ping protocol: 2
+                pingInterval = setInterval(() => {
+                  if (ws?.readyState === WebSocket.OPEN) {
+                    ws.send('2')
+                  }
+                }, 30000)
+              } else {
+                // Auth failed — server didn't respond with "OK"
+                ws!.close()
+              }
             } else {
-              term!.write(e.data as string)
+              // Connected — write terminal output
+              term!.write(answer)
             }
           }
+
+          ws!.addEventListener('close', () => {
+            if (pingInterval) clearInterval(pingInterval)
+          })
+
+          // Send authentication: user:ticket\n (trailing newline is required)
+          ws!.send(`${data.user}:${data.ticket}\n`)
         }
 
         ws.onerror = () => {

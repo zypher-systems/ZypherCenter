@@ -39,18 +39,22 @@ export const proxyPlugin = fp(
         headers['CSRFPreventionToken'] = request.session.csrf
       }
 
-      // SEC-05: Preserve the original Content-Type when serializing the body.
-      // Use URLSearchParams for form-encoded bodies, JSON for everything else.
+      // Proxmox API is traditionally form-encoded. To ensure maximum compatibility across
+      // all endpoints (like termproxy, which often rejects JSON), we convert all 
+      // incoming bodies to application/x-www-form-urlencoded before forwarding.
       let body: string | undefined
       if (STATE_CHANGING_METHODS.has(method) && request.body) {
-        const incomingContentType = request.headers['content-type'] ?? ''
-        if (incomingContentType.includes('application/x-www-form-urlencoded')) {
-          body = new URLSearchParams(request.body as Record<string, string>).toString()
-          headers['Content-Type'] = 'application/x-www-form-urlencoded'
-        } else {
-          body = JSON.stringify(request.body)
-          headers['Content-Type'] = 'application/json'
+        const payload = request.body as Record<string, any>
+        const searchParams = new URLSearchParams()
+        
+        for (const [key, value] of Object.entries(payload)) {
+          if (value !== undefined && value !== null) {
+            searchParams.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value))
+          }
         }
+        
+        body = searchParams.toString()
+        headers['Content-Type'] = 'application/x-www-form-urlencoded'
       }
 
       let upstream: Response

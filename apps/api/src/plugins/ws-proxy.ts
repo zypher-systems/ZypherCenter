@@ -13,6 +13,10 @@ import WebSocket from 'ws'
  *
  * The PVEAuthCookie from the server session is added as a Cookie header on the
  * upstream connection — it never touches the browser.
+ *
+ * IMPORTANT: Client messages are buffered until the upstream connection opens.
+ * Without this, the xterm.js auth packet (sent immediately on WS open) would be
+ * silently dropped because the upstream hasn't connected yet.
  */
 export const wsProxyPlugin = fp(
   async (fastify) => {
@@ -68,7 +72,26 @@ export const wsProxyPlugin = fp(
 
       fastify.log.debug({ upstreamUrl }, 'Opening upstream WS to Proxmox')
 
-      const upstream = new WebSocket(upstreamUrl, {
+      // Buffer client messages until upstream is ready. This is critical for
+      // xterm.js terminal sessions where the client sends the authentication
+      // packet ("user:ticket\n") immediately on WebSocket open — before the
+      // proxy's upstream connection to Proxmox has finished connecting.
+      // Without buffering, the auth message is silently dropped and the
+      // Proxmox session times out waiting for credentials.
+      const pendingMessages: { data: WebSocket.RawData; isBinary: boolean }[] = []
+      let upstreamReady = false
+
+      socket.on('message', (data, isBinary) => {
+        if (upstreamReady && upstream.readyState === WebSocket.OPEN) {
+          upstream.send(data, { binary: isBinary })
+        } else {
+          pendingMessages.push({ data, isBinary })
+        }
+      })
+
+      // Connect upstream with 'binary' subprotocol — Proxmox's vncwebsocket
+      // endpoint requires this for both noVNC (RFB) and xterm.js sessions.
+      const upstream = new WebSocket(upstreamUrl, 'binary', {
         headers: {
           Cookie: `PVEAuthCookie=${request.session.ticket}`,
         },
@@ -77,12 +100,13 @@ export const wsProxyPlugin = fp(
 
       upstream.on('open', () => {
         fastify.log.debug('Upstream WS connected, bridging...')
+        upstreamReady = true
 
-        socket.on('message', (data, isBinary) => {
-          if (upstream.readyState === WebSocket.OPEN) {
-            upstream.send(data, { binary: isBinary })
-          }
-        })
+        // Flush any messages that arrived while upstream was connecting
+        for (const { data, isBinary } of pendingMessages) {
+          upstream.send(data, { binary: isBinary })
+        }
+        pendingMessages.length = 0
 
         upstream.on('message', (data, isBinary) => {
           if (socket.readyState === WebSocket.OPEN) {
@@ -93,13 +117,16 @@ export const wsProxyPlugin = fp(
 
       upstream.on('close', (code, reason) => {
         if (socket.readyState === WebSocket.OPEN) {
-          socket.close(code, reason)
+          // Prevent crash: ws library throws if code is 1005, 1006, or 1015
+          const validCode = (code === 1000 || (code >= 3000 && code < 5000)) ? code : 1011
+          socket.close(validCode, reason)
         }
       })
 
-      socket.on('close', () => {
+      socket.on('close', (code, reason) => {
         if (upstream.readyState !== WebSocket.CLOSED) {
-          upstream.close()
+          const validCode = (code === 1000 || (code >= 3000 && code < 5000)) ? code : 1011
+          upstream.close(validCode, reason)
         }
       })
 
@@ -120,3 +147,4 @@ export const wsProxyPlugin = fp(
   },
   { name: 'ws-proxy', dependencies: ['env'] },
 )
+

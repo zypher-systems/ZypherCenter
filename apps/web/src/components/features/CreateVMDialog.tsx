@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { X, ChevronRight, ChevronLeft, Monitor, CheckCircle, HardDrive, Cpu, Database } from 'lucide-react'
+import { X, ChevronRight, ChevronLeft, Monitor, CheckCircle, HardDrive, Cpu, Database, Network } from 'lucide-react'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -20,9 +20,13 @@ const vmSchema = z.object({
   cdrom: z.string().optional(),
   diskStorage: z.string().min(1, 'Target storage is required'),
   diskSize: z.number().min(1, 'Disk size must be >= 1GB'),
+  discard: z.boolean().default(false),
+  ssd: z.boolean().default(false),
   cores: z.number().min(1).max(128).default(1),
+  cpuType: z.string().default('kvm64'),
   memory: z.number().min(512).max(65536).default(2048),
   bridge: z.string().default('vmbr0'),
+  vlan: z.number().min(1).max(4094).optional().or(z.literal(0)),
 })
 
 type VMFormData = z.infer<typeof vmSchema>
@@ -32,6 +36,7 @@ const STEPS = [
   { id: 'os', title: 'OS', icon: <Database className="size-4" /> },
   { id: 'disk', title: 'Disks', icon: <HardDrive className="size-4" /> },
   { id: 'compute', title: 'Compute', icon: <Cpu className="size-4" /> },
+  { id: 'network', title: 'Network', icon: <Network className="size-4" /> },
   { id: 'confirm', title: 'Confirm', icon: <CheckCircle className="size-4" /> },
 ]
 
@@ -54,9 +59,13 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       cdrom: '',
       diskStorage: '',
       diskSize: 32,
+      discard: true,
+      ssd: true,
       cores: 2,
+      cpuType: 'host',
       memory: 2048,
       bridge: 'vmbr0',
+      vlan: undefined,
     },
   })
 
@@ -92,8 +101,9 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     const fieldsToValidate = (() => {
       if (step === 0) return ['node', 'vmid', 'name'] as const
       if (step === 1) return ['ostype', 'cdrom'] as const
-      if (step === 2) return ['diskStorage', 'diskSize'] as const
-      if (step === 3) return ['cores', 'memory', 'bridge'] as const
+      if (step === 2) return ['diskStorage', 'diskSize', 'discard', 'ssd'] as const
+      if (step === 3) return ['cores', 'memory', 'cpuType'] as const
+      if (step === 4) return ['bridge', 'vlan'] as const
       return []
     })()
     
@@ -112,18 +122,21 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       memory: data.memory,
       cores: data.cores,
       ostype: data.ostype,
-      net0: `virtio,bridge=${data.bridge}`,
-    }
-    
-    if (data.cdrom) {
-      params.cdrom = data.cdrom
-    } else {
-      params.cdrom = 'none'
+      cdrom: data.cdrom || 'none',
     }
     
     if (data.diskStorage && data.diskSize) {
-      params.scsi0 = `${data.diskStorage}:${data.diskSize}`
+      let scsi = `${data.diskStorage}:${data.diskSize}`
+      if (data.discard) scsi += ',discard=on'
+      if (data.ssd) scsi += ',ssd=1'
+      params.scsi0 = scsi
     }
+
+    let net = `virtio,bridge=${data.bridge}`
+    if (data.vlan) net += `,tag=${data.vlan}`
+    params.net0 = net
+
+    params.cpu = data.cpuType
 
     createVM.mutate(params, {
       onSuccess: () => {
@@ -341,6 +354,35 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           <span>1000 GiB</span>
                         </div>
                       </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <label className="flex items-center gap-3 p-4 border border-border rounded-lg bg-bg-base/30 cursor-pointer hover:bg-bg-hover transition-colors">
+                          <Controller
+                            name="discard"
+                            control={control}
+                            render={({ field }) => (
+                              <input type="checkbox" checked={field.value} onChange={field.onChange} className="size-4 accent-accent" />
+                            )}
+                          />
+                          <div className="space-y-0.5">
+                            <p className="text-sm font-medium text-text-primary">Discard</p>
+                            <p className="text-[10px] text-text-muted">TRIM support for thin provisioning</p>
+                          </div>
+                        </label>
+                        <label className="flex items-center gap-3 p-4 border border-border rounded-lg bg-bg-base/30 cursor-pointer hover:bg-bg-hover transition-colors">
+                          <Controller
+                            name="ssd"
+                            control={control}
+                            render={({ field }) => (
+                              <input type="checkbox" checked={field.value} onChange={field.onChange} className="size-4 accent-accent" />
+                            )}
+                          />
+                          <div className="space-y-0.5">
+                            <p className="text-sm font-medium text-text-primary">SSD Emulation</p>
+                            <p className="text-[10px] text-text-muted">Report disk as non-rotational</p>
+                          </div>
+                        </label>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -348,11 +390,59 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 {SType === 'compute' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                     <div>
-                      <h2 className="text-xl font-semibold text-text-primary">Compute & Network</h2>
-                      <p className="text-sm text-text-muted mt-1">Allocate CPU, Memory, and Network resources.</p>
+                      <h2 className="text-xl font-semibold text-text-primary">Compute Resources</h2>
+                      <p className="text-sm text-text-muted mt-1">Allocate CPU and Memory resources.</p>
                     </div>
 
                     <div className="space-y-6 pt-2">
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-text-primary">CPU Type</label>
+                        <Controller
+                          name="cpuType"
+                          control={control}
+                          render={({ field }) => (
+                            <select {...field} className="w-full rounded-md border border-border bg-bg-input px-3 py-2.5 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent shadow-sm">
+                              <optgroup label="Generic / Best Performance">
+                                <option value="host">Host (Maximum Performance)</option>
+                                <option value="max">Max (All features of host)</option>
+                                <option value="x86-64-v4">x86-64-v4 (AVX-512)</option>
+                                <option value="x86-64-v3">x86-64-v3 (AVX2)</option>
+                                <option value="x86-64-v2-AES">x86-64-v2-AES (Standard/Compatible)</option>
+                                <option value="kvm64">KVM64 (Compatibility)</option>
+                                <option value="qemu64">QEMU64 (Compatibility)</option>
+                              </optgroup>
+                              <optgroup label="Intel Models">
+                                <option value="Icelake-Server">Icelake-Server</option>
+                                <option value="Icelake-Client">Icelake-Client</option>
+                                <option value="Cascadelake-Server">Cascadelake-Server</option>
+                                <option value="Skylake-Server">Skylake-Server</option>
+                                <option value="Skylake-Client">Skylake-Client</option>
+                                <option value="Broadwell">Broadwell</option>
+                                <option value="Haswell">Haswell</option>
+                                <option value="IvyBridge">IvyBridge</option>
+                                <option value="SandyBridge">SandyBridge</option>
+                                <option value="Westmere">Westmere</option>
+                                <option value="Nehalem">Nehalem</option>
+                                <option value="Penryn">Penryn</option>
+                                <option value="Conroe">Conroe</option>
+                              </optgroup>
+                              <optgroup label="AMD Models">
+                                <option value="EPYC-Milan">EPYC-Milan</option>
+                                <option value="EPYC-Rome">EPYC-Rome</option>
+                                <option value="EPYC">EPYC</option>
+                                <option value="Opteron_G5">Opteron_G5</option>
+                                <option value="Opteron_G4">Opteron_G4</option>
+                                <option value="Opteron_G3">Opteron_G3</option>
+                                <option value="Opteron_G2">Opteron_G2</option>
+                                <option value="Opteron_G1">Opteron_G1</option>
+                                <option value="Phenom">Phenom</option>
+                              </optgroup>
+                            </select>
+                          )}
+                        />
+                        <p className="text-[10px] text-text-disabled uppercase font-medium">Host type provides best performance but limits migration compatibility</p>
+                      </div>
+
                       <div className="space-y-3 p-4 border border-border rounded-lg bg-bg-base/30">
                         <div className="flex justify-between items-center">
                           <label className="text-sm font-medium text-text-primary">CPU Cores</label>
@@ -388,7 +478,18 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                           <span>32 GiB</span>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                )}
 
+                {SType === 'network' && (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+                    <div>
+                      <h2 className="text-xl font-semibold text-text-primary">Network Configuration</h2>
+                      <p className="text-sm text-text-muted mt-1">Configure the virtual network adapter.</p>
+                    </div>
+
+                    <div className="space-y-4 pt-2">
                       <div className="space-y-1.5">
                         <label className="text-sm font-medium text-text-primary">Network Bridge</label>
                         <Controller
@@ -400,6 +501,24 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                             </select>
                           )}
                         />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-text-primary">VLAN Tag</label>
+                        <Controller
+                          name="vlan"
+                          control={control}
+                          render={({ field }) => (
+                            <input 
+                              type="number" 
+                              placeholder="No VLAN Tag"
+                              value={field.value || ''} 
+                              onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                              className="w-full rounded-md border border-border bg-bg-input px-3 py-2.5 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent shadow-sm font-mono" 
+                            />
+                          )}
+                        />
+                        <p className="text-[10px] text-text-disabled uppercase font-medium">Optional: Specify a VLAN tag (1-4094)</p>
                       </div>
                     </div>
                   </div>
@@ -418,9 +537,9 @@ export function CreateVMDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                       <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">Name</span><span className="font-medium">{watch('name')}</span></div>
                       <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">OS Type</span><span className="font-medium">{watch('ostype')}</span></div>
                       <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">ISO Media</span><span className="font-medium text-xs max-w-[250px] truncate" title={watch('cdrom') || 'None'}>{watch('cdrom') || 'None'}</span></div>
-                      <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">Primary Disk</span><span className="font-medium">{watch('diskSize')} GiB on <span className="text-accent">{watch('diskStorage')}</span></span></div>
-                      <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">Compute</span><span className="font-medium">{watch('cores')} Cores, {watch('memory')} MiB RAM</span></div>
-                      <div className="flex justify-between pb-1"><span className="text-text-muted">Network</span><span className="font-medium">{watch('bridge')}</span></div>
+                      <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">Primary Disk</span><span className="font-medium">{watch('diskSize')} GiB on <span className="text-accent">{watch('diskStorage')}</span> {watch('discard') && '(Discard)'} {watch('ssd') && '(SSD)'}</span></div>
+                      <div className="flex justify-between border-b border-border/50 pb-2"><span className="text-text-muted">Compute</span><span className="font-medium">{watch('cores')} Cores ({watch('cpuType')}), {watch('memory')} MiB RAM</span></div>
+                      <div className="flex justify-between pb-1"><span className="text-text-muted">Network</span><span className="font-medium">{watch('bridge')} {watch('vlan') ? `(VLAN ${watch('vlan')})` : ''}</span></div>
                     </div>
                   </div>
                 )}
