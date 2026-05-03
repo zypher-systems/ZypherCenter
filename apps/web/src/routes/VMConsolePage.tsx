@@ -38,7 +38,9 @@ export function VMConsolePage() {
         setStatusText('Loading noVNC…')
 
         // Dynamically import noVNC RFB class
-        const { default: RFB } = await import('@novnc/novnc/lib/rfb.js')
+        const mod = await import('@novnc/novnc')
+        // Some build tools nest the CJS default export
+        const RFB = ('default' in mod && mod.default ? mod.default : mod) as unknown as typeof import('@novnc/novnc').default
         if (!mounted) return
 
         const wsPath = `/nodes/${node}/qemu/${vmid}/vncwebsocket`

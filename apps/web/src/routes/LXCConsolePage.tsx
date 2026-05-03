@@ -28,7 +28,8 @@ export function LXCConsolePage() {
         if (!mounted) return
 
         setStatusText('Loading noVNC…')
-        const { default: RFB } = await import('@novnc/novnc/lib/rfb.js')
+        const mod = await import('@novnc/novnc')
+        const RFB = ('default' in mod && mod.default ? mod.default : mod) as unknown as typeof import('@novnc/novnc').default
         if (!mounted) return
 
         const wsPath = `/nodes/${node}/lxc/${vmid}/vncwebsocket`

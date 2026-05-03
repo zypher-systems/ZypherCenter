@@ -21,11 +21,7 @@ export default defineConfig({
       },
     },
   },
-  // noVNC uses top-level await (valid ESM), prevent Vite from pre-bundling it
-  // or converting it to CJS (which strips top-level await support)
-  optimizeDeps: {
-    exclude: ['@novnc/novnc'],
-  },
+
   build: {
     // Target ES2022+ so Rollup keeps top-level await as valid syntax
     target: 'es2022',

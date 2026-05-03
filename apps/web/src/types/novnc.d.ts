@@ -2,7 +2,7 @@
  * Minimal type declaration for @novnc/novnc RFB class.
  * The package does not ship TypeScript types.
  */
-declare module '@novnc/novnc/lib/rfb.js' {
+declare module '@novnc/novnc' {
   export interface RFBOptions {
     credentials?: { password?: string; username?: string; target?: string }
     shared?: boolean

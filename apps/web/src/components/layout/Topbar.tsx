@@ -10,9 +10,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/DropdownMenu'
+import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { cn } from '@/lib/utils'
 
 // ── Breadcrumb ────────────────────────────────────────────────────────────────
+
 
 function buildBreadcrumbs(pathname: string): { label: string; to: string }[] {
   const segments = pathname.split('/').filter(Boolean)
@@ -124,6 +126,9 @@ export function Topbar() {
           <span>Search</span>
           <kbd className="ml-1 font-mono opacity-60">⌘K</kbd>
         </button>
+
+        {/* Theme Toggle */}
+        <ThemeToggle />
 
         {/* User menu */}
         <DropdownMenu>

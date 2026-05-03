@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 import type { StorageConfig, StorageContentItem } from '@zyphercenter/proxmox-types'
@@ -21,11 +21,37 @@ export function useStorage() {
 export function useStorageContent(node: string, storageId: string, content?: string) {
   return useQuery({
     queryKey: [...storageKeys.content(node, storageId), content],
-    queryFn: () =>
-      api.get<StorageContentItem[]>(
+    queryFn: async () => {
+      const res = await api.get<StorageContentItem[]>(
         `nodes/${node}/storage/${storageId}/content${content ? `?content=${content}` : ''}`,
-      ),
+      )
+      return res.map((item) => ({
+        ...item,
+        content: item.content || (item.format?.startsWith('pbs-') || item.volid.includes('backup/') || item.volid.includes('vzdump') ? 'backup' : 'unknown')
+      }))
+    },
     enabled: !!node && !!storageId,
+  })
+}
+
+export function useVMBackups(node: string, vmid: number, backupStorages: string[]) {
+  return useQueries({
+    queries: backupStorages.map((storageId) => ({
+      queryKey: [...storageKeys.content(node, storageId), 'backup'],
+      queryFn: async () => {
+        const res = await api.get<StorageContentItem[]>(
+          `nodes/${node}/storage/${storageId}/content?content=backup`
+        )
+        return res
+          .map((item) => ({
+            ...item,
+            content: 'backup',
+            storage: storageId,
+          }))
+          .filter((item) => item.vmid === vmid)
+      },
+      enabled: !!node && !!storageId && !!vmid,
+    }))
   })
 }
 
@@ -74,6 +100,20 @@ export function useDeleteStorageContent(node: string, storageId: string) {
     onSuccess: (_, volid) => {
       toast.success(`Deleted ${volid.split('/').pop() ?? volid}`)
       qc.invalidateQueries({ queryKey: storageKeys.content(node, storageId) })
+    },
+    onError: (err) => toast.error(`Delete failed — ${err.message}`),
+  })
+}
+
+export function useDeleteStorageContentDynamic(node: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ storageId, volid }: { storageId: string; volid: string }) =>
+      api.del(`nodes/${node}/storage/${storageId}/content/${encodeURIComponent(volid)}`),
+    onSuccess: (_, { storageId, volid }) => {
+      toast.success(`Deleted ${volid.split('/').pop() ?? volid}`)
+      qc.invalidateQueries({ queryKey: storageKeys.content(node, storageId) })
+      qc.invalidateQueries({ queryKey: [...storageKeys.content(node, storageId), 'backup'] })
     },
     onError: (err) => toast.error(`Delete failed — ${err.message}`),
   })

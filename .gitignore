@@ -26,6 +26,7 @@ pnpm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+AUDIT_RESULTS.md
 
 # Tailwind
 .tailwindcache/

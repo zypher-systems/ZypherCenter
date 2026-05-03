@@ -57,11 +57,13 @@ import {
 } from '@/lib/queries/vms'
 import { useClusterBackupJobs, useClusterResources } from '@/lib/queries/cluster'
 import { useNodeTasksFiltered, useNodeStorage, useNodeNetwork, useVzdump, useNodeHardwarePCI, useNodeHardwareUSB } from '@/lib/queries/nodes'
-import { useStorage, useStorageContent } from '@/lib/queries/storage'
+import { useStorage, useStorageContent, useVMBackups, useDeleteStorageContentDynamic } from '@/lib/queries/storage'
+import { RestoreDialog } from '@/components/features/RestoreDialog'
 import { useNextVMId } from '@/lib/queries/vms'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
 import { ResourceGauge } from '@/components/ui/ResourceGauge'
 import { SkeletonCard } from '@/components/ui/Skeleton'
@@ -382,6 +384,14 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
   const [addPCIPcie, setAddPCIPcie] = useState(false)
   const [showAddUSB, setShowAddUSB] = useState(false)
   const [addUSBId, setAddUSBId] = useState('')
+
+  const [confirmConfig, setConfirmConfig] = useState<{
+    key: string
+    title: string
+    description: string
+    action: () => void
+    variant?: 'default' | 'destructive'
+  } | null>(null)
 
   if (!config) return null
 
@@ -757,7 +767,15 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
                             Move
                           </button>
                           <button
-                            onClick={() => { if (confirm(`Detach disk ${key}? The volume will remain in storage.`)) updateConfig.mutate({ delete: key }) }}
+                            onClick={() => {
+                              setConfirmConfig({
+                                key: 'detach-disk',
+                                title: `Detach disk ${key}?`,
+                                description: 'The volume will remain in storage.',
+                                variant: 'destructive',
+                                action: () => updateConfig.mutate({ delete: key }),
+                              })
+                            }}
                             className="shrink-0 text-xs text-text-muted hover:text-status-error border border-border-subtle rounded px-1.5 py-0.5"
                           >
                             Detach
@@ -942,7 +960,15 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <span className="text-text-primary font-mono text-xs break-all flex-1">{String(cfg[k])}</span>
                         <button
-                          onClick={() => { if (confirm(`Detach ${k}?`)) updateConfig.mutate({ delete: k }) }}
+                          onClick={() => {
+                            setConfirmConfig({
+                              key: 'detach-pci',
+                              title: `Detach ${k}?`,
+                              description: 'This will remove the PCI device from the VM.',
+                              variant: 'destructive',
+                              action: () => updateConfig.mutate({ delete: k }),
+                            })
+                          }}
                           className="shrink-0 text-xs text-text-muted hover:text-status-error border border-border-subtle rounded px-1.5 py-0.5"
                         >
                           Detach
@@ -1023,7 +1049,15 @@ function HardwareTab({ node, vmid }: { node: string; vmid: number }) {
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <span className="text-text-primary font-mono text-xs break-all flex-1">{String(cfg[k])}</span>
                         <button
-                          onClick={() => { if (confirm(`Detach ${k}?`)) updateConfig.mutate({ delete: k }) }}
+                          onClick={() => {
+                            setConfirmConfig({
+                              key: 'detach-usb',
+                              title: `Detach ${k}?`,
+                              description: 'This will remove the USB device from the VM.',
+                              variant: 'destructive',
+                              action: () => updateConfig.mutate({ delete: k }),
+                            })
+                          }}
                           className="shrink-0 text-xs text-text-muted hover:text-status-error border border-border-subtle rounded px-1.5 py-0.5"
                         >
                           Detach
@@ -1176,6 +1210,13 @@ function AgentTab({ node, vmid, isRunning }: { node: string; vmid: number; isRun
 // ── Snapshots tab ────────────────────────────────────────────────────────────
 
 function SnapshotsTab({ node, vmid }: { node: string; vmid: number }) {
+  const [confirmConfig, setConfirmConfig] = useState<{
+    key: string
+    title: string
+    description: string
+    action: () => void
+    variant?: 'default' | 'destructive'
+  } | null>(null)
   const { data: snapshots } = useVMSnapshots(node, vmid)
   const createSnap = useCreateVMSnapshot(node, vmid)
   const deleteSnap = useDeleteVMSnapshot(node, vmid)
@@ -1307,9 +1348,12 @@ function SnapshotsTab({ node, vmid }: { node: string; vmid: number }) {
                     )}
                   </div>
                   <div className="flex items-center gap-2 ml-4">
+                    {snap.vmstate === 1 && (
+                      <span className="text-[10px] uppercase tracking-wider text-accent border border-accent/30 rounded px-1.5 py-0.5">RAM</span>
+                    )}
                     {snap.snaptime && (
                       <span className="text-xs text-text-muted mr-2">
-                        {new Date(snap.snaptime * 1000).toLocaleDateString()}
+                        {new Date(snap.snaptime * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                       </span>
                     )}
                     <button
@@ -1328,7 +1372,13 @@ function SnapshotsTab({ node, vmid }: { node: string; vmid: number }) {
                     </button>
                     <button
                       onClick={() => {
-                        if (confirm(`Delete snapshot "${snap.name}"?`)) deleteSnap.mutate(snap.name)
+                        setConfirmConfig({
+                          key: 'delete-snap',
+                          title: `Delete snapshot "${snap.name}"?`,
+                          description: 'This action cannot be undone.',
+                          variant: 'destructive',
+                          action: () => deleteSnap.mutate(snap.name),
+                        })
                       }}
                       disabled={deleteSnap.isPending}
                       className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
@@ -1342,6 +1392,20 @@ function SnapshotsTab({ node, vmid }: { node: string; vmid: number }) {
           </div>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={confirmConfig !== null}
+        onOpenChange={(open) => { if (!open) setConfirmConfig(null) }}
+        title={confirmConfig?.title ?? ''}
+        description={confirmConfig?.description ?? ''}
+        variant={confirmConfig?.variant ?? 'default'}
+        onConfirm={() => {
+          if (confirmConfig) {
+            confirmConfig.action()
+            setConfirmConfig(null)
+          }
+        }}
+      />
     </div>
   )
 }
@@ -1892,6 +1956,13 @@ function VMTasksTab({ node, vmid }: { node: string; vmid: number }) {
 }
 
 function VMFirewallTab({ node, vmid }: { node: string; vmid: number }) {
+  const [confirmConfig, setConfirmConfig] = useState<{
+    key: string
+    title: string
+    description: string
+    action: () => void
+    variant?: 'default' | 'destructive'
+  } | null>(null)
   const { data: rules  } = useVMFirewallRules(node, vmid)
   const { data: options } = useVMFirewallOptions(node, vmid)
   const createRule = useCreateVMFirewallRule(node, vmid)
@@ -2212,7 +2283,15 @@ function VMFirewallTab({ node, vmid }: { node: string; vmid: number }) {
                           <Pencil className="size-3" />
                         </button>
                         <button
-                          onClick={() => { if (confirm(`Delete rule #${rule.pos}?`)) deleteRule.mutate(rule.pos) }}
+                          onClick={() => {
+                            setConfirmConfig({
+                              key: 'delete-rule',
+                              title: `Delete rule #${rule.pos}?`,
+                              description: 'This firewall rule will be permanently removed.',
+                              variant: 'destructive',
+                              action: () => deleteRule.mutate(rule.pos),
+                            })
+                          }}
                           disabled={deleteRule.isPending}
                           className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
                         >
@@ -2247,6 +2326,11 @@ function VMBackupsTab({ node, vmid }: { node: string; vmid: number }) {
   const backupStorages = (allStorages ?? []).filter((s) =>
     s.content?.split(',').map((c) => c.trim()).includes('backup')
   )
+
+  const backupQueries = useVMBackups(node, vmid, backupStorages.map(s => s.storage))
+  const backups = backupQueries.flatMap(q => q.data ?? []).sort((a, b) => (b.ctime ?? 0) - (a.ctime ?? 0))
+  const deleteContent = useDeleteStorageContentDynamic(node)
+  const [restoreItem, setRestoreItem] = useState<any>(null)
 
   function runBackup() {
     if (!bkStorage) return
@@ -2322,6 +2406,74 @@ function VMBackupsTab({ node, vmid }: { node: string; vmid: number }) {
           </CardContent>
         </Card>
       )}
+
+      {/* Available Backups */}
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Available Backups</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          {!backups.length ? (
+            <p className="text-center text-text-muted text-sm py-8">No backups found for this VM</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Archive</TableHead>
+                  <TableHead>Storage</TableHead>
+                  <TableHead>Format</TableHead>
+                  <TableHead>Size</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {backups.map((bk) => (
+                  <TableRow key={bk.volid}>
+                    <TableCell className="font-mono text-sm">{bk.volid.split('/').pop() ?? bk.volid.split(':').pop()}</TableCell>
+                    <TableCell className="text-text-secondary">{(bk as any).storage}</TableCell>
+                    <TableCell className="text-text-secondary uppercase">{bk.format ?? 'unknown'}</TableCell>
+                    <TableCell className="text-text-secondary tabular-nums">{bk.size ? formatBytes(bk.size) : '—'}</TableCell>
+                    <TableCell className="text-text-secondary tabular-nums">{bk.ctime ? formatTimestamp(bk.ctime) : '—'}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => setRestoreItem(bk)}
+                          className="inline-flex items-center gap-1 rounded border border-accent/40 px-2 py-0.5 text-xs text-accent hover:bg-accent/10 disabled:opacity-50"
+                        >
+                          <RotateCcw className="size-3" />
+                          Restore
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete backup "${bk.volid.split(':').pop()}"?`)) {
+                              deleteContent.mutate({ storageId: (bk as any).storage, volid: bk.volid })
+                            }
+                          }}
+                          disabled={deleteContent.isPending}
+                          className="inline-flex items-center gap-1 rounded border border-status-error/40 px-2 py-0.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
+                        >
+                          <Trash2 className="size-3" />
+                          Delete
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Restore Modal */}
+      {restoreItem && (
+        <RestoreDialog
+          item={restoreItem}
+          node={node}
+          onClose={() => setRestoreItem(null)}
+          defaultVmid={vmid}
+        />
+      )}
+
       {/* Scheduled Jobs */}
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Scheduled Backup Jobs</CardTitle></CardHeader>
@@ -2520,6 +2672,13 @@ export function VMDetailPage() {
   const [tab, setTab] = useState('summary')
   const [showMigrate, setShowMigrate] = useState(false)
   const [showClone, setShowClone] = useState(false)
+  const [confirmConfig, setConfirmConfig] = useState<{
+    key: string
+    title: string
+    description: string
+    action: () => void
+    variant?: 'default' | 'destructive'
+  } | null>(null)
 
   const { data: status, isLoading } = useVMStatus(node!, vmid)
   const start = useVMStart(node!, vmid)
@@ -2593,9 +2752,13 @@ export function VMDetailPage() {
               variant="outline"
               disabled={convertToTemplate.isPending}
               onClick={() => {
-                if (confirm(`Convert VM ${vmid} to a template? This cannot be undone.`)) {
-                  convertToTemplate.mutate()
-                }
+                setConfirmConfig({
+                  key: 'convert-template',
+                  title: `Convert VM ${vmid} to a template?`,
+                  description: 'This cannot be undone.',
+                  variant: 'destructive',
+                  action: () => convertToTemplate.mutate(),
+                })
               }}
             >
               <Cloud className="size-4" /> To Template
@@ -2612,9 +2775,13 @@ export function VMDetailPage() {
               variant="destructive"
               disabled={deleteVM.isPending}
               onClick={() => {
-                if (confirm(`Delete VM ${vmid} (${status?.name ?? ''})? This cannot be undone.`)) {
-                  deleteVM.mutate({ vmid, purge: true }, { onSuccess: () => navigate(`/nodes/${node}/vms`) })
-                }
+                setConfirmConfig({
+                  key: 'delete-vm',
+                  title: `Delete VM ${vmid} (${status?.name ?? ''})?`,
+                  description: 'This cannot be undone.',
+                  variant: 'destructive',
+                  action: () => deleteVM.mutate({ vmid, purge: true }, { onSuccess: () => navigate(`/nodes/${node}/vms`) }),
+                })
               }}
             >
               <Trash2 className="size-4" /> Delete
@@ -2646,6 +2813,20 @@ export function VMDetailPage() {
         <TabsContent value="firewall"><VMFirewallTab node={node!} vmid={vmid} /></TabsContent>
         <TabsContent value="tasks"><VMTasksTab node={node!} vmid={vmid} /></TabsContent>
       </Tabs>
+
+      <ConfirmDialog
+        open={confirmConfig !== null}
+        onOpenChange={(open) => { if (!open) setConfirmConfig(null) }}
+        title={confirmConfig?.title ?? ''}
+        description={confirmConfig?.description ?? ''}
+        variant={confirmConfig?.variant ?? 'default'}
+        onConfirm={() => {
+          if (confirmConfig) {
+            confirmConfig.action()
+            setConfirmConfig(null)
+          }
+        }}
+      />
     </div>
   )
 }

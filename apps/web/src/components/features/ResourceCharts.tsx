@@ -45,24 +45,27 @@ function fmtTime(ts: number, tf: Timeframe): string {
 }
 
 const TIP: React.CSSProperties = {
-  background: 'rgb(15 15 18)',
-  border: '1px solid rgb(39 39 50)',
-  borderRadius: '6px',
-  fontSize: '11px',
-  color: 'rgb(228 228 235)',
-  padding: '6px 10px',
+  background: 'color-mix(in srgb, var(--color-bg-elevated) 80%, transparent)',
+  backdropFilter: 'blur(8px)',
+  border: '1px solid var(--color-border)',
+  borderRadius: '8px',
+  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+  fontSize: '12px',
+  fontWeight: '500',
+  color: 'var(--color-text-primary)',
+  padding: '8px 12px',
 }
 
-const AX = { fontSize: 9, fill: 'rgb(113 113 122)' }
+const AX = { fontSize: 10, fill: 'var(--color-text-muted)' }
 
 const C = {
-  cpu:       'rgb(234 88 12)',
-  memUsed:   'rgb(56 189 248)',
-  memTotal:  'rgb(71 85 105)',
-  diskRead:  'rgb(34 197 94)',
-  diskWrite: 'rgb(251 146 60)',
-  netIn:     'rgb(99 102 241)',
-  netOut:    'rgb(168 85 247)',
+  cpu:       'var(--color-accent)',
+  memUsed:   'var(--color-info)',
+  memTotal:  'var(--color-text-disabled)',
+  diskRead:  'var(--color-success)',
+  diskWrite: 'var(--color-warning)',
+  netIn:     'var(--color-info)',
+  netOut:    '#a855f7',
 } as const
 
 // ── Sub-components ────────────────────────────────────────────────────────────

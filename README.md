@@ -1,36 +1,115 @@
-# ZypherCenter — Project Build State
+# ZypherCenter
 
-> Last updated: April 3, 2026 — commit `2a4b4af`
+![ZypherCenter Logo](https://raw.githubusercontent.com/zypher-systems/ZypherCenter/main/.github/assets/logo.png)
+
+> **ZypherCenter** – A modern, self‑hosted web UI for **Proxmox VE** and related services. It provides a fast, beautiful, and secure replacement for the stock Proxmox interface.
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Core Features](#core-features)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Quick Deploy (Docker)](#quick-deploy-docker)
+  - [Docker‑Compose Deploy](#docker-compose-deploy)
+  - [Running from Source (Development)](#running-from-source-development)
+- [Configuration Reference](#configuration-reference)
+- [Building & Publishing Your Own Image](#building--publishing-your-own-image)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
 ## Overview
 
-ZypherCenter is a modern, self-hosted web UI for Proxmox VE — built as a replacement for the stock Proxmox web interface. It connects to Proxmox clusters via a Fastify proxy backend (which handles auth, never exposing credentials to the browser) and presents a clean, fast React + TypeScript frontend styled with Tailwind CSS.
+ZypherCenter connects to Proxmox clusters via a **Fastify proxy backend** that performs authentication, session handling, and API proxying – the browser never sees raw credentials. The frontend is a **React + TypeScript** SPA powered by **Vite**, using **TanStack Query** for data fetching, **Tailwind CSS** for styling, **Recharts** for performance charts, **Sonner** for toast notifications, and **Lucide‑React** for icons.
 
-This is still a work in progress but fully functional.
-
-**Tech stack:**
-- **Frontend:** React, TypeScript, Vite, TanStack Query (data fetching/caching), Tailwind CSS, Recharts (performance charts), sonner (toast notifications), lucide-react (icons)
-- **Backend proxy:** Fastify (Node.js) — auth injection, session management, proxying to Proxmox API
-- **Monorepo:** pnpm workspaces — `apps/web` (frontend), `apps/api` (Fastify proxy), `packages/proxmox-types` (shared Zod-validated type schemas)
-- **Deployment:** Docker / docker-compose
-
-![Dashboard](screenshots/dashboard.png)
-
-![VM Dashboard](screenshots/vm_details.png)
-
-![Ceph Dashboard](screenshots/Ceph_Dashboard.png)
+It is delivered as a **single Docker image** (or Docker‑Compose stack), making deployment trivial – no separate services, no build tools required on the host.
 
 ---
 
-## Quick Deploy
+## Core Features
 
-ZypherCenter ships as a **single Docker image** on GitHub Container Registry. No source checkout, no build tools, no separate services — one container, one port.
+ZypherCenter aims to expose *all* Proxmox functionality through a clean UI. Below is a concise, yet exhaustive list of the implemented features.
 
-### Option A — `docker run` (simplest)
+### Authentication & Session Management
+- Login page supporting **PVE**, **PBS**, and **PAM** realms.
+- Cookie‑based session handling in the Fastify proxy – credentials never reach the browser.
+- Automatic redirect to `/login` on 401 (session expiry).
+
+### Dashboard (`/`)
+- Cluster quorum status badge.
+- Summary stat cards: total nodes, online nodes, running VMs, running LXCs, storage pools.
+- Aggregate resource gauges: CPU, memory, storage.
+- Node grid with per‑node health, CPU/memory/root‑FS gauges, and 1‑hour RRD sparkline.
+- Top‑5 CPU & Memory consumers across the cluster.
+- Recent tasks strip (last 8 tasks) with type, VMID, node, time, status badge.
+- Global command palette (`Ctrl+K`/`⌘K`).
+
+### Virtual Machines (`/vms`)
+- Cross‑node VM list with sortable columns, filters, and bulk actions.
+- Full **Create VM** dialog (node, VMID, name, OS type, resources, storage, network).
+- Per‑VM detail page with ten tabs:
+  - **Summary** – live status, gauges, RRD charts, power actions, migrate, clone.
+  - **Hardware** – CPU, memory, disks, NICs, PCI/USB passthrough, display, BIOS.
+  - **Agent** – guest‑agent OS info, network interfaces, filesystem usage.
+  - **Snapshots** – create, delete, rollback, inline description edit.
+  - **Options**, **Cloud‑Init**, **Tasks**, **Firewall**, **Backups**, **Console**.
+- Bulk operations (start, stop, reboot, delete, etc.).
+
+### Containers – LXC (`/lxc`)
+- Mirrors the VM experience with a full list, create dialog, and detail page (7 tabs).
+- Supports hardware configuration, snapshots, firewall, backups, and console.
+
+### Node Management (`/nodes/:node`)
+- Node summary with CPU, memory, root‑FS gauges, uptime, subscription info.
+- **Network** – interface table, create/edit/delete bridges, bonds, VLANs, OVS.
+- **Disks** – physical disks, SMART viewer, GPT init, wipe.
+- **ZFS** – pool overview, create, scrub, destroy.
+- **LVM** – VG & thin‑pool management.
+- **Firewall**, **Updates**, **Services**, **Syslog**, **Shell**, **DNS**, **Time**, **Certificates**.
+
+### Storage (`/storage`)
+- List of all storage pools with type, content, status, and capacity gauge.
+- Create/Edit/Delete storage supporting every Proxmox storage type.
+- Storage detail view with content tabs (ISO, templates, backups, etc.), upload/download, restore, and prune.
+
+### Cluster‑wide Features
+- **Global Tasks** – unified task view with expandable logs.
+- **Resource Pools** – create, edit, delete, add/remove members.
+- **Cluster Options** – edit global Proxmox options.
+- **Backup Jobs** – schedule, enable/disable, create, edit, delete.
+- **Replication Jobs** – create, edit, toggle.
+- **Metrics** – manage InfluxDB v1/v2 and Graphite metric servers.
+- **Notifications** – SMTP & Gotify endpoints, matchers, severity filtering.
+- **ACME Plugins** – HTTP & DNS challenge plugins (120+ DNS providers).
+- **Cluster Firewall** – rules, security groups, IP sets, aliases, options.
+- **SDN** – VNets, Zones, Subnets with apply workflow.
+- **High Availability** – HA resources & groups with UI for add/edit/delete.
+- **Ceph** – cluster health, OSD tree, pools, monitors, MDS, with full CRUD.
+- **Access Management** – Users, Groups, Roles, ACL, API Tokens, Realms.
+
+### Planned / Not Yet Implemented
+- Dark/Light theme toggle, user preferences, custom columns.
+- Keyboard shortcut help modal, real‑time SSE event stream.
+- Mobile‑responsive layout, breadcrumb navigation, polished confirmation dialogs.
+- Bulk edit of tags, HA fencing, audit logs, help tooltips, etc.
+
+---
+
+## Getting Started
+
+### Prerequisites
+- **Docker Engine** ≥ 24 (or Docker‑Compose ≥ 2.20). 
+- Optional for development: **Node.js** ≥ 22, **pnpm** ≥ 9.
+- Access to a running **Proxmox VE** (or PBS) cluster.
+
+### Quick Deploy – Docker (Single Container)
 
 ```bash
+# Run ZypherCenter in a single container
 docker run -d \
   -p 80:80 \
   -e PROXMOX_HOST=https://YOUR_PROXMOX_IP:8006 \
@@ -41,449 +120,108 @@ docker run -d \
   ghcr.io/zypher-systems/zyphercenter:latest
 ```
 
-Open `http://YOUR_SERVER_IP` and log in with your Proxmox credentials.
+- Open `http://YOUR_SERVER_IP` and log in with your Proxmox credentials.
 
-### Option B — docker compose
+### Docker‑Compose Deploy (Recommended for Production)
 
-```bash
-# Download the compose file and env template
-curl -O https://raw.githubusercontent.com/zypher-systems/ZypherCenter/main/docker-compose.yml
-curl -O https://raw.githubusercontent.com/zypher-systems/ZypherCenter/main/.env.example
-cp .env.example .env
-```
+1. **Download the compose file and env template**
+   ```bash
+   curl -O https://raw.githubusercontent.com/zypher-systems/ZypherCenter/main/docker-compose.yml
+   curl -O https://raw.githubusercontent.com/zypher-systems/ZypherCenter/main/.env.example
+   cp .env.example .env
+   ```
+2. **Edit `.env`** – at minimum provide the following:
+   ```bash
+   PROXMOX_HOST=https://YOUR_PROXMOX_IP:8006   # required
+   PROXMOX_TLS_VERIFY=false                  # set true for valid certs
+   SESSION_SECRET=$(openssl rand -hex 32)    # 32‑byte cookie secret
+   ```
+3. **Start the stack**
+   ```bash
+   docker compose pull
+   docker compose up -d
+   ```
 
-Create `.env` — minimum required settings:
-```bash
-nano .env
-```
-Add the follwing contents into your .env
-
-```bash
-PROXMOX_HOST=https://YOUR_PROXMOX_IP:8006 # this must be filled out
-PROXMOX_TLS_VERIFY=false # leave this false if using self signed cert
-SESSION_SECRET=    # run "openssl rand -hex 32" and put content here
-```
-
-Now create your docker-compose.yaml
-```bash
-nano docker-compose.yaml
-```
-
-Paste the below config into your docker-compose.yaml file:
-```yaml
-services:
-  zyphercenter:
-    image: ghcr.io/zypher-systems/zyphercenter:latest
-    container_name: zyphercenter
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    environment:
-      - PROXMOX_HOST=${ZC_PROXMOX_HOST}
-      - PROXMOX_TLS_VERIFY=${ZC_PROXMOX_TLS_VERIFY}
-      - SESSION_SECRET=${ZC_SESSION_SECRET}
-    # Optional: ensure logs don't eat your drive space
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-```
-
+### Updating ZypherCenter
 
 ```bash
-docker compose pull
-docker compose up -d
-```
-
-### Updating
-
-```bash
-# docker run users:
+# Docker run users
 docker pull ghcr.io/zypher-systems/zyphercenter:latest
-docker rm -f zyphercenter
-docker run -d ...  # same command as before
+docker rm -f zyphercenter && docker run …   # same command as before
 
-# docker compose users:
+# Docker‑compose users
 docker compose pull && docker compose up -d
 ```
 
-### Configuration reference
+---
+
+## Configuration Reference
 
 | Variable | Default | Description |
-|---|---|---|
-| `PROXMOX_HOST` | _(empty)_ | Proxmox URL, e.g. `https://192.168.1.100:8006`. Please add this to your .env file |
-| `PROXMOX_TLS_VERIFY` | `false` | Set `true` to enforce valid TLS certs on the Proxmox connection. |
-| `SESSION_SECRET` | _(random)_ | Cookie signing secret — at least 32 chars. Please enter this withing your .env file. Can generate with "openssl rand -hex 32" |
+|----------|---------|-------------|
+| `PROXMOX_HOST` | _(empty)_ | URL of the Proxmox API, e.g. `https://192.168.1.100:8006`. |
+| `PROXMOX_TLS_VERIFY` | `false` | Set `true` to enforce TLS verification. |
+| `SESSION_SECRET` | _(random)_ | Secret for signing cookies – at least 32 characters. |
 | `COOKIE_SECURE` | `false` | Set `true` when serving over HTTPS. |
-| `HTTP_PORT` | `80` | Host port to bind (compose only). |
-| `LOG_LEVEL` | `info` | API log verbosity: `error` \| `warn` \| `info` \| `debug`. |
-| `IMAGE_TAG` | `latest` | Pin to a specific release, e.g. `0.1.0` (compose only). |
+| `HTTP_PORT` | `80` | Host port for the container (compose only). |
+| `LOG_LEVEL` | `info` | API log verbosity (`error`, `warn`, `info`, `debug`). |
+| `IMAGE_TAG` | `latest` | Pin a specific image tag when using compose. |
 
 ---
 
 ## Building & Publishing Your Own Image
 
 ### Prerequisites
-- Docker Engine 24+, pnpm 9+, Node.js 22+
-- Authenticated to GHCR: `echo $GITHUB_TOKEN | docker login ghcr.io -u GITHUB_USER --password-stdin`
+- Docker Engine ≥ 24
+- pnpm ≥ 9
+- Node.js ≥ 22
+- Access to a GitHub token with `write:packages` permission.
 
-### Build and push
-
+### Build & Push
 ```bash
 git clone https://github.com/zypher-systems/ZypherCenter.git
 cd ZypherCenter
 chmod +x scripts/release.sh
-
-# Build and push :latest
+# Build and push the `latest` tag
 ./scripts/release.sh
-
-# Build and push a versioned tag (also tags :latest)
+# Build and push a versioned tag (also updates `latest`)
 VERSION=0.1.0 ./scripts/release.sh
-
-# Build locally without pushing (test only)
+# Build locally without pushing (for testing)
 PUSH=false ./scripts/release.sh
 ```
 
-### Development (run from source)
+---
+
+## Development (Run From Source)
 
 ```bash
-pnpm install
-cp .env.example .env    # edit: set PROXMOX_HOST and CORS_ORIGIN=http://localhost:5173
-pnpm dev                # API on :3001 + Vite dev server on :5173
+pnpm install            # install workspace dependencies
+cp .env.example .env    # edit PROXMOX_HOST, CORS_ORIGIN, etc.
+pnpm dev                # API on :3001, Vite dev server on :5173
 ```
 
----
-
-## Working Plan
-
-The build plan is to cover all major Proxmox functionality surface areas in order of user-facing priority:
-
-1. ✅ **Auth & Session** — Login, session management, auth proxy
-2. ✅ **Dashboard** — Cluster overview, node health, resource consumers, recent tasks
-3. ✅ **VM Management** — Full VM lifecycle (CRUD, power, hardware config, snapshots, firewall, cloud-init, console, backups, per-VM tasks)
-4. ✅ **LXC Management** — Full container lifecycle (CRUD, power, config, snapshots, firewall, console, backups, per-CT tasks)
-5. ✅ **Node Management** — Node summary, network, disks (ZFS/LVM), updates, services, firewall, syslog, shell, certificates, DNS, time
-6. ✅ **Storage** — Storage list, storage detail (ISO/template browse, upload, download, restore backups, CT template catalog)
-7. ✅ **Cluster-wide views** — All VMs (cross-node), All LXC (cross-node), Global Tasks, Resource Pools, Cluster Options
-8. ✅ **Access Management** — Users, Groups, Roles, ACL, Tokens, Realms
-9. ✅ **SDN** — VNets, Zones, Subnets with apply workflow
-10. ✅ **High Availability** — HA resources, HA groups, HA manager status panel
-11. ✅ **Ceph** — Status, OSDs (create/destroy/in-out), Pools (create/edit/delete), Monitors, MDS
-12. ✅ **Cluster Backup** — Scheduled backup jobs (create/edit/delete/toggle)
-13. ✅ **Cluster Replication** — Replication jobs (create/edit/delete/toggle)
-14. ✅ **Cluster Firewall** — Rules, Security Groups, IP Sets, Aliases, Options
-15. ✅ **Metrics / Influx integration** — InfluxDB and Graphite metrics server management (`/cluster/metrics`)
-16. ✅ **ACME / Certificate UI polish** — Full ACME plugin management page (`/cluster/acme`) with 120+ DNS providers
-17. ✅ **Notification targets** — PVE 8 notification system: SMTP/Gotify endpoints and matchers (`/cluster/notifications`)
-18. 🔲 **Custom columns / preferences** — User-side column visibility and density settings
+The backend proxy runs at `http://localhost:3001` and the UI at `http://localhost:5173`. CORS is pre‑configured for local development.
 
 ---
 
-## Implemented Features
+## Contributing
 
-### Authentication
-- Login page with username / password / realm (PVE, PBS, PAM)
-- Server-side session management via Fastify proxy (cookie-based)
-- Browser never sees raw Proxmox credentials or auth tokens
-- Automatic redirect to `/login` on 401 (session expiry)
+We welcome contributions! Please follow these steps:
+1. **Fork the repository** and clone your fork.
+2. Create a **feature branch** (`git checkout -b feat/awesome-feature`).
+3. Run the development environment (see above) and ensure the UI builds.
+4. Add tests or UI snapshots where applicable.
+5. Submit a **Pull Request** with a clear description of your changes.
+6. All PRs must pass CI (lint, TypeScript checks, Jest unit tests).
 
----
-
-### Dashboard (`/`)
-- Cluster name + quorum status badge (quorate / no-quorum)
-- Summary stat cards: total nodes / online, VMs (running/stopped), LXC (running/stopped), Storage pools
-- Cluster aggregate resource gauges: CPU (vCPUs used/total), Memory (used/total), Storage (used/total)
-- Node grid — one card per node: online/offline, CPU gauge, Memory gauge, Root FS gauge, CPU sparkline (1h RRD area chart)
-- Top 5 CPU & Top 5 Memory consumers across all running guests (with links to detail pages)
-- Recent tasks strip (last 8) with type, VMID, node, time, status badge
-- Skeleton loading states throughout
-- Global command palette (`Ctrl+K` / `⌘K`): search all cluster resources (VMs, CTs, nodes, storage), keyboard navigation, navigate on select
+Read our full `CONTRIBUTING.md` for coding standards, commit message conventions, and release workflow.
 
 ---
 
-### Virtual Machines
+## License
 
-#### All VMs (`/vms`)
-- Cross-node list of all QEMU VMs (templates excluded)
-- Columns: VMID, Name (with tag chips), Node, Status, CPU %, Memory, Uptime
-- Filters: node, status (All/Running/Stopped/Paused), tag, text search
-- Sortable columns (click header, toggle asc/desc)
-- Create VM button → full `CreateVMDialog` (node, VMID, name, OS type, cores, memory, disk size, storage, bridge)
-- Per-row actions: Start, Shutdown, Reboot, Force Stop, Console link, Delete (purge + confirm)
-- Multi-select + bulk operations: Start, Reboot, Shutdown, Force Stop, Delete (with confirm)
-
-#### VM Detail (`/nodes/:node/vms/:vmid`) — 10 tabs
-| Tab | Key Features |
-|-----|-------------|
-| **Summary** | Live status, CPU/mem/net/disk gauges, RRD performance charts (1h/24h), QEMU Guest Agent OS info, power actions (start/stop/shutdown/reboot/reset/suspend/resume), migrate, clone, convert to template |
-| **Hardware** | Full hardware config: CPU cores/sockets/type, memory, disk devices (add/resize/move/detach/delete), NICs (add/edit/delete with bridge/VLAN/rate/link_down disconnect toggle), CD-ROM, display, machine/BIOS type, PCI passthrough, USB passthrough |
-| **Agent** | Guest Agent data when running: OS info, network interfaces with IPs, filesystem mount points and usage |
-| **Snapshots** | Snapshot list, create (name, description, include RAM), delete with confirm, rollback with confirm, inline description editing (pencil icon) |
-| **Options** | Boot options, USB tablet, QEMU agent toggle, protection, on poweroff/reboot/shutdown behavior |
-| **Cloud-Init** | Cloud-Init: user, password, SSH keys, DNS domain, DNS servers, IP config per interface, regenerate drive button |
-| **Tasks** | Per-VM task history (last 100), expandable inline log viewer, running tasks with animated dot |
-| **Firewall** | Per-VM rules (IN/OUT, ACCEPT/DROP/REJECT, macro, protocol, src/dst IP, port, comment, enable toggle), firewall enable/disable, options edit |
-| **Backups** | List backups for this VM from storage, trigger manual backup (vzdump), restore from selected backup |
-| **Console** | noVNC console at `/nodes/:node/vms/:vmid/console` |
+ZypherCenter is licensed under the **MIT License**. See the `LICENSE` file for details.
 
 ---
 
-### Containers (LXC)
-
-#### All LXC (`/lxc`)
-- Cross-node list of all LXC containers (templates excluded)
-- Same filters, sort, and bulk operations as All VMs
-- Create LXC button → full `CreateLXCDialog` (node, VMID, hostname, password, memory, swap, cores, disk, storage, template, bridge, unprivileged, start-on-boot)
-
-#### LXC Detail (`/nodes/:node/lxc/:vmid`) — 7 tabs
-| Tab | Key Features |
-|-----|-------------|
-| **Summary** | Live status, resource gauges, RRD charts, power actions (start/stop/shutdown/reboot/suspend/resume), migrate, clone, convert to template |
-| **Config** | CPU cores, memory, swap, rootfs + mount points (add/resize/move/delete), NICs (add/edit/delete with bridge/VLAN/rate/link_down disconnect toggle), DNS, hostname, unprivileged toggle |
-| **Options** | Start on boot, protection, nesting, keyctl, fuse, mknod, console type, TTY count |
-| **Snapshots** | Create, delete, rollback, inline description editing (same UX as VM) |
-| **Firewall** | Per-CT rules (same structure as VM firewall), firewall enable/disable, options |
-| **Tasks** | Per-CT task history (last 100), expandable inline log viewer |
-| **Backups** | List backups, trigger manual backup (vzdump), restore from selected backup |
-| **Console** | noVNC console at `/nodes/:node/lxc/:vmid/console` |
-
----
-
-### Node Management
-
-#### Node Summary (`/nodes/:node`)
-- Node header: CPU model, PVE version, online status badge
-- Reboot / Shutdown buttons (with confirmation dialogs)
-- Stat cards: CPU usage, Memory used/total, Root FS used/total, Uptime, VM count, LXC count
-- Subscription info card (plan, status, expiry)
-- PCI device list
-- ZFS pool summary
-- Disk list summary
-- Recent node tasks
-- Performance history charts (CPU, Memory, Network) — 1h / 24h switchable
-
-#### Node Network (`/nodes/:node/network`)
-- Interface table: name, type, active, autostart, IPv4/IPv6, bridge ports / bond slaves, comment
-- Create Interface dialog: bridge, bond (slaves + 10 bond modes), VLAN, OVS variants; IPv4/IPv6 fields, MTU, autostart
-- Edit Interface: all fields including IPv6 address/prefix/gateway and bond slaves/mode
-- Delete Interface
-- Apply Configuration button
-- Revert pending changes button
-- Pending-changes indicator
-
-#### Node Disks (`/nodes/:node/disks`) — 3 tabs
-| Tab | Features |
-|-----|---------|
-| **Disks** | Physical disk table (device, model, serial, size, type, health); S.M.A.R.T. viewer modal (full attribute table); Init GPT; Wipe disk |
-| **ZFS** | ZFS pool table (name, state, size, alloc, free, scan status); Create pool (RAID level, disk selection); Scrub; Destroy pool |
-| **LVM** | LVM VG table (name, size, free); Create VG (device, name); Destroy VG. LVM-Thin pool table (LV name, VG, size, used); Create Thin pool (device, VG name, pool name); Destroy Thin pool |
-
-#### Node Firewall (`/nodes/:node/firewall`)
-- Firewall rules table: position, enabled, direction, action, macro/protocol, source/dest IPs & ports, comment
-- Add / Edit / Delete rules
-- Enable/disable individual rules (inline toggle)
-- Firewall options section: node-level enable/disable, default in/out policy, log settings
-
-#### Node Updates (`/nodes/:node/updates`)
-- Available APT package table (package, current version, new version, priority)
-- Check for updates button
-- Upgrade all packages button (only shown when updates available)
-
-#### Node Services (`/nodes/:node/services`)
-- System service table: name, description, state badge (running/dead/other)
-- Per-service actions (context-aware): Start, Stop (confirm), Restart, Reload
-- Per-row pending spinner during action
-
-#### Node Syslog (`/nodes/:node/syslog`)
-- Monospace syslog viewer with pagination (500 lines/page)
-- Client-side text filter
-- Auto-refresh toggle (5s / 10s / 30s / 60s) with pulsing indicator
-- Color-coded lines (red = error, amber = warning)
-
-#### Node Shell (`/nodes/:node/shell`)
-- Terminal/shell access via xterm.js (noVNC-style websocket connection)
-
-#### Node DNS (`/nodes/:node/dns`)
-- Current DNS search domain and nameservers
-- Edit DNS configuration
-
-#### Node Time (`/nodes/:node/time`)
-- Current timezone and system time
-- Update timezone and NTP config
-
-#### Node Certificates (`/nodes/:node/certificates`)
-- TLS certificate list (subject, type, expiry, SAN)
-- ACME account management
-- Order / renew ACME certificate
-- Revoke certificate
-
----
-
-### Storage
-
-#### Storage List (`/storage`)
-- Table of all cluster storage pools: ID, type, content types, status, used/total capacity bar
-- Create Storage dialog supporting all Proxmox storage types: `dir`, `nfs`, `cifs`, `btrfs`, `lvm`, `lvmthin`, `zfspool`, `rbd`, `cephfs`, `iscsi`, `iscsidirect`, `glusterfs`, `pbs` — with type-specific fields
-- Edit Storage (content types, nodes restriction, comment, disable)
-- Delete Storage
-
-#### Storage Detail (`/storage/:storageid`)
-- Capacity gauge (used/total)
-- Multi-node selector for shared storage
-- Content filter tabs: All / Templates / ISOs / Disk Images / Backups / Snippets
-- Sortable content table: volume ID, type icon, VMID, date, size
-- Multi-select + bulk delete
-- Upload ISO or CT template (file picker)
-- Download from URL (ISO / vztmpl, with filename override)
-- CT Template Catalog: browse official template list (`useNodeAplinfo`), filter by OS/arch/search, one-click download to storage
-- Restore VM or LXC from backup (detect type from filename, set target VMID/storage, unique IDs option, start-on-restore)
-- Prune backups
-
----
-
-### Cluster Features
-
-#### Global Tasks (`/tasks`)
-- All cluster tasks across all nodes
-- Filter by node and task type (dropdowns)
-- Expandable log viewer for each task (inline `<pre>` block)
-- Running tasks show animated pulsing dot
-
-#### Resource Pools (`/pools`)
-- Expandable pool table (ID, comment, member count)
-- Create pool, edit comment, delete pool
-- Expanded row shows members (VMs/CTs/storage) with type icon, name/link, node, status
-- Add member by VMID, remove member (per-type)
-
-#### Cluster Options (`/options`)
-- View and edit cluster-wide options (console type, keyboard layout, migration settings, etc.)
-
-#### Cluster Backup (`/backup`)
-- Scheduled backup jobs table (storage, schedule, mode, VM IDs, compression, enabled)
-- Inline enabled toggle
-- Create / Edit / Delete backup job
-
-#### Cluster Replication (`/replication`)
-- Replication job table (source VM, target node, schedule, last sync, enabled, status/error)
-- Inline enabled toggle
-- Create / Edit / Delete replication job
-
-#### Cluster Metrics (`/cluster/metrics`)
-- InfluxDB v1/v2 and Graphite metric server management
-- Create / Edit / Delete metric servers
-- Type-aware form: InfluxDB (server, port, protocol https/http/udp, organization, bucket, token, API path prefix); Graphite (server, port, protocol tcp/udp, path)
-- Disable toggle per server; status badge in table
-
-#### Cluster Notifications (`/cluster/notifications`) — 2 tabs
-| Tab | Features |
-|-----|----------|
-| **Endpoints** | SMTP (server, port, STARTTLS/TLS/insecure, credentials, from/to address); Gotify (URL, token); Create/Edit/Delete; type icon badge |
-| **Matchers** | Matchers with mode any/all, severity filter, target endpoint routing, comment, disable; Create/Edit/Delete; graceful fallback for PVE < 8.0 |
-
-#### Cluster ACME Plugins (`/cluster/acme`)
-- Standalone (HTTP) and DNS challenge plugin management
-- 120+ DNS provider dropdown (Cloudflare, AWS Route53, DigitalOcean, Hetzner, OVH, Porkbun, Namecheap, Vercel, etc.)
-- Credentials textarea (KEY=value per line) per DNS provider
-- Nodes restriction field (blank = all nodes)
-- Disable toggle per plugin; active/disabled status badge
-- Info card explaining usage and how to link to node certificate management
-
-#### Cluster Firewall (`/cluster/firewall`) — 5 tabs
-| Tab | Features |
-|-----|---------|
-| **Rules** | Cluster-level firewall rules; Create/Edit/Delete; enable toggle |
-| **Security Groups** | Named rule groups; Create/Delete group; Add/Edit/Delete rules within group |
-| **IP Sets** | Named IP/CIDR sets; Create/Delete set; Add/Edit/Delete IP entries |
-| **Aliases** | Named IP aliases; Create/Edit/Delete |
-| **Options** | Global enable/disable, default in/out policy, ebtables |
-
----
-
-### Software Defined Networking (`/sdn`) — 3 tabs
-| Tab | Features |
-|-----|---------|
-| **VNets** | VNet table (name, zone, VLAN tag, alias, VLAN-aware); Create/Edit/Delete VNet |
-| **Zones** | Zone table (ID, type, bridge, nodes, DNS); Create/Edit/Delete Zone |
-| **Subnets** | Subnet list per VNet; Create/Delete Subnet |
-- Apply SDN config button (activates pending changes cluster-wide)
-
----
-
-### High Availability (`/ha`) — 2 tabs
-| Tab | Features |
-|-----|---------|
-| **Resources** | HA-managed VMs/CTs (SID, group, state, max-restart, max-relocate); status panel per manager/LRM service; Add/Edit/Delete resource. **Add dialog** shows dropdown of all cluster VMs/CTs as `(VMID) — name [node]` instead of free-text input |
-| **Groups** | HA groups (ID, nodes, nofailback, restricted, comment); Create/Edit/Delete group |
-
----
-
-### Ceph Storage (`/cluster/ceph`) — 5 tabs
-| Tab | Features |
-|-----|----------|
-| **Status** | Cluster health (HEALTH_OK/WARN/ERR with checks), capacity gauge, IOPS and throughput sparkline charts, daemon counts (OSDs, Monitors, MDS, MGR) |
-| **OSDs** | OSD tree: per-OSD row (ID, host, status up/down/in/out with badges, device class, weight, capacity usage bar); Create OSD (device, WAL/DB device, node, encryption); Destroy OSD; Mark in/out. **Fixed:** now correctly uses flat `nodes` array (children are integer IDs) |
-| **Pools** | Pool list (name, type, size, PGs, used%, available); Create pool (name, type, size, PGs, autoscale mode, application); Edit pool; Delete pool. **Fixed:** correct endpoint `/ceph/pool` (singular), pool `type` now string enum |
-| **Monitors** | Monitor list (name, node, address, status, quorum rank); Create monitor (node selection); Destroy monitor |
-| **MDS** | MDS daemon list (name, node, state, rank); Create MDS (node, name); Destroy MDS |
-
----
-
-### Access Management
-| Page | Features |
-|------|---------|
-| **Users** (`/access/users`) | User table; Create user (username, realm, password, email, comment); Edit user (groups, expiry, email, enabled); Change password; Delete user |
-| **Groups** (`/access/groups`) | Group table (ID, comment, members); Create/Edit/Delete group |
-| **Roles** (`/access/roles`) | Role table (ID, privileges); Create/Delete role |
-| **ACL** (`/access/acl`) | ACL entry table (path, user/group, role, propagate); Add/Delete ACL entries |
-| **API Tokens** (`/access/tokens`) | Token list per user; Create token (comment, expiry, privilege separation); Delete token |
-| **Realms** (`/access/realms`) | Realm list (ID, type, comment); Create/Edit/Delete realm |
-
----
-
-## Not Yet Implemented
-
-### Recent Bug Fixes (commit `0b9eb80`)
-- **Root cause found for Ceph OSD "No OSDs found"** — inspected PVE source code (`PVE/API2/Ceph/OSD.pm`); the actual API response is `{ root: { leaf:0, children:[...nested objects...] }, flags? }`, NOT `{ nodes:[...flat...] }`. Previous implementation was based on wrong assumptions. Now uses `walkOSDTree()` recursive function that correctly traverses the nested tree PVE returns. OSD nodes already have `host` set by PVE and storage reported in bytes (`total_space`/`bytes_used`).
-- **Root cause found for dropdown invisible text** — `bg-bg-input` and `border-border-subtle` Tailwind classes referenced CSS variables (`--color-bg-input`, `--color-border-subtle`) that were never defined in `globals.css @theme`. Both variables now defined. Additionally added explicit `select { background-color; color }` and `select option { ... }` global CSS rules so Firefox on Linux also gets styled options.
-- **CephOSD type** — updated to `totalBytes`/`usedBytes`/`usedPct` (consistent bytes, not mixed kb/bytes)
-
-### Recent Bug Fixes (commit `163b65f`)
-- **Dropdown colors (round 2)** — moved `color-scheme: dark` to `:root`; added explicit `option { background/color }` rules; previous select-only rule was insufficient on Linux
-- **Ceph OSD extraction (round 1, incorrect assumption)** — attempted multi-strategy extraction; was still wrong because the actual API format was unknown at the time
-
-### Recent Bug Fixes (commit `1a47bf4`)
-- **HA Add Resource** — replaced free-text SID input with a dropdown listing all cluster VMs/CTs as `(VMID) — name [node]`
-- **Sidebar** — renamed ambiguous "Pools" nav item to "Resource Pools" to distinguish from Ceph pools
-
-### High Priority
-- **VM/LXC tags — inline create/delete** — the tag chips display but editing tags inline (add new tag, remove tag) is not wired up in the detail pages
-- **VM/LXC — PCI/USB device passthrough add/remove** — hardware tab shows existing devices but the add-new picker dialog is incomplete
-- **Cluster-wide resource usage graphs** — time-series graphs for the full cluster (not just per node) for capacity planning
-- **Ceph — Filesystem (CephFS) tab** — list, create, and manage CephFS filesystems and metadata server pools
-- **Ceph — RBD image browser** — browse and manage raw RBD images within pools
-
-### Medium Priority
-- **Node Backup (local vzdump schedule editor)** — node-level schedule editor separate from cluster backup jobs
-- **VM/LXC CPU/Disk I/O pinning** — NUMA config, CPU affinity, I/O thread count per disk controller in hardware tab
-- **LXC — device mappings** — adding `dev` and device-specific mounts not yet surfaced in Config tab
-- **CIFS/NFS storage mount options** — advanced storage creation options (version, cache mode, SMB min version) not fully exposed
-- **Storage — PBS job summaries** — show PBS datastore backup job summary (last run, next run, duration) in storage detail
-- **SDN — EVPN / BGP routing table** — view SDN routes and peer status for EVPN zone type
-- **HA — node fencing / watchdog config** — configure hardware watchdog and fencing agent settings
-- **Task log — download / export** — button to download a task's full log as a text file
-- **ACME — account management** — create/delete ACME accounts from the ACME plugins page (currently only via node certificates page)
-- **Notification endpoint — Sendmail** — Sendmail endpoint type is not yet exposed in the notifications UI (only SMTP and Gotify)
-
-### Low Priority / Polish
-- **Dark/light theme toggle** — currently dark-only; add a theme switcher persisted to localStorage
-- **User preferences panel** — column visibility toggles, table density (compact/normal/comfortable), default page
-- **Keyboard shortcuts help modal** — `?` key showing all global shortcuts beyond `Ctrl+K`
-- **Real-time event subscription** — replace polling with PVE's SSE event stream to reduce latency
-- **Mobile-responsive layout** — sidebar collapses but many tables need responsive treatment for small screens
-- **Breadcrumb navigation** — no breadcrumb component on detail pages; sidebar shows active state only
-- **Confirmation dialog component** — per-action confirmations use `window.confirm()`; replace with a proper modal
-- **Bulk edit** — bulk-select VMs/CTs to update tags, move to a pool, or change options in one action
-- **Audit log / access log** — dedicated page showing who logged in and what actions were performed
-- **Help tooltips** — contextual `?` tooltips on form fields explaining Proxmox-specific options
-- **Custom columns / preferences** — user-side column visibility and table density settings
+*Crafted with ❤️ by the Zypher Systems team.*

@@ -1,56 +1,135 @@
-@import '@fontsource-variable/inter';
+@import '@fontsource-variable/outfit';
+@import '@fontsource-variable/jetbrains-mono';
 @import 'tailwindcss';
+
+/* ── CSS Variables for Light / Dark mode ────────────────────────────────────── */
+:root {
+  /* Backgrounds — layered light surfaces */
+  --app-bg-base: #f4f4f5;
+  --app-bg-elevated: #ffffff;
+  --app-bg-card: #ffffff;
+  --app-bg-sidebar: #fafafa;
+  --app-bg-muted: #f4f4f5;
+  --app-bg-hover: #f4f4f5;
+  --app-bg-input: #ffffff;
+
+  /* Borders */
+  --app-border: #e4e4e7;
+  --app-border-muted: #f4f4f5;
+  --app-border-subtle: #f4f4f5;
+
+  /* Text */
+  --app-text-primary: #09090b;
+  --app-text-secondary: #52525b;
+  --app-text-muted: #71717a;
+  --app-text-disabled: #a1a1aa;
+
+  /* Accent — orange */
+  --app-accent: #ea580c;
+  --app-accent-hover: #c2410c;
+  --app-accent-muted: rgba(234, 88, 12, 0.12);
+  --app-accent-fg: #ffffff;
+
+  /* Status indicators */
+  --app-status-running: #22c55e;
+  --app-status-running-muted: rgba(34, 197, 94, 0.15);
+  --app-status-stopped: #71717a;
+  --app-status-stopped-muted: rgba(113, 113, 122, 0.15);
+  --app-status-paused: #eab308;
+  --app-status-paused-muted: rgba(234, 179, 8, 0.15);
+  --app-status-error: #ef4444;
+  --app-status-error-muted: rgba(239, 68, 68, 0.15);
+  --app-status-migrating: #3b82f6;
+  --app-status-migrating-muted: rgba(59, 130, 246, 0.15);
+  --app-status-unknown: #a1a1aa;
+}
+
+.dark {
+  /* Backgrounds — layered dark surfaces (Midnight Blue / Slate) */
+  --app-bg-base: #020617;     /* slate-950 */
+  --app-bg-elevated: #0f172a; /* slate-900 */
+  --app-bg-card: #0f172a;     /* slate-900 */
+  --app-bg-sidebar: #020617;  /* slate-950 */
+  --app-bg-muted: #1e293b;    /* slate-800 */
+  --app-bg-hover: #1e293b;    /* slate-800 */
+  --app-bg-input: #0f172a;    /* slate-900 */
+
+  /* Borders */
+  --app-border: #334155;      /* slate-700 */
+  --app-border-muted: #1e293b; /* slate-800 */
+  --app-border-subtle: #1e293b;/* slate-800 */
+
+  /* Text */
+  --app-text-primary: #f8fafc; /* slate-50 */
+  --app-text-secondary: #cbd5e1; /* slate-300 */
+  --app-text-muted: #94a3b8;   /* slate-400 */
+  --app-text-disabled: #64748b;/* slate-500 */
+
+  /* Accent — orange */
+  --app-accent: #ea580c;
+  --app-accent-hover: #c2410c;
+  --app-accent-muted: rgba(234, 88, 12, 0.12);
+  --app-accent-fg: #ffffff;
+
+  /* Status indicators */
+  --app-status-running: #22c55e;
+  --app-status-running-muted: rgba(34, 197, 94, 0.15);
+  --app-status-stopped: #94a3b8;
+  --app-status-stopped-muted: rgba(148, 163, 184, 0.15);
+  --app-status-paused: #eab308;
+  --app-status-paused-muted: rgba(234, 179, 8, 0.15);
+  --app-status-error: #ef4444;
+  --app-status-error-muted: rgba(239, 68, 68, 0.15);
+  --app-status-migrating: #3b82f6;
+  --app-status-migrating-muted: rgba(59, 130, 246, 0.15);
+  --app-status-unknown: #475569;
+}
 
 /* ── Design Tokens ──────────────────────────────────────────────────────────── */
 @theme {
-  /* Backgrounds — layered dark surfaces */
-  --color-bg-base: rgb(9 9 11);
-  --color-bg-elevated: rgb(15 15 18);
-  --color-bg-card: rgb(20 20 25);
-  --color-bg-sidebar: rgb(12 12 16);
-  --color-bg-muted: rgb(27 27 33);
-  --color-bg-hover: rgb(32 32 40);
-  --color-bg-input: rgb(18 18 23);
+  --color-bg-base: var(--app-bg-base);
+  --color-bg-elevated: var(--app-bg-elevated);
+  --color-bg-card: var(--app-bg-card);
+  --color-bg-sidebar: var(--app-bg-sidebar);
+  --color-bg-muted: var(--app-bg-muted);
+  --color-bg-hover: var(--app-bg-hover);
+  --color-bg-input: var(--app-bg-input);
 
-  /* Borders */
-  --color-border: rgb(39 39 50);
-  --color-border-muted: rgb(30 30 40);
-  --color-border-subtle: rgb(33 33 44);
+  --color-border: var(--app-border);
+  --color-border-muted: var(--app-border-muted);
+  --color-border-subtle: var(--app-border-subtle);
 
-  /* Text */
-  --color-text-primary: rgb(228 228 235);
-  --color-text-secondary: rgb(161 161 175);
-  --color-text-muted: rgb(113 113 130);
-  --color-text-disabled: rgb(71 71 85);
+  --color-text-primary: var(--app-text-primary);
+  --color-text-secondary: var(--app-text-secondary);
+  --color-text-muted: var(--app-text-muted);
+  --color-text-disabled: var(--app-text-disabled);
 
-  /* Accent — orange */
-  --color-accent: rgb(234 88 12);
-  --color-accent-hover: rgb(194 65 12);
-  --color-accent-muted: rgb(234 88 12 / 0.12);
-  --color-accent-fg: rgb(255 255 255);
+  --color-accent: var(--app-accent);
+  --color-accent-hover: var(--app-accent-hover);
+  --color-accent-muted: var(--app-accent-muted);
+  --color-accent-fg: var(--app-accent-fg);
 
-  /* Status indicators */
-  --color-status-running: rgb(34 197 94);
-  --color-status-running-muted: rgb(34 197 94 / 0.15);
-  --color-status-stopped: rgb(113 113 130);
-  --color-status-stopped-muted: rgb(113 113 130 / 0.15);
-  --color-status-paused: rgb(234 179 8);
-  --color-status-paused-muted: rgb(234 179 8 / 0.15);
-  --color-status-error: rgb(239 68 68);
-  --color-status-error-muted: rgb(239 68 68 / 0.15);
-  --color-status-migrating: rgb(59 130 246);
-  --color-status-migrating-muted: rgb(59 130 246 / 0.15);
-  --color-status-unknown: rgb(75 75 90);
+  --color-status-running: var(--app-status-running);
+  --color-status-running-muted: var(--app-status-running-muted);
+  --color-status-stopped: var(--app-status-stopped);
+  --color-status-stopped-muted: var(--app-status-stopped-muted);
+  --color-status-paused: var(--app-status-paused);
+  --color-status-paused-muted: var(--app-status-paused-muted);
+  --color-status-error: var(--app-status-error);
+  --color-status-error-muted: var(--app-status-error-muted);
+  --color-status-migrating: var(--app-status-migrating);
+  --color-status-migrating-muted: var(--app-status-migrating-muted);
+  --color-status-unknown: var(--app-status-unknown);
 
   /* Semantic colors */
-  --color-success: rgb(34 197 94);
-  --color-warning: rgb(234 179 8);
-  --color-danger: rgb(239 68 68);
-  --color-info: rgb(59 130 246);
+  --color-success: var(--app-status-running);
+  --color-warning: var(--app-status-paused);
+  --color-danger: var(--app-status-error);
+  --color-info: var(--app-status-migrating);
 
   /* Font */
-  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+  --font-sans: 'Outfit Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
 
   /* Radius */
   --radius-sm: 0.25rem;
@@ -79,12 +158,13 @@ body {
   min-height: 100dvh;
   line-height: 1.5;
   font-size: 0.875rem;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────────────── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgb(39 39 50) transparent;
+  scrollbar-color: var(--app-border) transparent;
 }
 *::-webkit-scrollbar {
   width: 6px;
@@ -94,11 +174,11 @@ body {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgb(39 39 50);
+  background: var(--app-border);
   border-radius: 3px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: rgb(60 60 75);
+  background: var(--app-text-muted);
 }
 
 /* ── Focus Visible ────────────────────────────────────────────────────────────── */
@@ -112,20 +192,18 @@ body {
   font-family: var(--font-mono);
 }
 
-/* Tell the browser the entire page is dark-mode so all native UI elements
-   (select dropdowns, scrollbars, date pickers, etc.) render accordingly. */
+/* Base color-scheme */
 :root {
+  color-scheme: light;
+}
+
+.dark {
   color-scheme: dark;
 }
 
-/* Explicit dark styling for native <select> and its options.
-   color-scheme on :root handles Chrome/Edge on Linux. The explicit
-   background/color below ensures Firefox on Linux also renders correctly
-   since Firefox uses CSS styles for option elements in the popup. */
 select {
   background-color: var(--color-bg-input);
   color: var(--color-text-primary);
-  color-scheme: dark;
 }
 
 select option {
@@ -135,6 +213,19 @@ select option {
 
 select option:checked,
 select option:hover {
-  background-color: rgb(40 40 55);
+  background-color: var(--color-bg-hover);
   color: var(--color-text-primary);
+}
+
+@utility glass {
+  background-color: color-mix(in srgb, var(--color-bg-elevated) 80%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+}
+
+@utility glass-panel {
+  background-color: color-mix(in srgb, var(--color-bg-card) 60%, transparent);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
 }

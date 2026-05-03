@@ -1,4 +1,5 @@
 import { useParams, Link } from 'react-router'
+import { useState } from 'react'
 import {
   Cpu,
   MemoryStick,
@@ -18,6 +19,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import { formatBytes, formatUptime, formatPercent, cn } from '@/lib/utils'
 import { NodeResourceCharts } from '@/components/features/ResourceCharts'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 export function NodeSummaryPage() {
   const { node } = useParams<{ node: string }>()
@@ -31,6 +33,7 @@ export function NodeSummaryPage() {
   const { data: nodeDisks } = useNodeDisks(node!)
   const { data: nodeStorage } = useNodeStorage(node!)
   const { data: tasks } = useNodeTasks(node!)
+  const [confirmAction, setConfirmAction] = useState<'reboot' | 'shutdown' | null>(null)
 
   if (isLoading) {
     return (
@@ -70,9 +73,7 @@ export function NodeSummaryPage() {
         <button
           type="button"
           disabled={nodePower.isPending}
-          onClick={() => {
-            if (confirm(`Reboot node ${node}?`)) nodePower.mutate('reboot')
-          }}
+          onClick={() => setConfirmAction('reboot')}
           className="inline-flex items-center gap-1.5 rounded border border-border-subtle px-2.5 py-1.5 text-xs text-text-secondary hover:border-accent/50 hover:text-text-primary disabled:opacity-50"
         >
           <RefreshCw className="size-3.5" />
@@ -81,15 +82,27 @@ export function NodeSummaryPage() {
         <button
           type="button"
           disabled={nodePower.isPending}
-          onClick={() => {
-            if (confirm(`Shutdown node ${node}? This will stop all guests.`)) nodePower.mutate('shutdown')
-          }}
+          onClick={() => setConfirmAction('shutdown')}
           className="inline-flex items-center gap-1.5 rounded border border-status-error/40 px-2.5 py-1.5 text-xs text-status-error hover:bg-status-error/10 disabled:opacity-50"
         >
           <Power className="size-3.5" />
           Shutdown
         </button>
       </div>
+      
+      <ConfirmDialog
+        open={confirmAction !== null}
+        onOpenChange={(open) => { if (!open) setConfirmAction(null) }}
+        title={confirmAction === 'reboot' ? `Reboot node ${node}?` : `Shutdown node ${node}?`}
+        description={confirmAction === 'shutdown' ? 'This will stop all guests.' : 'Are you sure you want to reboot this node?'}
+        variant={confirmAction === 'shutdown' ? 'destructive' : 'default'}
+        onConfirm={() => {
+          if (confirmAction) {
+            nodePower.mutate(confirmAction)
+            setConfirmAction(null)
+          }
+        }}
+      />
 
       {/* Resource summary cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -260,32 +273,8 @@ export function NodeSummaryPage() {
         </Card>
       )}
 
-      {/* PCI devices */}
-      {pciDevices && pciDevices.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">PCI Devices ({pciDevices.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-border-muted">
-              {pciDevices.map((dev) => (
-                <div key={dev.id} className="flex items-start gap-3 px-4 py-2.5">
-                  <span className="font-mono text-xs text-text-muted pt-0.5 shrink-0 w-24">{dev.id}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-text-primary truncate">
-                      {dev.device_name ?? dev.device ?? '—'}
-                    </p>
-                    <p className="text-xs text-text-muted truncate">
-                      {dev.vendor_name ?? dev.vendor ?? ''}{dev.iommugroup != null ? ` · IOMMU group ${dev.iommugroup}` : ''}{dev.mdev ? ' · mdev' : ''}
-                    </p>
-                  </div>
-                  <span className="text-xs text-text-muted font-mono shrink-0">{dev.class}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Performance history */}
+      <NodeResourceCharts node={node!} />
 
       {/* Node Storage */}
       {nodeStorage && nodeStorage.length > 0 && (
@@ -386,7 +375,9 @@ export function NodeSummaryPage() {
           <CardContent className="p-0">
             <div className="divide-y divide-border-muted">
               {nodeDisks.map((disk) => {
-                const healthColor = disk.health === 'PASSED' ? 'text-status-running'
+                const h = disk.health?.toUpperCase()
+                const healthColor = (h === 'PASSED' || h === 'OK') ? 'text-status-running'
+                  : (h === 'WARNING') ? 'text-status-warning'
                   : disk.health ? 'text-status-error'
                   : 'text-text-muted'
                 return (
@@ -489,8 +480,35 @@ export function NodeSummaryPage() {
         )
       })()}
 
-      {/* Performance history */}
-      <NodeResourceCharts node={node!} />
+      {/* PCI devices */}
+      {pciDevices && pciDevices.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">PCI Devices ({pciDevices.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border-muted">
+              {pciDevices.map((dev) => (
+                <div key={dev.id} className="flex items-start gap-3 px-4 py-2.5">
+                  <span className="font-mono text-xs text-text-muted pt-0.5 shrink-0 w-24">{dev.id}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-text-primary truncate">
+                      {dev.device_name ?? dev.device ?? '—'}
+                    </p>
+                    <p className="text-xs text-text-muted truncate">
+                      {dev.vendor_name ?? dev.vendor ?? ''}{dev.iommugroup != null ? ` · IOMMU group ${dev.iommugroup}` : ''}{dev.mdev ? ' · mdev' : ''}
+                    </p>
+                  </div>
+                  <span className="text-xs text-text-muted font-mono shrink-0">{dev.class}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+
+
     </div>
   )
 }
